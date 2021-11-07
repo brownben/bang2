@@ -1,0 +1,285 @@
+use crate::chunk::{Chunk, OpCode};
+use crate::compiler::compile;
+use crate::value;
+use crate::value::Value;
+use std::collections::HashMap;
+
+pub enum InterpreterResult {
+  OK,
+  RuntimeError,
+  ComplileError,
+}
+
+macro_rules! get_safe {
+  ( $x:expr  ) => {
+    match $x {
+      Some(value) => value,
+      None => break InterpreterResult::RuntimeError,
+    }
+  };
+}
+
+macro_rules! get_two_values {
+  ( $y:expr  ) => {
+    (get_safe!($y.pop()), get_safe!($y.pop()))
+  };
+}
+
+macro_rules! numeric_expression {
+  ( $vm:expr, $token:tt ) => {
+    numeric_expression!($vm, $token, Number)
+  };
+
+  ( $vm:expr, $token:tt, $type:tt ) => {
+    let (right, left) = get_two_values!($vm.stack);
+
+    if !left.is_number() || !right.is_number() {
+      $vm.runtime_error("Operands must be numbers.");
+      break InterpreterResult::RuntimeError;
+    }
+
+    $vm.stack.push(
+      Value::$type(
+        left.get_number_value()
+          $token
+        right.get_number_value()
+      )
+    );
+  };
+}
+
+pub struct VM {
+  stack: Vec<Value>,
+  globals: HashMap<String, Value>,
+}
+
+impl VM {
+  pub fn new() -> Self {
+    Self {
+      stack: Vec::new(),
+      globals: HashMap::new(),
+    }
+  }
+
+  fn peek_is_number(&self) -> bool {
+    self.stack.last().unwrap().is_number()
+  }
+
+  fn peek_is_falsy(&self) -> bool {
+    self.stack.last().unwrap().is_falsy()
+  }
+
+  fn peek_is_null(&self) -> bool {
+    self.stack.last().unwrap().is_null()
+  }
+
+  pub fn run(&mut self, chunk: &Chunk) -> InterpreterResult {
+    let mut ip = 0;
+
+    loop {
+      #[cfg(feature = "debug")]
+      {
+        println!("Stack={:?}", self.stack);
+      }
+
+      let instruction = chunk.get(ip);
+
+      match instruction {
+        Some(OpCode::Constant) => {
+          let constant_location = get_safe!(chunk.get_value(ip + 1));
+          let constant = get_safe!(chunk.get_constant(constant_location as usize));
+          self.stack.push(constant);
+          ip += 2;
+        }
+        Some(OpCode::ConstantLong) => {
+          let constant_location = get_safe!(chunk.get_long_value(ip + 1)) as u16;
+          let constant = get_safe!(chunk.get_constant(constant_location as usize));
+          self.stack.push(constant);
+          ip += 3;
+        }
+        Some(OpCode::Null) => {
+          self.stack.push(Value::Null);
+          ip += 1;
+        }
+        Some(OpCode::True) => {
+          self.stack.push(Value::Boolean(true));
+          ip += 1;
+        }
+        Some(OpCode::False) => {
+          self.stack.push(Value::Boolean(false));
+          ip += 1;
+        }
+        Some(OpCode::Add) => {
+          if self.peek_is_number() {
+            numeric_expression!(self, +);
+          } else {
+            let (right, left) = get_two_values!(self.stack);
+
+            if !left.is_string() || !right.is_string() {
+              self.runtime_error("Operands must be strings.");
+              break InterpreterResult::RuntimeError;
+            }
+
+            let concatenated = left.get_string_value() + &right.get_string_value();
+            self
+              .stack
+              .push(Value::String(concatenated.into_boxed_str()));
+          }
+
+          ip += 1;
+        }
+        Some(OpCode::Subtract) => {
+          numeric_expression!(self, -);
+          ip += 1;
+        }
+        Some(OpCode::Multiply) => {
+          numeric_expression!(self, *);
+          ip += 1;
+        }
+        Some(OpCode::Divide) => {
+          numeric_expression!(self, /);
+          ip += 1;
+        }
+        Some(OpCode::Negate) => {
+          let value = get_safe!(self.stack.pop());
+          match value {
+            Value::Number(n) => self.stack.push(Value::Number(-n)),
+            _ => self.runtime_error("Operand must be a number."),
+          }
+          ip += 1;
+        }
+        Some(OpCode::Not) => {
+          let value = get_safe!(self.stack.pop());
+          self.stack.push(Value::Boolean(value.is_falsy()));
+          ip += 1;
+        }
+
+        Some(OpCode::Equal) => {
+          let (right, left) = get_two_values!(self.stack);
+          self.stack.push(Value::Boolean(left.equals(&right)));
+          ip += 1;
+        }
+        Some(OpCode::Less) => {
+          numeric_expression!(self, <, Boolean);
+          ip += 1;
+        }
+        Some(OpCode::Greater) => {
+          numeric_expression!(self, >, Boolean);
+          ip += 1;
+        }
+
+        Some(OpCode::Print) => {
+          let value = get_safe!(self.stack.pop());
+          value::println(value);
+          ip += 1;
+        }
+        Some(OpCode::Pop) => {
+          self.stack.pop();
+          ip += 1;
+        }
+
+        Some(OpCode::DefineGlobal) => {
+          let name_location = get_safe!(chunk.get_value(ip + 1));
+          let name = get_safe!(chunk.get_constant(name_location as usize));
+
+          self
+            .globals
+            .insert(name.get_string_value(), self.stack.pop().unwrap());
+
+          ip += 2;
+        }
+        Some(OpCode::GetGlobal) => {
+          let name_location = get_safe!(chunk.get_value(ip + 1));
+          let name = get_safe!(chunk.get_constant(name_location as usize));
+
+          let value = self.globals.get(&name.get_string_value());
+
+          match value {
+            Some(value) => self.stack.push(value.clone()),
+            _ => {
+              let message = format!("Undefined variable '{}'", name.get_string_value());
+              self.runtime_error(&message);
+              break InterpreterResult::RuntimeError;
+            }
+          }
+
+          ip += 2;
+        }
+        Some(OpCode::SetGlobal) => {
+          let name_location = get_safe!(chunk.get_value(ip + 1));
+          let name = get_safe!(chunk.get_constant(name_location as usize));
+
+          if self.globals.contains_key(&name.get_string_value()) {
+            self
+              .globals
+              .insert(name.get_string_value(), self.stack.last().unwrap().clone());
+          } else {
+            let message = format!("Undefined variable '{}'", name.get_string_value());
+            self.runtime_error(&message);
+            break InterpreterResult::RuntimeError;
+          }
+
+          ip += 2;
+        }
+        Some(OpCode::GetLocal) => {
+          let slot = get_safe!(chunk.get_value(ip + 1));
+          self.stack.push(self.stack[slot as usize].clone());
+          ip += 2;
+        }
+        Some(OpCode::SetLocal) => {
+          let slot = get_safe!(chunk.get_value(ip + 1));
+          self.stack[slot as usize] = self.stack.last().unwrap().clone();
+          ip += 2;
+        }
+
+        Some(OpCode::JumpIfFalse) => {
+          let offset = get_safe!(chunk.get_long_value(ip + 1));
+          if self.peek_is_falsy() {
+            ip += offset as usize + 1;
+          } else {
+            ip += 3;
+          }
+        }
+        Some(OpCode::JumpIfNull) => {
+          let offset = get_safe!(chunk.get_long_value(ip + 1));
+          if self.peek_is_null() {
+            ip += offset as usize + 1;
+          } else {
+            ip += 3;
+          }
+        }
+        Some(OpCode::Jump) => {
+          let offset = get_safe!(chunk.get_long_value(ip + 1));
+          ip += offset as usize + 1;
+        }
+        Some(OpCode::Loop) => {
+          let offset = get_safe!(chunk.get_long_value(ip + 1));
+          ip -= offset as usize - 1;
+        }
+
+        Some(OpCode::Return) => {
+          break InterpreterResult::OK;
+        }
+        None => break InterpreterResult::RuntimeError,
+      }
+
+      if ip >= chunk.len() {
+        break InterpreterResult::OK;
+      }
+    }
+  }
+
+  pub fn interpret(&mut self, source: &str) -> InterpreterResult {
+    let (chunk, success) = compile(source);
+    if success {
+      self.run(&chunk)
+    } else {
+      InterpreterResult::ComplileError
+    }
+  }
+
+  fn runtime_error(&mut self, format: &str) {
+    println!("Runtime error: {}", format);
+    self.stack.clear();
+  }
+}
