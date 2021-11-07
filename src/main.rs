@@ -54,7 +54,7 @@ fn repl() {
 fn run_file(filename: &str) {
     if let Ok(file) = fs::read_to_string(filename) {
         let mut vm = VM::new();
-        let result: InterpreterResult = vm.interpret(&file);
+        let result = vm.interpret(&file);
 
         match result {
             InterpreterResult::ComplileError => exit(65),

@@ -61,16 +61,8 @@ impl VM {
     }
   }
 
-  fn peek_is_number(&self) -> bool {
-    self.stack.last().unwrap().is_number()
-  }
-
-  fn peek_is_falsy(&self) -> bool {
-    self.stack.last().unwrap().is_falsy()
-  }
-
-  fn peek_is_null(&self) -> bool {
-    self.stack.last().unwrap().is_null()
+  fn peek(&self) -> &Value {
+    self.stack.last().unwrap()
   }
 
   pub fn run(&mut self, chunk: &Chunk) -> InterpreterResult {
@@ -110,7 +102,7 @@ impl VM {
           ip += 1;
         }
         Some(OpCode::Add) => {
-          if self.peek_is_number() {
+          if self.peek().is_number() {
             numeric_expression!(self, +);
           } else {
             let (right, left) = get_two_values!(self.stack);
@@ -234,7 +226,7 @@ impl VM {
 
         Some(OpCode::JumpIfFalse) => {
           let offset = get_safe!(chunk.get_long_value(ip + 1));
-          if self.peek_is_falsy() {
+          if self.peek().is_falsy() {
             ip += offset as usize + 1;
           } else {
             ip += 3;
@@ -242,7 +234,7 @@ impl VM {
         }
         Some(OpCode::JumpIfNull) => {
           let offset = get_safe!(chunk.get_long_value(ip + 1));
-          if self.peek_is_null() {
+          if self.peek().is_null() {
             ip += offset as usize + 1;
           } else {
             ip += 3;
