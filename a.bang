@@ -1,14 +1,9 @@
 
-let a = 1
-let b = 2
-let c = 1
+
 let i = 1
 
 while (i < 11) {
+  let a = i
   print i
   i += 1
 }
-
-print c
-
-print false ?? 'hello'

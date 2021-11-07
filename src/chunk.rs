@@ -40,7 +40,7 @@ fn get_op_code(code: Option<&u8>) -> Option<OpCode> {
 }
 
 type TokensOnLine = u8;
-type Line = (LineNumber, u8);
+type Line = (LineNumber, TokensOnLine);
 struct LineInfo {
   lines: Vec<Line>,
   last: LineNumber,

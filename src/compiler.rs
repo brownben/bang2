@@ -97,6 +97,13 @@ impl Parser {
   }
 
   fn end_scope(&mut self) {
+    while let Some(value) = self.locals.last() {
+      if value.depth == self.scope_depth {
+        self.locals.pop();
+        self.emit_opcode(OpCode::Pop);
+      }
+    }
+
     self.scope_depth -= 1;
   }
 
