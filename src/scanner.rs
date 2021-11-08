@@ -61,6 +61,10 @@ pub enum TokenType {
   Return,
   While,
 
+  BlockStart,
+  BlockEnd,
+
+  Blank,
   Error,
   EndOfLine,
   EndOfFile,
@@ -96,10 +100,13 @@ impl Token {
 
 pub struct Scanner {
   chars: Vec<char>,
+
   start: MaxSourceLength,
   current: MaxSourceLength,
   line: LineNumber,
-  last_token_type: Option<TokenType>,
+
+  last_token_type: TokenType,
+  indentation: u8,
 }
 
 impl Scanner {
@@ -136,13 +143,13 @@ impl Scanner {
     self.chars.get(i)
   }
 
-  fn peek_comment_next_line(&self) -> Option<bool> {
+  fn is_next_line_comment(&self) -> bool {
     let mut i: usize = self.current;
     while let Some('\r' | '\t' | ' ' | '\n') = self.chars.get(i) {
       i += 1;
     }
 
-    Some(*self.chars.get(i)? == '/' && *self.chars.get(i + 1)? == '/')
+    matches!(self.chars.get(i), Some('/')) && matches!(self.chars.get(i + 1), Some('/'))
   }
 
   pub fn new(source: &str) -> Self {
@@ -151,23 +158,35 @@ impl Scanner {
       start: 0,
       current: 0,
       line: 1,
-      last_token_type: None,
+      last_token_type: TokenType::Blank,
+      indentation: 0,
     }
   }
 
   pub fn get_token(&mut self) -> Token {
     let token = self.find_token();
-    self.last_token_type = Some(token.token_type);
+    self.last_token_type = token.token_type;
     token
   }
 
   fn find_token(&mut self) -> Token {
-    skip_whitespace(self, false);
+    if self.last_token_type == TokenType::EndOfLine && !self.is_next_line_comment() {
+      let indentation = get_indentation(self);
+      if indentation > self.indentation {
+        self.indentation = indentation;
+        return make_token(self, TokenType::BlockStart);
+      } else if indentation < self.indentation {
+        self.indentation = indentation;
+        self.start = self.current;
+        return make_token(self, TokenType::BlockEnd);
+      }
+    } else {
+      skip_whitespace(self, false);
+    }
 
     let is_end_of_line = self.peek_equals('\n')
       && is_valid_line_end_token(self.last_token_type)
-      && (!is_invalid_line_start_character(self.peek_start_next_line())
-        || self.peek_comment_next_line().unwrap_or(false));
+      && !is_invalid_line_start_character(self);
 
     if !is_end_of_line && self.peek_equals('\n') {
       skip_whitespace(self, true)
@@ -280,6 +299,25 @@ fn skip_whitespace(scanner: &mut Scanner, skip_newlines: bool) {
   }
 }
 
+fn get_indentation(scanner: &mut Scanner) -> u8 {
+  let mut spaces = 0;
+  loop {
+    match scanner.peek() {
+      Some(' ') => {
+        spaces += 1;
+        scanner.advance()
+      }
+      Some('\t') => {
+        spaces += 2;
+        scanner.advance()
+      }
+      Some('\r') => scanner.advance(),
+      _ => break,
+    };
+  }
+  spaces >> 1
+}
+
 fn newline_token(scanner: &mut Scanner) -> Token {
   scanner.advance();
   scanner.start = scanner.current;
@@ -381,26 +419,30 @@ fn is_alpha(c: Option<&char>) -> bool {
   }
 }
 
-fn is_invalid_line_start_character(c: Option<&char>) -> bool {
-  match c {
-    Some(')' | ']' | '.' | ',' | '*' | '/' | '+' | '<' | '>' | '=' | '&' | '|' | ':') => true,
-    _ => false,
+fn is_invalid_line_start_character(scanner: &Scanner) -> bool {
+  if scanner.is_next_line_comment() {
+    false
+  } else {
+    match scanner.peek_start_next_line() {
+      Some(')' | ']' | '.' | ',' | '*' | '/' | '+' | '<' | '>' | '=' | '&' | '|' | ':' | '}') => {
+        true
+      }
+      _ => false,
+    }
   }
 }
 
-fn is_valid_line_end_token(token_type: Option<TokenType>) -> bool {
+fn is_valid_line_end_token(token_type: TokenType) -> bool {
   match token_type {
-    Some(
-      TokenType::RightParen
-      | TokenType::RightBrace
-      | TokenType::Identifier
-      | TokenType::String
-      | TokenType::Number
-      | TokenType::True
-      | TokenType::False
-      | TokenType::Null
-      | TokenType::Return,
-    ) => true,
+    TokenType::RightParen
+    | TokenType::RightBrace
+    | TokenType::Identifier
+    | TokenType::String
+    | TokenType::Number
+    | TokenType::True
+    | TokenType::False
+    | TokenType::Null
+    | TokenType::Return => true,
     _ => false,
   }
 }

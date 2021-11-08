@@ -1,7 +1,6 @@
 use crate::chunk::{Chunk, OpCode};
 use crate::scanner::{Scanner, Token, TokenType};
 use crate::value::Value;
-
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -444,7 +443,7 @@ fn var_declaration(parser: &mut Parser) {
 fn statement(parser: &mut Parser) {
   if parser.matches(TokenType::Print) {
     print_statement(parser);
-  } else if parser.matches(TokenType::LeftBrace) {
+  } else if parser.matches(TokenType::BlockStart) {
     parser.begin_scope();
     block(parser);
     parser.end_scope();
@@ -459,12 +458,12 @@ fn statement(parser: &mut Parser) {
 
 fn block(parser: &mut Parser) {
   while parser.current.unwrap().token_type != TokenType::EndOfFile
-    && parser.current.unwrap().token_type != TokenType::RightBrace
+    && parser.current.unwrap().token_type != TokenType::BlockEnd
   {
     declaration(parser);
   }
 
-  parser.consume(TokenType::RightBrace, "Expect '}' after block.");
+  parser.consume(TokenType::BlockEnd, "Expect end of block.");
   if parser.current.unwrap().token_type == TokenType::EndOfLine {
     parser.advance();
   }
@@ -483,12 +482,14 @@ fn if_statement(parser: &mut Parser) {
 
   let then_jump = emit_jump(parser, OpCode::JumpIfFalse);
   parser.emit_opcode(OpCode::Pop);
+  parser.matches(TokenType::EndOfLine);
   statement(parser);
 
   if parser.matches(TokenType::Else) {
     let else_jump = emit_jump(parser, OpCode::Jump);
     patch_jump(parser, then_jump);
     parser.emit_opcode(OpCode::Pop);
+    parser.matches(TokenType::EndOfLine);
     statement(parser);
     patch_jump(parser, else_jump);
   } else {
@@ -521,6 +522,8 @@ fn while_statement(parser: &mut Parser) {
 
   let exit_jump = emit_jump(parser, OpCode::JumpIfFalse);
   parser.emit_opcode(OpCode::Pop);
+
+  parser.matches(TokenType::EndOfLine);
   statement(parser);
 
   parser.emit_opcode(OpCode::Loop);
