@@ -552,10 +552,8 @@ fn expression(parser: &mut Parser) {
 fn string(parser: &mut Parser, _can_assign: bool) {
   if let Some(token) = &parser.previous {
     let token_value = token.get_value(&parser.scanner);
-    let value: Box<str> = token_value[1..token_value.len() - 1]
-      .to_string()
-      .into_boxed_str();
-    parser.emit_constant(Value::String(value));
+    let value = token_value[1..token_value.len() - 1].to_string();
+    parser.emit_constant(Value::from(value));
   }
 }
 
@@ -566,7 +564,7 @@ fn number(parser: &mut Parser, _can_assign: bool) {
       .replace("_", "")
       .parse()
       .unwrap();
-    parser.emit_constant(Value::Number(value));
+    parser.emit_constant(Value::from(value));
   }
 }
 
@@ -663,11 +661,11 @@ fn binary(parser: &mut Parser, _can_assign: bool) {
       parser.emit_opcode(OpCode::Not)
     }
     TokenType::GreaterEqual => {
-      parser.emit_opcode(OpCode::Greater);
+      parser.emit_opcode(OpCode::Less);
       parser.emit_opcode(OpCode::Not)
     }
     TokenType::LessEqual => {
-      parser.emit_opcode(OpCode::Less);
+      parser.emit_opcode(OpCode::Greater);
       parser.emit_opcode(OpCode::Not)
     }
 

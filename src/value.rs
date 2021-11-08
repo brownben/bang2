@@ -71,6 +71,28 @@ impl Value {
   }
 }
 
+impl From<bool> for Value {
+  fn from(value: bool) -> Self {
+    Self::Boolean(value)
+  }
+}
+
+impl From<f64> for Value {
+  fn from(value: f64) -> Self {
+    if !value.is_nan() {
+      Self::Number(value)
+    } else {
+      Self::Null
+    }
+  }
+}
+
+impl From<String> for Value {
+  fn from(value: String) -> Self {
+    Self::String(value.into_boxed_str())
+  }
+}
+
 pub fn print_optional(value: Option<Value>) {
   match value {
     Some(value) => print(value),

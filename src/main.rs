@@ -26,12 +26,12 @@ fn main() {
 
 fn repl() {
     let mut rl = Editor::<()>::new();
+    let mut vm = VM::new();
     loop {
         let readline = rl.readline("> ");
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                let mut vm = VM::new();
                 let line = line + "\n";
                 vm.interpret(&line);
             }

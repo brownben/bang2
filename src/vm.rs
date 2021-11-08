@@ -4,6 +4,7 @@ use crate::value;
 use crate::value::Value;
 use std::collections::HashMap;
 
+#[derive(Debug, PartialEq)]
 pub enum InterpreterResult {
   OK,
   RuntimeError,
@@ -50,7 +51,7 @@ macro_rules! numeric_expression {
 
 pub struct VM {
   stack: Vec<Value>,
-  globals: HashMap<String, Value>,
+  pub globals: HashMap<String, Value>,
 }
 
 impl VM {
@@ -94,11 +95,11 @@ impl VM {
           ip += 1;
         }
         Some(OpCode::True) => {
-          self.stack.push(Value::Boolean(true));
+          self.stack.push(Value::from(true));
           ip += 1;
         }
         Some(OpCode::False) => {
-          self.stack.push(Value::Boolean(false));
+          self.stack.push(Value::from(false));
           ip += 1;
         }
         Some(OpCode::Add) => {
@@ -113,9 +114,7 @@ impl VM {
             }
 
             let concatenated = left.get_string_value() + &right.get_string_value();
-            self
-              .stack
-              .push(Value::String(concatenated.into_boxed_str()));
+            self.stack.push(Value::from(concatenated));
           }
 
           ip += 1;
@@ -135,20 +134,20 @@ impl VM {
         Some(OpCode::Negate) => {
           let value = get_safe!(self.stack.pop());
           match value {
-            Value::Number(n) => self.stack.push(Value::Number(-n)),
+            Value::Number(n) => self.stack.push(Value::from(-n)),
             _ => self.runtime_error("Operand must be a number."),
           }
           ip += 1;
         }
         Some(OpCode::Not) => {
           let value = get_safe!(self.stack.pop());
-          self.stack.push(Value::Boolean(value.is_falsy()));
+          self.stack.push(Value::from(value.is_falsy()));
           ip += 1;
         }
 
         Some(OpCode::Equal) => {
           let (right, left) = get_two_values!(self.stack);
-          self.stack.push(Value::Boolean(left.equals(&right)));
+          self.stack.push(Value::from(left.equals(&right)));
           ip += 1;
         }
         Some(OpCode::Less) => {
