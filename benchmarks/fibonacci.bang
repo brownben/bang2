@@ -1,0 +1,8 @@
+let x = 0
+let y = 1
+
+let i = 0
+while (i < 36)
+  let z = x + y
+  x = y
+  y = z

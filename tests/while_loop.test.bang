@@ -1,0 +1,15 @@
+//=While Loop
+let x = 0
+while (x < 10)
+  x += 1
+
+//assert: x == 10
+
+
+//=While False
+let x = 0
+while (false)
+  x += 1
+
+//assert: x == 0
+

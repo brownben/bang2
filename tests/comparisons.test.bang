@@ -1,0 +1,151 @@
+//=Less Than Numbers
+let a = 3 < 4
+let b = 3 < 3
+let c = -5 < 5
+let d = 10 < -10
+
+//assert: a == true
+//assert: b == false
+//assert: c == true
+//assert: d == false
+
+
+//=Greater Than Numbers
+let a = 3 > 4
+let b = 3 > 3
+let c = -5 > 5
+let d = 10 > -10
+
+//assert: a == false
+//assert: b == false
+//assert: c == false
+//assert: d == true
+
+
+//=Less Than or Equal to Numbers
+let a = 3 <= 4
+let b = 3 <= 3
+let c = -5 <= 5
+let d = 10 <= -10
+
+//assert: a == true
+//assert: b == true
+//assert: c == true
+//assert: d == false
+
+
+//=Greater Than or Equal to Numbers
+let a = 3 >= 4
+let b = 3 >= 3
+let c = -5 >= 5
+let d = 10 >= -10
+
+//assert: a == false
+//assert: b == true
+//assert: c == false
+//assert: d == true
+
+
+//=Equality Numbers
+let a = 3 == 4
+let b = 3 == 3
+let c = -5 == 5
+
+//assert: a == false
+//assert: b == true
+//assert: c == false
+
+
+//=Equality Strings
+let a = 'hello' == "hello"
+let b = 'hello' == "goodbye"
+let c = 'hello' == 'hello!'
+let d = "hello" == "hello"
+
+//assert: a == true
+//assert: b == false
+//assert: c == false
+//assert: d == true
+
+
+//=Equality Boolean
+let a = true == true
+let b = true == false
+let c = false == false
+
+//assert: a == true
+//assert: b == false
+//assert: c == true
+
+
+//=Equality Null
+let a = null == null
+
+//assert: a == true
+
+
+//=No Equality Between Types
+let a = null == false
+let b = 0 == false
+let c = null == 0
+let d = '' == false
+let e = '0' == 0
+
+//assert: a == false
+//assert: b == false
+//assert: c == false
+//assert: d == false
+//assert: e == false
+
+
+//=Not Equal Numbers
+let a = 3 != 4
+let b = 3 != 3
+let c = -5 != 5
+
+//assert: a == true
+//assert: b == false
+//assert: c == true
+
+
+//=Not Equal Strings
+let a = 'hello' != "hello"
+let b = 'hello' != "goodbye"
+let c = 'hello' != 'hello!'
+let d = "hello" != "hello"
+
+//assert: a == false
+//assert: b == true
+//assert: c == true
+//assert: d == false
+
+
+//=Equality Boolean
+let a = true != true
+let b = true != false
+let c = false != false
+
+//assert: a == false
+//assert: b == true
+//assert: c == false
+
+
+//=Not Equal Null
+let a = null != null
+
+//assert: a == false
+
+
+//=Not Equals Between Types
+let a = null != false
+let b = 0 != false
+let c = null != 0
+let d = '' != false
+let e = '0' != 0
+
+//assert: a == true
+//assert: b == true
+//assert: c == true
+//assert: d == true
+//assert: e == true
+

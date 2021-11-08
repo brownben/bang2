@@ -1,0 +1,66 @@
+//=Not
+let a = !null
+let b = !""
+let c = !true
+let d = !false
+let e = !"Hello"
+let f = !0
+let g = !-1
+let h = !3
+
+//assert: a == true
+//assert: b == true
+//assert: c == false
+//assert: d == true
+//assert: e == false
+//assert: f == true
+//assert: g == false
+//assert: h == false
+
+
+//=And
+let a = false && true
+let b = false && false
+let c = true && true
+let d = true && false
+let e = null && "Hello"
+let f = true && "Hello"
+
+//assert: a == false
+//assert: b == false
+//assert: c == true
+//assert: d == false
+//assert: e == null
+//assert: f == "Hello"
+
+
+//=Or
+let a = false || true
+let b = false || false
+let c = true || true
+let d = true || false
+let e = null || "Hello"
+let f = true || "Hello"
+
+//assert: a == true
+//assert: b == false
+//assert: c == true
+//assert: d == true
+//assert: e == "Hello"
+//assert: f == true
+
+
+//=Nullish coalescing
+let a = false ?? true
+let b = null ?? false
+let c = true ?? false
+let d = null ?? "Hello"
+let e = true ?? "Hello"
+let f = 0 ?? "Hello"
+
+//assert: a == false
+//assert: b == false
+//assert: c == true
+//assert: d == "Hello"
+//assert: e == true
+//assert: f == 0

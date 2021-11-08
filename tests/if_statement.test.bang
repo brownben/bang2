@@ -1,0 +1,87 @@
+//=If Statement (Same Line)
+let x
+let y
+if (true) x = 10
+if (false) y = 20
+
+//assert: x == 10.0
+//assert: y == null
+
+//=If Statement (Block)
+let x
+let y
+if (true)
+  x = 10
+if (false)
+  y = 20
+
+//assert: x == 10.0
+//assert: y == null
+
+
+//=If-Else Statement (Same Line)
+let x
+let y
+if (true) x = 10
+else x = 5
+
+if (false) y = 20
+else y = 7
+
+//assert: x == 10.0
+//assert: y == 7.0
+
+
+//=If-Else Statement (Block)
+let x
+let y
+if (true)
+  x = 10
+else
+  x = 5
+
+if (false)
+  y = 20
+else
+  y = 7
+
+//assert: x == 10.0
+//assert: y == 7.0
+
+
+
+//=If/ Else If/ Else Statement
+let x
+
+if (false)
+  x = 10
+else if (true)
+  x = 7
+else
+  x = 5
+
+//assert: x == 7.0
+
+
+//=Dangling Else
+let x
+if (true)
+  if (false) x = "bad"
+  else x = "good"
+
+let y
+if (false)
+  if (true) y = "good"
+  else y = "bad"
+
+//assert: x == "good"
+//assert: y == null
+
+
+//=Assignment in Condition
+let a = false
+let x
+if (a = true) x = 7
+
+//assert: x == 7.0
+//assert: a == true

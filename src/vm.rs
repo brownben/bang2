@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub enum InterpreterResult {
   OK,
   RuntimeError,
-  ComplileError,
+  CompileError,
 }
 
 macro_rules! get_safe {
@@ -265,7 +265,7 @@ impl VM {
     if success {
       self.run(&chunk)
     } else {
-      InterpreterResult::ComplileError
+      InterpreterResult::CompileError
     }
   }
 

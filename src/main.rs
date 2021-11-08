@@ -57,7 +57,7 @@ fn run_file(filename: &str) {
         let result = vm.interpret(&file);
 
         match result {
-            InterpreterResult::ComplileError => exit(65),
+            InterpreterResult::CompileError => exit(65),
             InterpreterResult::RuntimeError => exit(70),
             _ => exit(0),
         }

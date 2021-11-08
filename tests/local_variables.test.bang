@@ -1,0 +1,39 @@
+//=Can Assign Local Variables
+let global
+  let local = 7
+  global = local
+
+//assert: global == 7
+
+
+//=Can Use Local Variables
+let global
+  let a = 2
+  let b = 3
+  let c = a + b
+  global = c / 2
+
+//assert: global == 2.5
+
+//=Shadows Higher Scopes
+let a
+let b
+
+let hello = 0
+if (hello == 0)
+  let hello = 1
+  a = hello + 1
+
+b = hello
+
+//assert: a == 2
+//assert: b == 0
+
+
+//=Define Variable Twice
+1 + 1
+  let hello = 0
+  let hello = 1
+
+
+//assert: CompileError
