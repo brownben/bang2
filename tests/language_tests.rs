@@ -62,7 +62,7 @@ fn test_bang_file(file: &str) {
     println!("Running test: {}", name);
 
     let mut vm = VM::new();
-    let result = vm.interpret(code);
+    let result = vm.interpret(code, String::from(name).trim().to_string());
 
     for assertion in get_variable_assertion(assertions) {
       match assertion {

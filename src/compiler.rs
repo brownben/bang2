@@ -1,6 +1,9 @@
 use crate::chunk::{Chunk, OpCode};
+use crate::error;
+use crate::error::Error;
 use crate::scanner::{Scanner, Token, TokenType};
 use crate::value::Value;
+use ariadne::{Label, Report, ReportKind, Source};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -61,9 +64,9 @@ struct Parser {
 }
 
 impl Parser {
-  fn new(source: &str) -> Self {
+  fn new(source: &str, from: String) -> Self {
     Self {
-      scanner: Scanner::new(source),
+      scanner: Scanner::new(source, from),
       chunk: Chunk::new(),
 
       current: None,
@@ -85,7 +88,7 @@ impl Parser {
       self.current = Some(token);
 
       match self.current.unwrap().token_type {
-        TokenType::Error => self.error_at_current(&self.current.unwrap().get_error()),
+        TokenType::Error => self.error_at_current(self.current.unwrap().error_value.unwrap()),
         _ => break,
       };
     }
@@ -115,19 +118,31 @@ impl Parser {
     }
   }
 
-  fn error_at_current(&mut self, message: &str) {
+  fn error_at_current(&mut self, message: Error) {
     self.error_at(self.current, message);
   }
 
-  fn error(&mut self, message: &str) {
+  fn error(&mut self, message: Error) {
     self.error_at(self.previous, message);
   }
 
-  fn error_at(&mut self, token: Option<Token>, message: &str) {
+  fn error_at(&mut self, token: Option<Token>, message: Error) {
     if !self.panic_mode {
       match token {
-        Some(token) => println!("[Line={}] Error: {}", token.line, message),
-        _ => println!("Error: {}", message),
+        Some(token) => {
+          let diagnostic = error::get_message(message, &self.scanner, &token);
+          let source: String = self.scanner.chars.iter().collect();
+          let file = &self.scanner.from;
+
+          Report::build(ReportKind::Error, file, token.start)
+            .with_message(diagnostic.message)
+            .with_label(Label::new((file, token.start..token.end)).with_message(diagnostic.label))
+            .with_note(diagnostic.note)
+            .finish()
+            .print((file, Source::from(source)))
+            .unwrap();
+        }
+        _ => println!("Error"),
       }
     }
 
@@ -135,7 +150,7 @@ impl Parser {
     self.had_error = true;
   }
 
-  fn consume(&mut self, token_type: TokenType, message: &str) {
+  fn consume(&mut self, token_type: TokenType, message: Error) {
     if self.current.is_none() || self.current.unwrap().token_type != token_type {
       self.error_at_current(message);
     } else {
@@ -188,7 +203,7 @@ impl Parser {
       self.emit_opcode(OpCode::ConstantLong);
       self.emit_long_value(constant_position as u16);
     } else {
-      self.error("Too many constants in one chunk.");
+      self.error(Error::TooManyConstants);
     }
   }
 
@@ -198,18 +213,18 @@ impl Parser {
     if constant_position <= u8::max_value() as usize {
       self.emit_value(constant_position as u8);
     } else {
-      self.error("Too many constants in one chunk.");
+      self.error(Error::TooManyConstants);
     }
   }
 }
 
-pub fn compile(source: &str) -> (Chunk, bool) {
+pub fn compile(source: &str, from: String) -> (Chunk, bool) {
   #[cfg(feature = "debug")]
   {
-    scanner::print_tokens(source);
+    scanner::print_tokens(source, String::from(&from));
   }
 
-  let mut parser = Parser::new(source);
+  let mut parser = Parser::new(source, from);
 
   parser.advance();
 
@@ -217,7 +232,7 @@ pub fn compile(source: &str) -> (Chunk, bool) {
     declaration(&mut parser);
   }
 
-  parser.consume(TokenType::EndOfFile, "Expect end of expression.");
+  parser.consume(TokenType::EndOfFile, Error::MissingEndOfFile);
   parser.end_compiler();
 
   (parser.chunk, !parser.had_error)
@@ -371,7 +386,7 @@ fn parse_precedence(parser: &mut Parser, precedence: Precedence) {
 
   let prefix_rule = get_rule(token).prefix;
   if prefix_rule.is_none() {
-    parser.error("Expect expression.");
+    parser.error(Error::ExpectedExpression);
     return;
   }
 
@@ -387,7 +402,7 @@ fn parse_precedence(parser: &mut Parser, precedence: Precedence) {
   }
 
   if can_assign && parser.matches(TokenType::Equal) {
-    parser.error("Invalid assignment target.");
+    parser.error(Error::InvalidAssignmentTarget);
   }
 }
 
@@ -404,7 +419,8 @@ fn declaration(parser: &mut Parser) {
 }
 
 fn var_declaration(parser: &mut Parser) {
-  parser.consume(TokenType::Identifier, "Expect variable name.");
+  parser.consume(TokenType::Identifier, Error::MissingVariableName);
+  let identifier = parser.previous;
   let variable_name = parser.previous.unwrap().get_value(&parser.scanner);
 
   if parser.matches(TokenType::Equal) {
@@ -413,10 +429,7 @@ fn var_declaration(parser: &mut Parser) {
     parser.emit_opcode(OpCode::Null);
   }
 
-  parser.consume(
-    TokenType::EndOfLine,
-    "Expect new line after variable declaration.",
-  );
+  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine);
 
   if parser.scope_depth > 0 {
     if parser
@@ -424,10 +437,7 @@ fn var_declaration(parser: &mut Parser) {
       .iter()
       .any(|local| local.name == variable_name && local.depth == parser.scope_depth)
     {
-      parser.error(&format!(
-        "Variable with name '{}' already declared in this scope.",
-        variable_name
-      ));
+      parser.error_at(identifier, Error::VariableAlreadyExists);
     } else {
       parser.locals.push(Local {
         name: variable_name,
@@ -463,7 +473,7 @@ fn block(parser: &mut Parser) {
     declaration(parser);
   }
 
-  parser.consume(TokenType::BlockEnd, "Expect end of block.");
+  parser.consume(TokenType::BlockEnd, Error::ExpectedEndOfBlock);
   if parser.current.unwrap().token_type == TokenType::EndOfLine {
     parser.advance();
   }
@@ -471,14 +481,14 @@ fn block(parser: &mut Parser) {
 
 fn print_statement(parser: &mut Parser) {
   expression(parser);
-  parser.consume(TokenType::EndOfLine, "Expect new line after value.");
+  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine);
   parser.emit_opcode(OpCode::Print);
 }
 
 fn if_statement(parser: &mut Parser) {
-  parser.consume(TokenType::LeftParen, "Expect '(' after 'if'.");
+  parser.consume(TokenType::LeftParen, Error::MissingBracketBeforeCondition);
   expression(parser);
-  parser.consume(TokenType::RightParen, "Expect ')' after condition.");
+  parser.consume(TokenType::RightParen, Error::MissingBracketAfterCondition);
 
   let then_jump = emit_jump(parser, OpCode::JumpIfFalse);
   parser.emit_opcode(OpCode::Pop);
@@ -507,7 +517,7 @@ fn patch_jump(parser: &mut Parser, offset: usize) {
   let jump = parser.chunk.len() - offset;
 
   if jump > u16::MAX as usize {
-    parser.error("Too much code to jump over.");
+    parser.error(Error::TooBigJump);
   }
 
   parser.chunk.code[offset] = (jump >> 8) as u8;
@@ -516,9 +526,9 @@ fn patch_jump(parser: &mut Parser, offset: usize) {
 
 fn while_statement(parser: &mut Parser) {
   let loop_start = parser.chunk.len();
-  parser.consume(TokenType::LeftParen, "Expect '(' after 'while'.");
+  parser.consume(TokenType::LeftParen, Error::MissingBracketBeforeCondition);
   expression(parser);
-  parser.consume(TokenType::RightParen, "Expect ')' after condition.");
+  parser.consume(TokenType::RightParen, Error::MissingBracketAfterCondition);
 
   let exit_jump = emit_jump(parser, OpCode::JumpIfFalse);
   parser.emit_opcode(OpCode::Pop);
@@ -530,7 +540,7 @@ fn while_statement(parser: &mut Parser) {
 
   let offset = parser.chunk.len() - loop_start;
   if offset > u16::MAX as usize {
-    parser.error("Loop body too large.");
+    parser.error(Error::TooBigJump);
   } else {
     parser.emit_long_value(offset as u16);
   }
@@ -541,7 +551,7 @@ fn while_statement(parser: &mut Parser) {
 
 fn expression_statement(parser: &mut Parser) {
   expression(parser);
-  parser.consume(TokenType::EndOfLine, "Expect new line after expression.");
+  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine);
   parser.emit_opcode(OpCode::Pop);
 }
 
@@ -626,7 +636,7 @@ fn variable(parser: &mut Parser, can_assign: bool) {
 
 fn grouping(parser: &mut Parser, _can_assign: bool) {
   expression(parser);
-  parser.consume(TokenType::RightParen, "Expect ')' after expression.");
+  parser.consume(TokenType::RightParen, Error::ExpectedBracket);
 }
 
 fn unary(parser: &mut Parser, _can_assign: bool) {

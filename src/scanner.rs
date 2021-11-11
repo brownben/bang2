@@ -1,11 +1,7 @@
 pub type LineNumber = u16;
 pub type MaxSourceLength = usize;
 
-#[derive(Debug, Clone, Copy)]
-pub enum ScannerError {
-  UnterminatedString,
-  UnexpectedCharacter,
-}
+use crate::error::Error;
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum TokenType {
@@ -76,7 +72,7 @@ pub struct Token {
   pub line: LineNumber,
   pub start: MaxSourceLength,
   pub end: MaxSourceLength,
-  pub error_value: Option<ScannerError>,
+  pub error_value: Option<Error>,
 }
 
 impl Token {
@@ -88,18 +84,11 @@ impl Token {
       .iter()
       .collect::<String>()
   }
-
-  pub fn get_error(&self) -> &str {
-    match self.error_value {
-      Some(ScannerError::UnterminatedString) => "Unterminated string",
-      Some(ScannerError::UnexpectedCharacter) => "Unexpected character",
-      None => "",
-    }
-  }
 }
 
 pub struct Scanner {
-  chars: Vec<char>,
+  pub chars: Vec<char>,
+  pub from: String,
 
   start: MaxSourceLength,
   current: MaxSourceLength,
@@ -152,9 +141,10 @@ impl Scanner {
     matches!(self.chars.get(i), Some('/')) && matches!(self.chars.get(i + 1), Some('/'))
   }
 
-  pub fn new(source: &str) -> Self {
+  pub fn new(source: &str, from: String) -> Self {
     Self {
       chars: source.chars().collect(),
+      from: from,
       start: 0,
       current: 0,
       line: 1,
@@ -225,7 +215,7 @@ impl Scanner {
           '=' => make_token(self, TokenType::Equal),
           '<' => make_token(self, TokenType::Less),
           '>' => make_token(self, TokenType::Greater),
-          _ => error_token(self, ScannerError::UnexpectedCharacter),
+          _ => error_token(self, Error::UnknownCharacter),
         }
       }
     }
@@ -259,7 +249,7 @@ fn make_token(scanner: &Scanner, token_type: TokenType) -> Token {
   }
 }
 
-fn error_token(scanner: &Scanner, error: ScannerError) -> Token {
+fn error_token(scanner: &Scanner, error: Error) -> Token {
   Token {
     token_type: TokenType::Error,
     line: scanner.line,
@@ -334,14 +324,14 @@ fn string_token(scanner: &mut Scanner, quote: char) -> Token {
     if scanner.peek_equals('\n') && quote == '`' {
       scanner.line += 1
     } else if scanner.peek_equals('\n') {
-      return error_token(scanner, ScannerError::UnterminatedString);
+      return error_token(scanner, Error::UnterminatedString);
     }
 
     scanner.advance();
   }
 
   if scanner.at_end() {
-    error_token(scanner, ScannerError::UnterminatedString)
+    error_token(scanner, Error::UnterminatedString)
   } else {
     scanner.advance(); // closing quote
     make_token(scanner, TokenType::String)
@@ -374,7 +364,7 @@ fn identifier_token(scanner: &mut Scanner) -> Token {
 
 fn identifier_type(scanner: &Scanner) -> TokenType {
   match scanner.chars[scanner.start] {
-    'a' => check_keyword(scanner, "end", TokenType::And),
+    'a' => check_keyword(scanner, "and", TokenType::And),
     'e' => check_keyword(scanner, "else", TokenType::Else),
     'f' => match scanner.chars[scanner.start + 1] {
       'a' => check_keyword(scanner, "false", TokenType::False),
@@ -449,8 +439,8 @@ fn is_valid_line_end_token(token_type: TokenType) -> bool {
 
 // Print Tokens
 #[cfg(feature = "debug")]
-pub fn print_tokens(source: &str) {
-  let mut scanner = Scanner::new(source);
+pub fn print_tokens(source: &str, from: String) {
+  let mut scanner = Scanner::new(source, from);
   let mut line = 0;
 
   println!("\n=== Tokens ===");

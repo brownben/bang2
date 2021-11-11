@@ -260,8 +260,8 @@ impl VM {
     }
   }
 
-  pub fn interpret(&mut self, source: &str) -> InterpreterResult {
-    let (chunk, success) = compile(source);
+  pub fn interpret(&mut self, source: &str, from: String) -> InterpreterResult {
+    let (chunk, success) = compile(source, from);
     if success {
       self.run(&chunk)
     } else {
