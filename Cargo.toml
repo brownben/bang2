@@ -15,4 +15,7 @@ ariadne = "0.1.3"
 regex = "1.5.4"
 
 [features]
-debug = []
+debug-token = []
+debug-bytecode = []
+debug-stack = []
+debug = ["debug-token", "debug-bytecode", "debug-stack"]

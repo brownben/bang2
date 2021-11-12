@@ -7,9 +7,9 @@ use ariadne::{Label, Report, ReportKind, Source};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-#[cfg(feature = "debug")]
+#[cfg(feature = "debug-bytecode")]
 use crate::chunk;
-#[cfg(feature = "debug")]
+#[cfg(feature = "debug-token")]
 use crate::scanner;
 
 #[derive(Debug, FromPrimitive, PartialOrd, PartialEq)]
@@ -159,10 +159,14 @@ impl Parser {
   }
 
   fn end_compiler(&mut self) {
-    #[cfg(feature = "debug")]
+    #[cfg(feature = "debug-bytecode")]
     {
       chunk::disassemble(&self.chunk, "Bytecode");
       println!();
+    }
+
+    while self.scope_depth > 0 {
+      self.end_scope();
     }
 
     self.emit_opcode(OpCode::Return);
@@ -219,7 +223,7 @@ impl Parser {
 }
 
 pub fn compile(source: &str, from: String) -> (Chunk, bool) {
-  #[cfg(feature = "debug")]
+  #[cfg(feature = "debug-token")]
   {
     scanner::print_tokens(source, String::from(&from));
   }

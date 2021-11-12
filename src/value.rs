@@ -87,6 +87,17 @@ impl From<f64> for Value {
   }
 }
 
+impl std::fmt::Display for Value {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      Value::Boolean(value) => write!(f, "{}", value),
+      Value::Null => write!(f, "null"),
+      Value::Number(value) => write!(f, "{}", value),
+      Value::String(value) => write!(f, "{}", value),
+    }
+  }
+}
+
 impl From<String> for Value {
   fn from(value: String) -> Self {
     Self::String(value.into_boxed_str())
@@ -95,25 +106,7 @@ impl From<String> for Value {
 
 pub fn print_optional(value: Option<Value>) {
   match value {
-    Some(value) => print(value),
+    Some(value) => print!("{}", value),
     None => print!(""),
-  }
-}
-
-pub fn print(value: Value) {
-  match value {
-    Value::Boolean(value) => print!("{}", value),
-    Value::Null => print!("null"),
-    Value::Number(value) => print!("{}", value),
-    Value::String(value) => print!("{}", value),
-  }
-}
-
-pub fn println(value: Value) {
-  match value {
-    Value::Boolean(value) => println!("{}", value),
-    Value::Null => println!("null"),
-    Value::Number(value) => println!("{}", value),
-    Value::String(value) => println!("{}", value),
   }
 }

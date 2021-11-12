@@ -1,6 +1,6 @@
 use crate::chunk::{Chunk, OpCode};
 use crate::compiler::compile;
-use crate::value;
+
 use crate::value::Value;
 use std::collections::HashMap;
 
@@ -70,7 +70,7 @@ impl VM {
     let mut ip = 0;
 
     loop {
-      #[cfg(feature = "debug")]
+      #[cfg(feature = "debug-stack")]
       {
         println!("Stack={:?}", self.stack);
       }
@@ -161,7 +161,7 @@ impl VM {
 
         Some(OpCode::Print) => {
           let value = get_safe!(self.stack.pop());
-          value::println(value);
+          println!("{}", value);
           ip += 1;
         }
         Some(OpCode::Pop) => {

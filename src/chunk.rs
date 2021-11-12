@@ -180,19 +180,29 @@ impl Chunk {
 /* Disassembler */
 #[allow(dead_code)]
 pub fn disassemble(chunk: &Chunk, name: &str) {
-  println!("\n=== {} ===", name);
+  println!("          ╭─[{}]", name);
 
   let mut position: usize = 0;
+  let mut last_line_number = 0;
+
   while position < chunk.len() {
+    let line_number = chunk.lines.get(position);
+    if line_number == last_line_number {
+      print!("     ");
+    } else {
+      print!("{:<4} ", line_number);
+      last_line_number = line_number;
+    }
+
     position = disassemble_instruction(chunk, position)
   }
+  print!("──────────╯\n");
 }
 
 pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
   let instruction = get_op_code(chunk.code.get(position));
-  let line_number = chunk.lines.get(position);
 
-  print!("{:0>4} [Line={}] ", position, line_number);
+  print!("{:0>4} │ ", position);
 
   match instruction {
     Some(OpCode::Constant) => constant_instruction("Constant", chunk, position),

@@ -438,23 +438,24 @@ fn is_valid_line_end_token(token_type: TokenType) -> bool {
 }
 
 // Print Tokens
-#[cfg(feature = "debug")]
+#[cfg(feature = "debug-token")]
 pub fn print_tokens(source: &str, from: String) {
   let mut scanner = Scanner::new(source, from);
   let mut line = 0;
 
-  println!("\n=== Tokens ===");
+  println!("     ╭─[Tokens]");
   loop {
     let token = scanner.get_token();
     if token.line != line {
-      print!("{:>4} ", token.line);
+      print!("{:>4} │ ", token.line);
       line = token.line;
     } else {
-      print!("   | ");
+      print!("     │ ");
     }
     print!("{:?} ({})\n", token.token_type, token.get_value(&scanner));
 
     if token.token_type == TokenType::EndOfFile {
+      print!("─────╯\n");
       break;
     }
   }
