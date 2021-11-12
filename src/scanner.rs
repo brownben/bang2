@@ -141,10 +141,10 @@ impl Scanner {
     matches!(self.chars.get(i), Some('/')) && matches!(self.chars.get(i + 1), Some('/'))
   }
 
-  pub fn new(source: &str, from: String) -> Self {
+  pub fn new(source: &str, from: &str) -> Self {
     Self {
       chars: source.chars().collect(),
-      from: from,
+      from: String::from(from),
       start: 0,
       current: 0,
       line: 1,
@@ -439,7 +439,7 @@ fn is_valid_line_end_token(token_type: TokenType) -> bool {
 
 // Print Tokens
 #[cfg(feature = "debug-token")]
-pub fn print_tokens(source: &str, from: String) {
+pub fn print_tokens(source: &str, from: &str) {
   let mut scanner = Scanner::new(source, from);
   let mut line = 0;
 

@@ -34,8 +34,7 @@ fn repl() {
         match readline {
             Ok(line) => {
                 rl.add_history_entry(line.as_str());
-                let line = line + "\n";
-                vm.interpret(&line, String::from("repl"));
+                vm.interpret(&format!("{} \n", line), "repl");
             }
             Err(ReadlineError::Interrupted) => {
                 println!("CTRL-C");
@@ -56,7 +55,7 @@ fn repl() {
 fn run_file(filename: &str) {
     if let Ok(file) = fs::read_to_string(filename) {
         let mut vm = VM::new();
-        let result = vm.interpret(&file, String::from(filename));
+        let result = vm.interpret(&file, filename);
 
         match result {
             InterpreterResult::CompileError => exit(65),

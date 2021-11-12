@@ -62,7 +62,7 @@ impl LineInfo {
     } else {
       self.lines.push((self.last, self.repeated));
       self.last = line;
-      self.repeated = 0;
+      self.repeated = 1;
     }
   }
 
@@ -71,19 +71,18 @@ impl LineInfo {
     let mut count = 0;
     let mut line = 0;
 
-    while count <= opcode_position && line < length {
+    while line < length {
       let (_, repeated) = self.lines[line];
-      count += repeated as usize;
-      line += 1;
+      count += repeated;
+
+      if count > opcode_position as u8 {
+        break;
+      } else {
+        line += 1;
+      }
     }
 
-    if length == 0 {
-      1
-    } else if line == length {
-      self.lines[length - 1].0
-    } else {
-      self.lines[line].0
-    }
+    self.lines[line].0
   }
 
   fn finalize(&mut self) {
@@ -246,11 +245,25 @@ fn constant_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
     None => (0, None),
   };
 
-  print!("{}  ({}) '", name, constant_location);
+  print!("{} '", name);
   value::print_optional(constant);
-  print!("'  \n");
+  print!("' ({})\n", constant_location);
 
   position + 2
+}
+
+
+fn constant_long_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
+  let (constant_location, constant) = match chunk.get_long_value(position + 1) {
+    Some(value) => (value, chunk.get_constant(value as usize)),
+    None => (0, None),
+  };
+
+  print!("{} '", name);
+  value::print_optional(constant);
+  print!("' ({})\n", constant_location);
+
+  position + 3
 }
 
 fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
@@ -259,22 +272,9 @@ fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
     None => 0,
   };
 
-  print!("{}  {} \n", name, value);
+  print!("{} {}\n", name, value);
 
   position + 2
-}
-
-fn constant_long_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
-  let (constant_location, constant) = match chunk.get_long_value(position + 1) {
-    Some(value) => (value, chunk.get_constant(value as usize)),
-    None => (0, None),
-  };
-
-  print!("{}  ({}) '", name, constant_location);
-  value::print_optional(constant);
-  print!("'  \n");
-
-  position + 3
 }
 
 fn jump_instruction(name: &str, direction: i8, chunk: &Chunk, position: usize) -> usize {
@@ -283,7 +283,7 @@ fn jump_instruction(name: &str, direction: i8, chunk: &Chunk, position: usize) -
     _ => 0,
   };
 
-  print!("{}  {} \n", name, jump as i32 * direction as i32);
+  print!("{} {}\n", name, jump as i32 * direction as i32);
 
   position + 3
 }

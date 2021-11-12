@@ -64,7 +64,7 @@ struct Parser {
 }
 
 impl Parser {
-  fn new(source: &str, from: String) -> Self {
+  fn new(source: &str, from: &str) -> Self {
     Self {
       scanner: Scanner::new(source, from),
       chunk: Chunk::new(),
@@ -159,18 +159,15 @@ impl Parser {
   }
 
   fn end_compiler(&mut self) {
-    #[cfg(feature = "debug-bytecode")]
-    {
-      chunk::disassemble(&self.chunk, "Bytecode");
-      println!();
-    }
-
     while self.scope_depth > 0 {
       self.end_scope();
     }
 
     self.emit_opcode(OpCode::Return);
     self.chunk.finalize();
+
+    #[cfg(feature = "debug-bytecode")]
+    chunk::disassemble(&self.chunk, "Bytecode");
   }
 }
 
@@ -222,11 +219,10 @@ impl Parser {
   }
 }
 
-pub fn compile(source: &str, from: String) -> (Chunk, bool) {
+pub fn compile(source: &str, from: &str) -> (Chunk, bool) {
   #[cfg(feature = "debug-token")]
-  {
-    scanner::print_tokens(source, String::from(&from));
-  }
+  scanner::print_tokens(source, from);
+
 
   let mut parser = Parser::new(source, from);
 

@@ -27,15 +27,15 @@ macro_rules! get_two_values {
 }
 
 macro_rules! numeric_expression {
-  ( $vm:expr, $token:tt ) => {
-    numeric_expression!($vm, $token, Number)
+  ( $vm:expr, $token:tt, $ip:expr ) => {
+    numeric_expression!($vm, $token, Number, $ip)
   };
 
-  ( $vm:expr, $token:tt, $type:tt ) => {
+  ( $vm:expr, $token:tt, $type:tt, $ip:expr ) => {
     let (right, left) = get_two_values!($vm.stack);
 
     if !left.is_number() || !right.is_number() {
-      $vm.runtime_error("Operands must be numbers.");
+      $vm.runtime_error("Both operands must be numbers.", $ip);
       break InterpreterResult::RuntimeError;
     }
 
@@ -68,7 +68,6 @@ impl VM {
 
   pub fn run(&mut self, chunk: &Chunk) -> InterpreterResult {
     let mut ip = 0;
-
     loop {
       #[cfg(feature = "debug-stack")]
       {
@@ -104,12 +103,12 @@ impl VM {
         }
         Some(OpCode::Add) => {
           if self.peek().is_number() {
-            numeric_expression!(self, +);
+            numeric_expression!(self, +,ip);
           } else {
             let (right, left) = get_two_values!(self.stack);
 
             if !left.is_string() || !right.is_string() {
-              self.runtime_error("Operands must be strings.");
+              self.runtime_error("Both operands must be strings.", ip);
               break InterpreterResult::RuntimeError;
             }
 
@@ -120,22 +119,22 @@ impl VM {
           ip += 1;
         }
         Some(OpCode::Subtract) => {
-          numeric_expression!(self, -);
+          numeric_expression!(self, -, ip);
           ip += 1;
         }
         Some(OpCode::Multiply) => {
-          numeric_expression!(self, *);
+          numeric_expression!(self, *,ip);
           ip += 1;
         }
         Some(OpCode::Divide) => {
-          numeric_expression!(self, /);
+          numeric_expression!(self, /,ip);
           ip += 1;
         }
         Some(OpCode::Negate) => {
           let value = get_safe!(self.stack.pop());
           match value {
             Value::Number(n) => self.stack.push(Value::from(-n)),
-            _ => self.runtime_error("Operand must be a number."),
+            _ => self.runtime_error("Operand must be a number.", ip),
           }
           ip += 1;
         }
@@ -151,11 +150,11 @@ impl VM {
           ip += 1;
         }
         Some(OpCode::Less) => {
-          numeric_expression!(self, <, Boolean);
+          numeric_expression!(self, <, Boolean, ip);
           ip += 1;
         }
         Some(OpCode::Greater) => {
-          numeric_expression!(self, >, Boolean);
+          numeric_expression!(self, >, Boolean, ip);
           ip += 1;
         }
 
@@ -189,7 +188,7 @@ impl VM {
             Some(value) => self.stack.push(value.clone()),
             _ => {
               let message = format!("Undefined variable '{}'", name.get_string_value());
-              self.runtime_error(&message);
+              self.runtime_error(&message, ip);
               break InterpreterResult::RuntimeError;
             }
           }
@@ -206,7 +205,7 @@ impl VM {
               .insert(name.get_string_value(), self.stack.last().unwrap().clone());
           } else {
             let message = format!("Undefined variable '{}'", name.get_string_value());
-            self.runtime_error(&message);
+            self.runtime_error(&message, ip);
             break InterpreterResult::RuntimeError;
           }
 
@@ -260,7 +259,7 @@ impl VM {
     }
   }
 
-  pub fn interpret(&mut self, source: &str, from: String) -> InterpreterResult {
+  pub fn interpret(&mut self, source: &str, from: &str) -> InterpreterResult {
     let (chunk, success) = compile(source, from);
     if success {
       self.run(&chunk)
@@ -269,8 +268,13 @@ impl VM {
     }
   }
 
-  fn runtime_error(&mut self, format: &str) {
-    println!("Runtime error: {}", format);
+  fn runtime_error(&mut self, format: &str, _ip: usize) {
+    println!("{} {}", red("Error:"), format);
+
     self.stack.clear();
   }
+}
+
+fn red(string: &str) -> String {
+  format!("\x1b[0;31m{}\x1b[0m", string)
 }
