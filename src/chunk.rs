@@ -1,5 +1,4 @@
 use crate::scanner::LineNumber;
-use crate::value;
 use crate::value::Value;
 
 use num_derive::FromPrimitive;
@@ -90,6 +89,7 @@ impl LineInfo {
       self.lines.push((self.last, self.repeated));
       self.last = 0;
       self.repeated = 0;
+      self.lines.shrink_to_fit()
     }
   }
 }
@@ -138,7 +138,7 @@ impl Chunk {
   }
 
   pub fn add_constant_string(&mut self, string: String) -> usize {
-    let value = Value::String(string.clone().into_boxed_str());
+    let value = Value::from(string.clone());
     self.add_constant(value)
   }
 
@@ -177,7 +177,7 @@ impl Chunk {
 }
 
 /* Disassembler */
-#[allow(dead_code)]
+#[cfg(feature = "debug-bytecode")]
 pub fn disassemble(chunk: &Chunk, name: &str) {
   println!("          ╭─[{}]", name);
 
@@ -187,9 +187,9 @@ pub fn disassemble(chunk: &Chunk, name: &str) {
   while position < chunk.len() {
     let line_number = chunk.lines.get(position);
     if line_number == last_line_number {
-      print!("     ");
+      print!("     {:0>4} │ ", position);
     } else {
-      print!("{:<4} ", line_number);
+      print!("{:<4} {:0>4} │ ", line_number, position);
       last_line_number = line_number;
     }
 
@@ -198,10 +198,9 @@ pub fn disassemble(chunk: &Chunk, name: &str) {
   print!("──────────╯\n");
 }
 
+#[cfg(feature = "debug-bytecode")]
 pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
   let instruction = get_op_code(chunk.code.get(position));
-
-  print!("{:0>4} │ ", position);
 
   match instruction {
     Some(OpCode::Constant) => constant_instruction("Constant", chunk, position),
@@ -234,38 +233,43 @@ pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
   }
 }
 
+#[cfg(feature = "debug-bytecode")]
 fn simple_instruction(name: &str, position: usize) -> usize {
   print!("{} \n", name);
   position + 1
 }
 
+#[cfg(feature = "debug-bytecode")]
 fn constant_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   let (constant_location, constant) = match chunk.get_value(position + 1) {
     Some(value) => (value, chunk.get_constant(value as usize)),
     None => (0, None),
   };
 
-  print!("{} '", name);
-  value::print_optional(constant);
-  print!("' ({})\n", constant_location);
+  match constant {
+    Some(constant) => print!("{} '{}' ({})\n", name, constant, constant_location),
+    None => print!("{} '' ({})\n", name,  constant_location)
+  };
 
   position + 2
 }
 
-
+#[cfg(feature = "debug-bytecode")]
 fn constant_long_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   let (constant_location, constant) = match chunk.get_long_value(position + 1) {
     Some(value) => (value, chunk.get_constant(value as usize)),
     None => (0, None),
   };
 
-  print!("{} '", name);
-  value::print_optional(constant);
-  print!("' ({})\n", constant_location);
+  match constant {
+    Some(constant) => print!("{} '{}' ({})\n", name, constant, constant_location),
+    None => print!("{} '' ({})\n", name,  constant_location)
+  };
 
   position + 3
 }
 
+#[cfg(feature = "debug-bytecode")]
 fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   let value = match chunk.get_value(position + 1) {
     Some(value) => value,
@@ -277,6 +281,7 @@ fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   position + 2
 }
 
+#[cfg(feature = "debug-bytecode")]
 fn jump_instruction(name: &str, direction: i8, chunk: &Chunk, position: usize) -> usize {
   let jump = match chunk.get_long_value(position + 1) {
     Some(value) => value,

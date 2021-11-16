@@ -62,12 +62,7 @@ impl Value {
   }
 
   pub fn duplicate(&self) -> Self {
-    match self {
-      Value::Boolean(value) => Value::Boolean(*value),
-      Value::Null => Value::Null,
-      Value::Number(value) => Value::Number(*value),
-      Value::String(value) => Value::String(value.to_string().into_boxed_str()),
-    }
+    self.clone()
   }
 }
 
@@ -87,6 +82,13 @@ impl From<f64> for Value {
   }
 }
 
+
+impl From<String> for Value {
+  fn from(value: String) -> Self {
+    Self::String(value.into_boxed_str())
+  }
+}
+
 impl std::fmt::Display for Value {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
@@ -95,18 +97,5 @@ impl std::fmt::Display for Value {
       Value::Number(value) => write!(f, "{}", value),
       Value::String(value) => write!(f, "{}", value),
     }
-  }
-}
-
-impl From<String> for Value {
-  fn from(value: String) -> Self {
-    Self::String(value.into_boxed_str())
-  }
-}
-
-pub fn print_optional(value: Option<Value>) {
-  match value {
-    Some(value) => print!("{}", value),
-    None => print!(""),
   }
 }

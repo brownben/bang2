@@ -1,3 +1,4 @@
+#![forbid(unsafe_code)]
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 
@@ -11,7 +12,6 @@ mod error;
 mod scanner;
 mod value;
 mod vm;
-
 use vm::{InterpreterResult, VM};
 
 fn main() {
@@ -37,11 +37,9 @@ fn repl() {
                 vm.interpret(&format!("{} \n", line), "repl");
             }
             Err(ReadlineError::Interrupted) => {
-                println!("CTRL-C");
                 break;
             }
             Err(ReadlineError::Eof) => {
-                println!("CTRL-D");
                 break;
             }
             Err(err) => {

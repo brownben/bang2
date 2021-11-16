@@ -61,11 +61,13 @@ let a = 'hello' == "hello"
 let b = 'hello' == "goodbye"
 let c = 'hello' == 'hello!'
 let d = "hello" == "hello"
+let e = "hello" == "hel" + "lo"
 
 //assert: a == true
 //assert: b == false
 //assert: c == false
 //assert: d == true
+//assert: e == true
 
 
 //=Equality Boolean

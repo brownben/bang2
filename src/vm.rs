@@ -70,9 +70,7 @@ impl VM {
     let mut ip = 0;
     loop {
       #[cfg(feature = "debug-stack")]
-      {
-        println!("Stack={:?}", self.stack);
-      }
+      println!("Stack={:?}", self.stack);
 
       let instruction = chunk.get(ip);
 
