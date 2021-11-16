@@ -37,3 +37,18 @@ b = hello
 
 
 //assert: CompileError
+
+
+//=Initialised to Null
+let global = 9
+  let a
+  global = a
+
+//assert: global == null
+
+
+//=Missing Variable Name
+1 + 1
+  let = 0
+
+//assert: CompileError

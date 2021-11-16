@@ -7,27 +7,22 @@ pub enum Value {
 }
 
 impl Value {
+  #[must_use]
   pub fn is_number(&self) -> bool {
-    match self {
-      Value::Number(_) => true,
-      _ => false,
-    }
+    matches!(self, Value::Number(_))
   }
 
+  #[must_use]
   pub fn is_null(&self) -> bool {
-    match self {
-      Value::Null => true,
-      _ => false,
-    }
+    matches!(self, Value::Null)
   }
 
+  #[must_use]
   pub fn is_string(&self) -> bool {
-    match self {
-      Value::String(_) => true,
-      _ => false,
-    }
+    matches!(self, Value::String(_))
   }
 
+  #[must_use]
   pub fn get_number_value(&self) -> f64 {
     match self {
       Value::Number(number) => *number,
@@ -35,6 +30,7 @@ impl Value {
     }
   }
 
+  #[must_use]
   pub fn get_string_value(&self) -> String {
     match self {
       Value::String(string) => string.clone().into_string(),
@@ -42,25 +38,28 @@ impl Value {
     }
   }
 
+  #[must_use]
   pub fn is_falsy(&self) -> bool {
     match self {
       Value::Boolean(value) => !value,
       Value::Null => true,
-      Value::Number(value) => *value == 0 as f64,
+      Value::Number(value) => (*value - 0.0).abs() < f64::EPSILON,
       Value::String(value) => value.is_empty(),
     }
   }
 
-  pub fn equals(&self, other: &Value) -> bool {
+  #[must_use]
+  pub fn equals(&self, other: &Self) -> bool {
     match (self, other) {
       (Value::Boolean(value), Value::Boolean(other)) => *value == *other,
       (Value::Null, Value::Null) => true,
-      (Value::Number(value), Value::Number(other)) => *value == *other,
+      (Value::Number(value), Value::Number(other)) => (*value - *other).abs() < f64::EPSILON,
       (Value::String(value), Value::String(other)) => *value == *other,
       _ => false,
     }
   }
 
+  #[must_use]
   pub fn duplicate(&self) -> Self {
     self.clone()
   }
@@ -74,14 +73,13 @@ impl From<bool> for Value {
 
 impl From<f64> for Value {
   fn from(value: f64) -> Self {
-    if !value.is_nan() {
-      Self::Number(value)
-    } else {
+    if value.is_nan() {
       Self::Null
+    } else {
+      Self::Number(value)
     }
   }
 }
-
 
 impl From<String> for Value {
   fn from(value: String) -> Self {

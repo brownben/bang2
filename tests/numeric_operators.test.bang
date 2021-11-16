@@ -121,3 +121,14 @@ let b = 5 + 3 * 2
 //assert: a == 2
 //assert: b == 11
 
+
+//=Can't add String + Number
+'hello' + 1
+
+//assert: RuntimeError
+
+
+//=Can't add booleans
+false + null
+
+//assert: RuntimeError

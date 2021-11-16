@@ -139,7 +139,7 @@ impl Parser {
             .with_label(Label::new((file, token.start..token.end)).with_message(diagnostic.label))
             .with_note(diagnostic.note)
             .finish()
-            .print((file, Source::from(source)))
+            .eprint((file, Source::from(source)))
             .unwrap();
         }
         _ => println!("Error"),
@@ -223,7 +223,6 @@ pub fn compile(source: &str, from: &str) -> (Chunk, bool) {
   #[cfg(feature = "debug-token")]
   scanner::print_tokens(source, from);
 
-
   let mut parser = Parser::new(source, from);
 
   parser.advance();
@@ -256,52 +255,29 @@ fn get_rule(token_type: TokenType) -> ParseRule {
       infix: Some(binary),
       precedence: Precedence::Term,
     },
-    TokenType::Star => ParseRule {
+    TokenType::Star | TokenType::Slash => ParseRule {
       prefix: None,
       infix: Some(binary),
       precedence: Precedence::Factor,
     },
-    TokenType::Slash => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Factor,
-    },
+
     TokenType::Bang => ParseRule {
       prefix: Some(unary),
       infix: None,
       precedence: Precedence::None,
     },
-
-    TokenType::BangEqual => ParseRule {
+    TokenType::BangEqual | TokenType::EqualEqual => ParseRule {
       prefix: None,
       infix: Some(binary),
       precedence: Precedence::Equality,
     },
-    TokenType::EqualEqual => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Equality,
-    },
-    TokenType::Greater => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Comparison,
-    },
-    TokenType::GreaterEqual => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Comparison,
-    },
-    TokenType::Less => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Comparison,
-    },
-    TokenType::LessEqual => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Comparison,
-    },
+    TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => {
+      ParseRule {
+        prefix: None,
+        infix: Some(binary),
+        precedence: Precedence::Comparison,
+      }
+    }
 
     TokenType::Identifier => ParseRule {
       prefix: Some(variable),
@@ -315,6 +291,11 @@ fn get_rule(token_type: TokenType) -> ParseRule {
     },
     TokenType::Number => ParseRule {
       prefix: Some(number),
+      infix: None,
+      precedence: Precedence::None,
+    },
+    TokenType::True | TokenType::False | TokenType::Null => ParseRule {
+      prefix: Some(literal),
       infix: None,
       precedence: Precedence::None,
     },
@@ -335,22 +316,6 @@ fn get_rule(token_type: TokenType) -> ParseRule {
       precedence: Precedence::Nullish,
     },
 
-    TokenType::Null => ParseRule {
-      prefix: Some(literal),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::True => ParseRule {
-      prefix: Some(literal),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::False => ParseRule {
-      prefix: Some(literal),
-      infix: None,
-      precedence: Precedence::None,
-    },
-
     _ => ParseRule {
       prefix: None,
       infix: None,
@@ -368,13 +333,12 @@ fn synchronize(parser: &mut Parser) {
     }
 
     match parser.current.unwrap().token_type {
-      TokenType::Fun => return,
-      TokenType::Let => return,
-
-      TokenType::While => return,
-      TokenType::If => return,
-      TokenType::Print => return,
-      TokenType::Return => return,
+      TokenType::Fun
+      | TokenType::Let
+      | TokenType::While
+      | TokenType::If
+      | TokenType::Print
+      | TokenType::Return => return,
       _ => parser.advance(),
     }
   }
@@ -502,7 +466,6 @@ fn if_statement(parser: &mut Parser) {
     parser.matches(TokenType::EndOfLine);
     statement(parser);
     patch_jump(parser, else_jump);
-  } else {
   }
 }
 
@@ -619,11 +582,11 @@ fn variable(parser: &mut Parser, can_assign: bool) {
     _ => None,
   };
 
-  if additional_operator.is_some() && can_assign {
+  if let (true, Some(operator)) = (can_assign, additional_operator) {
     parser.advance();
     get!(parser, local_index, name.clone());
     expression(parser);
-    parser.emit_opcode(additional_operator.unwrap());
+    parser.emit_opcode(operator);
     set!(parser, local_index, name);
   } else if parser.matches(TokenType::Equal) && can_assign {
     expression(parser);
@@ -667,15 +630,15 @@ fn binary(parser: &mut Parser, _can_assign: bool) {
 
     TokenType::BangEqual => {
       parser.emit_opcode(OpCode::Equal);
-      parser.emit_opcode(OpCode::Not)
+      parser.emit_opcode(OpCode::Not);
     }
     TokenType::GreaterEqual => {
       parser.emit_opcode(OpCode::Less);
-      parser.emit_opcode(OpCode::Not)
+      parser.emit_opcode(OpCode::Not);
     }
     TokenType::LessEqual => {
       parser.emit_opcode(OpCode::Greater);
-      parser.emit_opcode(OpCode::Not)
+      parser.emit_opcode(OpCode::Not);
     }
 
     _ => {}

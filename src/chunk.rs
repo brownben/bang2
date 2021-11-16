@@ -74,11 +74,11 @@ impl LineInfo {
       let (_, repeated) = self.lines[line];
       count += repeated;
 
-      if count > opcode_position as u8 {
+      if count as usize > opcode_position {
         break;
-      } else {
-        line += 1;
       }
+
+      line += 1;
     }
 
     self.lines[line].0
@@ -89,7 +89,7 @@ impl LineInfo {
       self.lines.push((self.last, self.repeated));
       self.last = 0;
       self.repeated = 0;
-      self.lines.shrink_to_fit()
+      self.lines.shrink_to_fit();
     }
   }
 }
@@ -101,8 +101,8 @@ pub struct Chunk {
 }
 
 impl Chunk {
-  pub fn new() -> Chunk {
-    Chunk {
+  pub fn new() -> Self {
+    Self {
       code: Vec::new(),
       constants: Vec::new(),
       lines: LineInfo::new(),
@@ -110,7 +110,7 @@ impl Chunk {
   }
 
   pub fn write(&mut self, code: OpCode, line: LineNumber) {
-    self.write_value(code as u8, line)
+    self.write_value(code as u8, line);
   }
 
   pub fn write_value(&mut self, code: u8, line: LineNumber) {
@@ -126,19 +126,16 @@ impl Chunk {
   }
 
   pub fn add_constant(&mut self, value: Value) -> usize {
-    let index = self.constants.iter().position(|x| value.equals(x));
-
-    match index {
-      Some(index) => index,
-      None => {
-        self.constants.push(value);
-        self.constants.len() - 1
-      }
+    if let Some(index) = self.constants.iter().position(|x| value.equals(x)) {
+      index
+    } else {
+      self.constants.push(value);
+      self.constants.len() - 1
     }
   }
 
   pub fn add_constant_string(&mut self, string: String) -> usize {
-    let value = Value::from(string.clone());
+    let value = Value::from(string);
     self.add_constant(value)
   }
 
@@ -172,8 +169,8 @@ impl Chunk {
   }
 
   pub fn get_long_value(&self, position: usize) -> Option<u16> {
-    let first_byte = self.get_value(position)? as u16;
-    let second_byte = self.get_value(position + 1)? as u16;
+    let first_byte = u16::from(self.get_value(position)?);
+    let second_byte = u16::from(self.get_value(position + 1)?);
 
     Some((first_byte << 8) + second_byte)
   }
@@ -183,8 +180,6 @@ impl Chunk {
 
     Some(value.duplicate())
   }
-
-
 }
 
 /* Disassembler */
@@ -206,7 +201,7 @@ pub fn disassemble(chunk: &Chunk, name: &str) {
 
     position = disassemble_instruction(chunk, position)
   }
-  print!("──────────╯\n");
+  println!("──────────╯");
 }
 
 #[cfg(feature = "debug-bytecode")]
@@ -246,7 +241,7 @@ pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
 
 #[cfg(feature = "debug-bytecode")]
 fn simple_instruction(name: &str, position: usize) -> usize {
-  print!("{} \n", name);
+  println!("{}", name);
   position + 1
 }
 
@@ -258,8 +253,8 @@ fn constant_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   };
 
   match constant {
-    Some(constant) => print!("{} '{}' ({})\n", name, constant, constant_location),
-    None => print!("{} '' ({})\n", name,  constant_location)
+    Some(constant) => println!("{} '{}' ({})", name, constant, constant_location),
+    None => println!("{} '' ({})", name, constant_location),
   };
 
   position + 2
@@ -273,8 +268,8 @@ fn constant_long_instruction(name: &str, chunk: &Chunk, position: usize) -> usiz
   };
 
   match constant {
-    Some(constant) => print!("{} '{}' ({})\n", name, constant, constant_location),
-    None => print!("{} '' ({})\n", name,  constant_location)
+    Some(constant) => println!("{} '{}' ({})", name, constant, constant_location),
+    None => println!("{} '' ({})", name, constant_location),
   };
 
   position + 3
@@ -287,7 +282,7 @@ fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
     None => 0,
   };
 
-  print!("{} {}\n", name, value);
+  println!("{} {}", name, value);
 
   position + 2
 }
@@ -299,7 +294,7 @@ fn jump_instruction(name: &str, direction: i8, chunk: &Chunk, position: usize) -
     _ => 0,
   };
 
-  print!("{} {}\n", name, jump as i32 * direction as i32);
+  println!("{} {}", name, jump as i32 * direction as i32);
 
   position + 3
 }

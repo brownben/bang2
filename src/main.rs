@@ -15,53 +15,50 @@ mod vm;
 use vm::{InterpreterResult, VM};
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    match args.len() {
-        1 => repl(),
-        2 => run_file(&args[1]),
-        _ => {
-            println!("Usage: bang [file]");
-            exit(64);
-        }
-    };
+  let args: Vec<String> = env::args().collect();
+  match args.len() {
+    1 => repl(),
+    2 => run_file(&args[1]),
+    _ => {
+      println!("Usage: bang [file]");
+      exit(64);
+    }
+  };
 }
 
 fn repl() {
-    let mut rl = Editor::<()>::new();
-    let mut vm = VM::new();
-    loop {
-        let readline = rl.readline("> ");
-        match readline {
-            Ok(line) => {
-                rl.add_history_entry(line.as_str());
-                vm.interpret(&format!("{} \n", line), "repl");
-            }
-            Err(ReadlineError::Interrupted) => {
-                break;
-            }
-            Err(ReadlineError::Eof) => {
-                break;
-            }
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break;
-            }
-        }
+  let mut rl = Editor::<()>::new();
+  let mut vm = VM::new();
+  loop {
+    let readline = rl.readline("> ");
+    match readline {
+      Ok(line) => {
+        rl.add_history_entry(line.as_str());
+        vm.interpret(&format!("{} \n", line), "repl");
+      }
+      Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
+        break;
+      }
+      Err(err) => {
+        println!("Error: {:?}", err);
+        break;
+      }
     }
+  }
 }
 
 fn run_file(filename: &str) {
-    if let Ok(file) = fs::read_to_string(filename) {
-        let mut vm = VM::new();
-        let result = vm.interpret(&file, filename);
+  if let Ok(file) = fs::read_to_string(filename) {
+    let mut vm = VM::new();
+    let result = vm.interpret(&file, filename);
 
-        match result {
-            InterpreterResult::CompileError => exit(65),
-            InterpreterResult::RuntimeError => exit(70),
-            _ => exit(0),
-        }
-    } else {
-        println!("Problem reading file '{}'", filename);
-        exit(74);
+    match result {
+      InterpreterResult::CompileError => exit(65),
+      InterpreterResult::RuntimeError => exit(70),
+      InterpreterResult::OK => exit(0),
     }
+  } else {
+    println!("Problem reading file '{}'", filename);
+    exit(74);
+  }
 }

@@ -2,6 +2,7 @@ pub type LineNumber = u16;
 pub type MaxSourceLength = usize;
 
 use crate::error::Error;
+use std::cmp::Ordering;
 
 #[derive(PartialEq, Debug, Clone, Copy)]
 pub enum TokenType {
@@ -162,13 +163,17 @@ impl Scanner {
   fn find_token(&mut self) -> Token {
     if self.last_token_type == TokenType::EndOfLine && !self.is_next_line_comment() {
       let indentation = get_indentation(self);
-      if indentation > self.indentation {
-        self.indentation = indentation;
-        return make_token(self, TokenType::BlockStart);
-      } else if indentation < self.indentation {
-        self.indentation = indentation;
-        self.start = self.current;
-        return make_token(self, TokenType::BlockEnd);
+      match indentation.cmp(&self.indentation) {
+        Ordering::Greater => {
+          self.indentation = indentation;
+          return make_token(self, TokenType::BlockStart);
+        }
+        Ordering::Less => {
+          self.indentation = indentation;
+          self.start = self.current;
+          return make_token(self, TokenType::BlockEnd);
+        }
+        Ordering::Equal => {}
       }
     } else {
       skip_whitespace(self, false);
@@ -179,7 +184,7 @@ impl Scanner {
       && !is_invalid_line_start_character(self);
 
     if !is_end_of_line && self.peek_equals('\n') {
-      skip_whitespace(self, true)
+      skip_whitespace(self, true);
     }
 
     self.start = self.current;
@@ -241,7 +246,7 @@ fn get_two_character_token(char1: char, char2: Option<&char>) -> Option<TokenTyp
 
 fn make_token(scanner: &Scanner, token_type: TokenType) -> Token {
   Token {
-    token_type: token_type,
+    token_type,
     line: scanner.line,
     error_value: None,
     start: scanner.start,
@@ -322,7 +327,7 @@ fn newline_token(scanner: &mut Scanner) -> Token {
 fn string_token(scanner: &mut Scanner, quote: char) -> Token {
   while !scanner.peek_equals(quote) && !scanner.at_end() {
     if scanner.peek_equals('\n') && quote == '`' {
-      scanner.line += 1
+      scanner.line += 1;
     } else if scanner.peek_equals('\n') {
       return error_token(scanner, Error::UnterminatedString);
     }
@@ -363,22 +368,22 @@ fn identifier_token(scanner: &mut Scanner) -> Token {
 }
 
 fn identifier_type(scanner: &Scanner) -> TokenType {
-  match scanner.chars[scanner.start] {
-    'a' => check_keyword(scanner, "and", TokenType::And),
-    'e' => check_keyword(scanner, "else", TokenType::Else),
-    'f' => match scanner.chars[scanner.start + 1] {
-      'a' => check_keyword(scanner, "false", TokenType::False),
-      'u' => check_keyword(scanner, "fun", TokenType::Fun),
+  match scanner.chars.get(scanner.start) {
+    Some('a') => check_keyword(scanner, "and", TokenType::And),
+    Some('e') => check_keyword(scanner, "else", TokenType::Else),
+    Some('f') => match scanner.chars.get(scanner.start + 1) {
+      Some('a') => check_keyword(scanner, "false", TokenType::False),
+      Some('u') => check_keyword(scanner, "fun", TokenType::Fun),
       _ => TokenType::Identifier,
     },
-    'i' => check_keyword(scanner, "if", TokenType::If),
-    'l' => check_keyword(scanner, "let", TokenType::Let),
-    'n' => check_keyword(scanner, "null", TokenType::Null),
-    'o' => check_keyword(scanner, "or", TokenType::Or),
-    'p' => check_keyword(scanner, "print", TokenType::Print),
-    'r' => check_keyword(scanner, "return", TokenType::Return),
-    't' => check_keyword(scanner, "true", TokenType::True),
-    'w' => check_keyword(scanner, "while", TokenType::While),
+    Some('i') => check_keyword(scanner, "if", TokenType::If),
+    Some('l') => check_keyword(scanner, "let", TokenType::Let),
+    Some('n') => check_keyword(scanner, "null", TokenType::Null),
+    Some('o') => check_keyword(scanner, "or", TokenType::Or),
+    Some('p') => check_keyword(scanner, "print", TokenType::Print),
+    Some('r') => check_keyword(scanner, "return", TokenType::Return),
+    Some('t') => check_keyword(scanner, "true", TokenType::True),
+    Some('w') => check_keyword(scanner, "while", TokenType::While),
     _ => TokenType::Identifier,
   }
 }
@@ -396,17 +401,11 @@ fn check_keyword(scanner: &Scanner, rest: &str, token_type: TokenType) -> TokenT
 }
 
 fn is_digit(c: Option<&char>) -> bool {
-  match c {
-    Some('0'..='9') => true,
-    _ => false,
-  }
+  matches!(c, Some('0'..='9'))
 }
 
 fn is_alpha(c: Option<&char>) -> bool {
-  match c {
-    Some('_' | 'a'..='z' | 'A'..='Z') => true,
-    _ => false,
-  }
+  matches!(c, Some('a'..='z' | 'A'..='Z' | '_'))
 }
 
 fn is_invalid_line_start_character(scanner: &Scanner) -> bool {
@@ -423,18 +422,18 @@ fn is_invalid_line_start_character(scanner: &Scanner) -> bool {
 }
 
 fn is_valid_line_end_token(token_type: TokenType) -> bool {
-  match token_type {
+  matches!(
+    token_type,
     TokenType::RightParen
-    | TokenType::RightBrace
-    | TokenType::Identifier
-    | TokenType::String
-    | TokenType::Number
-    | TokenType::True
-    | TokenType::False
-    | TokenType::Null
-    | TokenType::Return => true,
-    _ => false,
-  }
+      | TokenType::RightBrace
+      | TokenType::Identifier
+      | TokenType::String
+      | TokenType::Number
+      | TokenType::True
+      | TokenType::False
+      | TokenType::Null
+      | TokenType::Return
+  )
 }
 
 // Print Tokens
@@ -452,10 +451,10 @@ pub fn print_tokens(source: &str, from: &str) {
     } else {
       print!("     │ ");
     }
-    print!("{:?} ({})\n", token.token_type, token.get_value(&scanner));
+    println!("{:?} ({})", token.token_type, token.get_value(&scanner));
 
     if token.token_type == TokenType::EndOfFile {
-      print!("─────╯\n");
+      println!("─────╯");
       break;
     }
   }
