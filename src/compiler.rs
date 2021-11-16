@@ -520,8 +520,7 @@ fn patch_jump(parser: &mut Parser, offset: usize) {
     parser.error(Error::TooBigJump);
   }
 
-  parser.chunk.code[offset] = (jump >> 8) as u8;
-  parser.chunk.code[offset + 1] = jump as u8;
+  parser.chunk.set_long_value(offset, jump as u16);
 }
 
 fn while_statement(parser: &mut Parser) {

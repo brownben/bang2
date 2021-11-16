@@ -95,7 +95,7 @@ impl LineInfo {
 }
 
 pub struct Chunk {
-  pub code: Vec<u8>,
+  code: Vec<u8>,
   constants: Vec<Value>,
   lines: LineInfo,
 }
@@ -142,10 +142,19 @@ impl Chunk {
     self.add_constant(value)
   }
 
+  pub fn set_long_value(&mut self, offset: usize, value: u16) {
+    self.code[offset] = (value >> 8) as u8;
+    self.code[offset + 1] = value as u8;
+  }
+
   pub fn finalize(&mut self) {
     self.code.shrink_to_fit();
     self.constants.shrink_to_fit();
     self.lines.finalize();
+  }
+
+  pub fn get_line_number(&self, opcode_position: usize) -> LineNumber {
+    self.lines.get(opcode_position)
   }
 }
 
@@ -174,6 +183,8 @@ impl Chunk {
 
     Some(value.duplicate())
   }
+
+
 }
 
 /* Disassembler */
