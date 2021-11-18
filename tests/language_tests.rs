@@ -12,7 +12,7 @@ fn string_to_value(string: String) -> Value {
     "true" => Value::from(true),
     "false" => Value::from(false),
     "null" => Value::Null,
-    num @ _ if is_number(num) => Value::from(num.parse::<f64>().unwrap()),
+    num if is_number(num) => Value::from(num.parse::<f64>().unwrap()),
     _ => Value::from(string.to_string()),
   }
 }
@@ -29,7 +29,7 @@ fn get_variable_assertion(string: &str) -> Vec<Assertion> {
 
   string
     .trim()
-    .split("\n")
+    .split('\n')
     .map(|assertion| {
       if assertion == "//assert: RuntimeError" {
         Assertion::RuntimeError
@@ -54,7 +54,7 @@ fn test_bang_file(file: &str) {
   let test_regex: Regex =
     Regex::new(r"//=(?P<name>.*)\n(?P<code>(?:.*\n)*?)(?P<assertions>(?://assert:.*\n)+)").unwrap();
 
-  for test_case in test_regex.captures_iter(&file) {
+  for test_case in test_regex.captures_iter(file) {
     let name = test_case.name("name").unwrap().as_str();
     let code = test_case.name("code").unwrap().as_str();
     let assertions = test_case.name("assertions").unwrap().as_str();
