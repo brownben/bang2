@@ -1,9 +1,11 @@
+use std::rc::Rc;
+
 #[derive(Debug, Clone)]
 pub enum Value {
   Null,
   Boolean(bool),
   Number(f64),
-  String(Box<str>),
+  String(Rc<str>),
 }
 
 impl Value {
@@ -31,10 +33,10 @@ impl Value {
   }
 
   #[must_use]
-  pub fn get_string_value(&self) -> String {
+  pub fn get_string_value(&self) -> Rc<str> {
     match self {
-      Value::String(string) => string.clone().into_string(),
-      _ => String::from(""),
+      Value::String(string) => string.clone(),
+      _ => Rc::from(""),
     }
   }
 
@@ -54,7 +56,7 @@ impl Value {
       (Value::Boolean(value), Value::Boolean(other)) => *value == *other,
       (Value::Null, Value::Null) => true,
       (Value::Number(value), Value::Number(other)) => (*value - *other).abs() < f64::EPSILON,
-      (Value::String(value), Value::String(other)) => *value == *other,
+      (Value::String(value), Value::String(other)) => value.eq(other),
       _ => false,
     }
   }
@@ -83,7 +85,7 @@ impl From<f64> for Value {
 
 impl From<String> for Value {
   fn from(value: String) -> Self {
-    Self::String(value.into_boxed_str())
+    Self::String(Rc::from(value))
   }
 }
 

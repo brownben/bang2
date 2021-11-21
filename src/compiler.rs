@@ -12,7 +12,7 @@ use crate::chunk;
 #[cfg(feature = "debug-token")]
 use crate::scanner;
 
-#[derive(Debug, FromPrimitive, PartialOrd, PartialEq)]
+#[derive(Debug, FromPrimitive, PartialOrd, PartialEq, Clone, Copy)]
 enum Precedence {
   None = 1,
   Assignment, // =

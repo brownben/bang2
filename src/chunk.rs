@@ -126,12 +126,14 @@ impl Chunk {
   }
 
   pub fn add_constant(&mut self, value: Value) -> usize {
-    if let Some(index) = self.constants.iter().position(|x| value.equals(x)) {
-      index
-    } else {
-      self.constants.push(value);
-      self.constants.len() - 1
-    }
+    self
+      .constants
+      .iter()
+      .position(|x| value.equals(x))
+      .unwrap_or_else(|| {
+        self.constants.push(value);
+        self.constants.len() - 1
+      })
   }
 
   pub fn add_constant_string(&mut self, string: String) -> usize {

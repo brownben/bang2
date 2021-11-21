@@ -7,8 +7,8 @@ fn is_number(string: &str) -> bool {
   re.is_match(string)
 }
 
-fn string_to_value(string: String) -> Value {
-  match string.as_str() {
+fn string_to_value(string: &str) -> Value {
+  match string {
     "true" => Value::from(true),
     "false" => Value::from(false),
     "null" => Value::Null,
@@ -44,7 +44,7 @@ fn get_variable_assertion(string: &str) -> Vec<Assertion> {
           .as_str()
           .replace("\r", "");
 
-        Assertion::Variable(variable.to_string(), string_to_value(value))
+        Assertion::Variable(variable.to_string(), string_to_value(&value))
       }
     })
     .collect()

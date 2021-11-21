@@ -3,6 +3,7 @@ use crate::compiler::compile;
 
 use crate::value::Value;
 use std::collections::HashMap;
+use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
 pub enum InterpreterResult {
@@ -50,7 +51,7 @@ macro_rules! numeric_expression {
 
 pub struct VM {
   stack: Vec<Value>,
-  pub globals: HashMap<String, Value>,
+  pub globals: HashMap<Rc<str>, Value>,
   chunk: Chunk,
   from: String,
   source: String,
@@ -117,7 +118,7 @@ impl VM {
               break self.runtime_error("Both operands must be strings.", ip);
             }
 
-            let concatenated = left.get_string_value() + &right.get_string_value();
+            let concatenated = format!("{}{}", left.get_string_value(), right.get_string_value());
             self.stack.push(Value::from(concatenated));
           } else if first_operand.is_number() {
             numeric_expression!(self, +, ip);
@@ -226,7 +227,7 @@ impl VM {
         }
         Some(OpCode::SetLocal) => {
           let slot = get_safe!(self.chunk.get_value(ip + 1));
-          self.stack[slot as usize] = self.stack.last().unwrap().clone();
+          self.stack[slot as usize] = self.peek().clone();
           ip += 2;
         }
 
