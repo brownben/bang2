@@ -6,7 +6,9 @@ use std::env;
 use std::fs;
 use std::process::exit;
 
+mod ast;
 mod chunk;
+mod cmp;
 mod compiler;
 mod error;
 mod scanner;
