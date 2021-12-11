@@ -1,29 +1,46 @@
 use crate::chunk::{Chunk, OpCode};
-use crate::compiler::compile;
-
+use crate::error::RuntimeError;
 use crate::value::Value;
+
 use std::collections::HashMap;
 use std::rc::Rc;
 
-#[derive(Debug, PartialEq)]
-pub enum InterpreterResult {
-  OK,
-  RuntimeError,
-  CompileError,
-}
-
 macro_rules! get_safe {
-  ( $x:expr  ) => {
+  ($vm:expr, $x:expr , $ip:expr ) => {
     match $x {
       Some(value) => value,
-      None => break InterpreterResult::RuntimeError,
+      None => break $vm.runtime_error("Problem accessing stack value", $ip),
     }
   };
 }
 
 macro_rules! get_two_values {
-  ( $y:expr  ) => {
-    (get_safe!($y.pop()), get_safe!($y.pop()))
+  ($vm:expr,  $ip:expr ) => {
+    (get_pop!($vm, $ip), get_pop!($vm, $ip))
+  };
+}
+
+macro_rules! get_long_value {
+  ( $vm:expr, $ip:expr ) => {
+    get_safe!($vm, $vm.chunk.get_long_value($ip), $ip)
+  };
+}
+
+macro_rules! get_value {
+  ( $vm:expr, $ip:expr ) => {
+    get_safe!($vm, $vm.chunk.get_value($ip), $ip)
+  };
+}
+
+macro_rules! get_constant {
+  ( $vm:expr, $location:expr, $ip:expr ) => {
+    get_safe!($vm, $vm.chunk.get_constant($location as usize), $ip)
+  };
+}
+
+macro_rules! get_pop {
+  ( $vm:expr, $ip:expr ) => {
+    get_safe!($vm, $vm.stack.pop(), $ip)
   };
 }
 
@@ -33,7 +50,7 @@ macro_rules! numeric_expression {
   };
 
   ( $vm:expr, $token:tt, $type:tt, $ip:expr ) => {
-    let (right, left) = get_two_values!($vm.stack);
+    let (right, left) = get_two_values!($vm, $ip);
 
     if !left.is_number() || !right.is_number() {
       break $vm.runtime_error("Both operands must be numbers.", $ip);
@@ -49,22 +66,18 @@ macro_rules! numeric_expression {
   };
 }
 
-pub struct VM {
+struct VM {
   stack: Vec<Value>,
   pub globals: HashMap<Rc<str>, Value>,
   chunk: Chunk,
-  from: String,
-  source: String,
 }
 
 impl VM {
-  pub fn new() -> Self {
+  fn new(chunk: Chunk) -> Self {
     Self {
+      chunk,
       stack: Vec::new(),
       globals: HashMap::new(),
-      chunk: Chunk::new(),
-      from: String::new(),
-      source: String::new(),
     }
   }
 
@@ -76,8 +89,9 @@ impl VM {
     self.stack.get(self.stack.len() - 2).unwrap()
   }
 
-  pub fn run(&mut self) -> InterpreterResult {
+  fn run(&mut self) -> Result<(), RuntimeError> {
     let mut ip = 0;
+
     loop {
       #[cfg(feature = "debug-stack")]
       println!("Stack={:?}", self.stack);
@@ -86,14 +100,14 @@ impl VM {
 
       match instruction {
         Some(OpCode::Constant) => {
-          let constant_location = get_safe!(self.chunk.get_value(ip + 1));
-          let constant = get_safe!(self.chunk.get_constant(constant_location as usize));
+          let constant_location = get_value!(self, ip + 1);
+          let constant = get_constant!(self, constant_location, ip);
           self.stack.push(constant);
           ip += 2;
         }
         Some(OpCode::ConstantLong) => {
-          let constant_location = get_safe!(self.chunk.get_long_value(ip + 1)) as u16;
-          let constant = get_safe!(self.chunk.get_constant(constant_location as usize));
+          let constant_location = get_long_value!(self, ip + 1) as u16;
+          let constant = get_constant!(self, constant_location, ip);
           self.stack.push(constant);
           ip += 3;
         }
@@ -112,7 +126,7 @@ impl VM {
         Some(OpCode::Add) => {
           let first_operand = self.peek_2();
           if first_operand.is_string() {
-            let (right, left) = get_two_values!(self.stack);
+            let (right, left) = get_two_values!(self, ip);
 
             if !left.is_string() || !right.is_string() {
               break self.runtime_error("Both operands must be strings.", ip);
@@ -141,7 +155,7 @@ impl VM {
           ip += 1;
         }
         Some(OpCode::Negate) => {
-          let value = get_safe!(self.stack.pop());
+          let value = get_pop!(self, ip);
           match value {
             Value::Number(n) => self.stack.push(Value::from(-n)),
             _ => {
@@ -151,13 +165,13 @@ impl VM {
           ip += 1;
         }
         Some(OpCode::Not) => {
-          let value = get_safe!(self.stack.pop());
+          let value = get_pop!(self, ip);
           self.stack.push(Value::from(value.is_falsy()));
           ip += 1;
         }
 
         Some(OpCode::Equal) => {
-          let (right, left) = get_two_values!(self.stack);
+          let (right, left) = get_two_values!(self, ip);
           self.stack.push(Value::from(left.equals(&right)));
           ip += 1;
         }
@@ -171,7 +185,7 @@ impl VM {
         }
 
         Some(OpCode::Print) => {
-          let value = get_safe!(self.stack.pop());
+          let value = get_pop!(self, ip);
           println!("{}", value);
           ip += 1;
         }
@@ -181,17 +195,17 @@ impl VM {
         }
 
         Some(OpCode::DefineGlobal) => {
-          let name_location = get_safe!(self.chunk.get_value(ip + 1));
-          let name = get_safe!(self.chunk.get_constant(name_location as usize));
+          let name_location = get_value!(self, ip + 1);
+          let name = get_constant!(self, name_location, ip);
 
-          let value = get_safe!(self.stack.pop());
+          let value = get_pop!(self, ip);
           self.globals.insert(name.get_string_value(), value);
 
           ip += 2;
         }
         Some(OpCode::GetGlobal) => {
-          let name_location = get_safe!(self.chunk.get_value(ip + 1));
-          let name = get_safe!(self.chunk.get_constant(name_location as usize));
+          let name_location = get_value!(self, ip + 1);
+          let name = get_constant!(self, name_location, ip);
 
           let value = self.globals.get(&name.get_string_value());
 
@@ -205,8 +219,8 @@ impl VM {
           ip += 2;
         }
         Some(OpCode::SetGlobal) => {
-          let name_location = get_safe!(self.chunk.get_value(ip + 1));
-          let name = get_safe!(self.chunk.get_constant(name_location as usize));
+          let name_location = get_value!(self, ip + 1);
+          let name = get_constant!(self, name_location, ip);
           let value = self.peek().clone();
 
           if let std::collections::hash_map::Entry::Occupied(mut entry) =
@@ -221,18 +235,18 @@ impl VM {
           ip += 2;
         }
         Some(OpCode::GetLocal) => {
-          let slot = get_safe!(self.chunk.get_value(ip + 1));
+          let slot = get_value!(self, ip + 1);
           self.stack.push(self.stack[slot as usize].clone());
           ip += 2;
         }
         Some(OpCode::SetLocal) => {
-          let slot = get_safe!(self.chunk.get_value(ip + 1));
+          let slot = get_value!(self, ip + 1);
           self.stack[slot as usize] = self.peek().clone();
           ip += 2;
         }
 
         Some(OpCode::JumpIfFalse) => {
-          let offset = get_safe!(self.chunk.get_long_value(ip + 1));
+          let offset = get_long_value!(self, ip + 1);
           if self.peek().is_falsy() {
             ip += offset as usize + 1;
           } else {
@@ -240,7 +254,7 @@ impl VM {
           }
         }
         Some(OpCode::JumpIfNull) => {
-          let offset = get_safe!(self.chunk.get_long_value(ip + 1));
+          let offset = get_long_value!(self, ip + 1);
           if self.peek().is_null() {
             ip += offset as usize + 1;
           } else {
@@ -248,75 +262,41 @@ impl VM {
           }
         }
         Some(OpCode::Jump) => {
-          let offset = get_safe!(self.chunk.get_long_value(ip + 1));
+          let offset = get_long_value!(self, ip + 1);
           ip += offset as usize + 1;
         }
         Some(OpCode::Loop) => {
-          let offset = get_safe!(self.chunk.get_long_value(ip + 1));
+          let offset = get_long_value!(self, ip + 1);
           ip -= offset as usize - 1;
         }
 
-        Some(OpCode::Return) => {
-          break InterpreterResult::OK;
-        }
+        Some(OpCode::Return) => break Ok(()),
         None => {
           break self.runtime_error("Unknown OpCode", ip);
         }
       }
 
       if ip >= self.chunk.len() {
-        break InterpreterResult::OK;
+        break Ok(());
       }
     }
   }
 
-  pub fn interpret(&mut self, source: &str, from: &str) -> InterpreterResult {
-    let (chunk, success) = compile(source, from);
-    if success {
-      self.chunk = chunk;
-      self.from = from.to_string();
-      self.source = source.to_string();
-      self.run()
-    } else {
-      InterpreterResult::CompileError
-    }
-  }
-
-  fn runtime_error(&mut self, message: &str, ip: usize) -> InterpreterResult {
-    let line_number = self.chunk.get_line_number(ip) as i64;
-
-    eprintln!("{} {}", red("Error:"), message);
-    eprintln!("    ╭─[{}]", self.from);
-
-    if line_number > 1 {
-      eprintln!("    ·");
-    } else {
-      eprintln!("    │");
-    }
-
-    for i in (line_number - 2)..=line_number {
-      if let Some(line) = self.source.lines().nth(i as usize) {
-        eprintln!("{:>3} │ {}", i + 1, line);
-      }
-    }
-
-    if line_number < self.source.lines().count() as i64 - 1 {
-      eprintln!("    ·");
-    }
-
-    eprintln!("────╯\n");
+  fn runtime_error(&mut self, message: &str, ip: usize) -> Result<(), RuntimeError> {
+    let line_number = self.chunk.get_line_number(ip);
 
     self.stack.clear();
-    InterpreterResult::RuntimeError
+
+    Err(RuntimeError {
+      message: message.to_string(),
+      line_number,
+    })
   }
 }
 
-impl Default for VM {
-  fn default() -> Self {
-    Self::new()
-  }
-}
+pub fn run(chunk: Chunk) -> Result<HashMap<Rc<str>, Value>, RuntimeError> {
+  let mut vm = VM::new(chunk);
+  vm.run()?;
 
-fn red(string: &str) -> String {
-  format!("\x1b[0;31m{}\x1b[0m", string)
+  Ok(vm.globals)
 }

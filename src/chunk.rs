@@ -1,4 +1,4 @@
-use crate::scanner::LineNumber;
+use crate::token::LineNumber;
 use crate::value::Value;
 
 use num_derive::FromPrimitive;
@@ -184,10 +184,9 @@ impl Chunk {
   }
 }
 
-/* Disassembler */
 #[cfg(feature = "debug-bytecode")]
-pub fn disassemble(chunk: &Chunk, name: &str) {
-  println!("          ╭─[{}]", name);
+pub fn disassemble(chunk: &Chunk) {
+  println!("          ╭─[Bytecode]");
 
   let mut position: usize = 0;
   let mut last_line_number = 0;

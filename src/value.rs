@@ -9,22 +9,18 @@ pub enum Value {
 }
 
 impl Value {
-  #[must_use]
   pub fn is_number(&self) -> bool {
     matches!(self, Value::Number(_))
   }
 
-  #[must_use]
   pub fn is_null(&self) -> bool {
     matches!(self, Value::Null)
   }
 
-  #[must_use]
   pub fn is_string(&self) -> bool {
     matches!(self, Value::String(_))
   }
 
-  #[must_use]
   pub fn get_number_value(&self) -> f64 {
     match self {
       Value::Number(number) => *number,
@@ -32,7 +28,6 @@ impl Value {
     }
   }
 
-  #[must_use]
   pub fn get_string_value(&self) -> Rc<str> {
     match self {
       Value::String(string) => string.clone(),
@@ -40,7 +35,6 @@ impl Value {
     }
   }
 
-  #[must_use]
   pub fn is_falsy(&self) -> bool {
     match self {
       Value::Boolean(value) => !value,
@@ -50,7 +44,6 @@ impl Value {
     }
   }
 
-  #[must_use]
   pub fn equals(&self, other: &Self) -> bool {
     match (self, other) {
       (Value::Boolean(value), Value::Boolean(other)) => *value == *other,
@@ -61,7 +54,6 @@ impl Value {
     }
   }
 
-  #[must_use]
   pub fn duplicate(&self) -> Self {
     self.clone()
   }

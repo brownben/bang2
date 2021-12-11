@@ -1,47 +1,11 @@
+use crate::ast::{Expression, Statement};
 use crate::chunk::{Chunk, OpCode};
-use crate::error;
-use crate::error::Error;
-use crate::scanner::{Scanner, Token, TokenType};
+use crate::error::{CompileError, Error};
+use crate::token::{Token, TokenType};
 use crate::value::Value;
-use ariadne::{Label, Report, ReportKind, Source};
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
 
 #[cfg(feature = "debug-bytecode")]
 use crate::chunk;
-#[cfg(feature = "debug-token")]
-use crate::scanner;
-
-#[derive(Debug, FromPrimitive, PartialOrd, PartialEq, Clone, Copy)]
-enum Precedence {
-  None = 1,
-  Assignment, // =
-  Or,         // or
-  And,        // and
-  Nullish,    // ??
-  Equality,   // == !=
-  Comparison, // < > <= >=
-  Term,       // + -
-  Factor,     // * /
-  Unary,      // ! -
-  Call,       // . ()
-  Primary,
-}
-
-fn get_precedence(number: u8) -> Precedence {
-  match FromPrimitive::from_u8(number) {
-    Some(precedence) => precedence,
-    _ => Precedence::None,
-  }
-}
-
-type ParseFn = fn(parser: &mut Parser, can_assign: bool);
-
-struct ParseRule {
-  pub prefix: Option<ParseFn>,
-  pub infix: Option<ParseFn>,
-  pub precedence: Precedence,
-}
 
 #[derive(Debug)]
 struct Local {
@@ -49,48 +13,82 @@ struct Local {
   depth: u8,
 }
 
-struct Parser {
-  scanner: Scanner,
+struct Compiler {
   chunk: Chunk,
-
-  current: Option<Token>,
-  previous: Option<Token>,
-
-  had_error: bool,
-  panic_mode: bool,
 
   locals: Vec<Local>,
   scope_depth: u8,
+
+  error: Option<CompileError>,
 }
 
-impl Parser {
-  fn new(source: &str, from: &str) -> Self {
-    Self {
-      scanner: Scanner::new(source, from),
-      chunk: Chunk::new(),
+// Emit Bytecode
+impl Compiler {
+  fn emit_opcode(&mut self, token: Token, code: OpCode) {
+    self.chunk.write(code, token.line)
+  }
 
-      current: None,
-      previous: None,
+  fn emit_opcode_blank(&mut self, code: OpCode) {
+    self.chunk.write(code, 0)
+  }
 
-      had_error: false,
-      panic_mode: false,
+  fn emit_value(&mut self, token: Token, value: u8) {
+    self.chunk.write_value(value, token.line)
+  }
 
-      locals: Vec::new(),
-      scope_depth: 0,
+  fn emit_long_value(&mut self, token: Token, value: u16) {
+    self.chunk.write_long_value(value, token.line)
+  }
+
+  fn emit_constant(&mut self, token: Token, value: Value) {
+    let constant_position = self.chunk.add_constant(value);
+
+    if constant_position <= u8::max_value() as usize {
+      self.emit_opcode(token, OpCode::Constant);
+      self.emit_value(token, constant_position as u8);
+    } else if constant_position <= u16::max_value() as usize {
+      self.emit_opcode(token, OpCode::ConstantLong);
+      self.emit_long_value(token, constant_position as u16);
+    } else {
+      self.error(token, Error::TooManyConstants);
     }
   }
 
-  fn advance(&mut self) {
-    self.previous = self.current.take();
+  fn emit_constant_string(&mut self, token: Token, value: String) {
+    let constant_position = self.chunk.add_constant_string(value);
 
-    loop {
-      let token = self.scanner.get_token();
-      self.current = Some(token);
+    if constant_position <= u8::max_value() as usize {
+      self.emit_value(token, constant_position as u8);
+    } else {
+      self.error(token, Error::TooManyConstants);
+    }
+  }
 
-      match self.current.unwrap().token_type {
-        TokenType::Error => self.error_at_current(self.current.unwrap().error_value.unwrap()),
-        _ => break,
-      };
+  fn emit_jump(&mut self, token: Token, instruction: OpCode) -> usize {
+    self.emit_opcode(token, instruction);
+    self.emit_long_value(token, u16::MAX);
+    self.chunk.len() - 2
+  }
+
+  fn patch_jump(&mut self, token: Token, offset: usize) {
+    // -2 to adjust for the bytecode for the jump offset itself
+    let jump = self.chunk.len() - offset;
+
+    if jump > u16::MAX as usize {
+      self.error(token, Error::TooBigJump);
+    }
+
+    self.chunk.set_long_value(offset, jump as u16);
+  }
+}
+
+impl Compiler {
+  fn new() -> Self {
+    Self {
+      chunk: Chunk::new(),
+      locals: Vec::new(),
+      scope_depth: 0,
+      error: None,
     }
   }
 
@@ -102,583 +100,278 @@ impl Parser {
     while let Some(value) = self.locals.last() {
       if value.depth == self.scope_depth {
         self.locals.pop();
-        self.emit_opcode(OpCode::Pop);
+        self.emit_opcode_blank(OpCode::Pop);
       }
     }
 
     self.scope_depth -= 1;
   }
 
-  fn matches(&mut self, token_type: TokenType) -> bool {
-    if self.current.unwrap().token_type == token_type {
-      self.advance();
-      true
-    } else {
-      false
-    }
+  fn error(&mut self, token: Token, error: Error) {
+    self.error = Some(CompileError { error, token })
   }
 
-  fn error_at_current(&mut self, message: Error) {
-    self.error_at(self.current, message);
-  }
-
-  fn error(&mut self, message: Error) {
-    self.error_at(self.previous, message);
-  }
-
-  fn error_at(&mut self, token: Option<Token>, message: Error) {
-    if !self.panic_mode {
-      match token {
-        Some(token) => {
-          let diagnostic = error::get_message(message, &self.scanner, &token);
-          let source: String = self.scanner.chars.iter().collect();
-          let file = &self.scanner.from;
-
-          Report::build(ReportKind::Error, file, token.start)
-            .with_message(diagnostic.message)
-            .with_label(Label::new((file, token.start..token.end)).with_message(diagnostic.label))
-            .with_note(diagnostic.note)
-            .finish()
-            .eprint((file, Source::from(source)))
-            .unwrap();
+  fn compile_statement(&mut self, statement: Statement) {
+    match statement {
+      Statement::Declaration {
+        variable_name,
+        expression,
+        identifier,
+        ..
+      } => {
+        if let Some(expression) = expression {
+          self.compile_expression(expression);
+        } else {
+          self.emit_opcode(identifier, OpCode::Null);
         }
-        _ => println!("Error"),
+
+        if self.scope_depth > 0 {
+          if self
+            .locals
+            .iter()
+            .any(|local| local.name == variable_name && local.depth == self.scope_depth)
+          {
+            self.error(identifier, Error::VariableAlreadyExists);
+          } else {
+            self.locals.push(Local {
+              name: variable_name,
+              depth: self.scope_depth,
+            });
+          }
+        } else {
+          self.emit_opcode(identifier, OpCode::DefineGlobal);
+          self.emit_constant_string(identifier, variable_name);
+        }
+      }
+      Statement::If {
+        if_token,
+        else_token,
+        condition,
+        then,
+        otherwise,
+        ..
+      } => {
+        self.compile_expression(condition);
+
+        let then_jump = self.emit_jump(if_token, OpCode::JumpIfFalse);
+        self.emit_opcode(if_token, OpCode::Pop);
+        self.compile_statement(*then);
+
+        if let Some(otherwise) = otherwise {
+          let else_token = else_token.unwrap();
+          let else_jump = self.emit_jump(else_token, OpCode::Jump);
+          self.patch_jump(if_token, then_jump);
+          self.emit_opcode(else_token, OpCode::Pop);
+          self.compile_statement(*otherwise);
+          self.patch_jump(else_token, else_jump);
+        }
+      }
+      Statement::While {
+        token,
+        condition,
+        body,
+        ..
+      } => {
+        let loop_start = self.chunk.len();
+        self.compile_expression(condition);
+
+        let exit_jump = self.emit_jump(token, OpCode::JumpIfFalse);
+        self.emit_opcode(token, OpCode::Pop);
+
+        self.compile_statement(*body);
+        self.emit_opcode(token, OpCode::Loop);
+
+        let offset = self.chunk.len() - loop_start;
+        if offset > u16::MAX as usize {
+          self.error(token, Error::TooBigJump);
+        } else {
+          self.emit_long_value(token, offset as u16);
+        }
+
+        self.patch_jump(token, exit_jump);
+        self.emit_opcode(token, OpCode::Pop);
+      }
+      Statement::Print {
+        token, expression, ..
+      } => {
+        self.compile_expression(expression);
+        self.emit_opcode(token, OpCode::Print);
+      }
+      Statement::Block { body, .. } => {
+        self.begin_scope();
+        for statement in body {
+          self.compile_statement(statement);
+        }
+        self.end_scope();
+      }
+      Statement::Expression { expression, .. } => {
+        self.compile_expression(expression);
+        self.emit_opcode_blank(OpCode::Pop);
       }
     }
-
-    self.panic_mode = true;
-    self.had_error = true;
   }
 
-  fn consume(&mut self, token_type: TokenType, message: Error) {
-    if self.current.is_none() || self.current.unwrap().token_type != token_type {
-      self.error_at_current(message);
-    } else {
-      self.advance();
-    }
-  }
+  fn compile_expression(&mut self, expression: Expression) {
+    match expression {
+      Expression::Literal { token, value, .. } => match value {
+        Value::Boolean(true) => self.emit_opcode(token, OpCode::True),
+        Value::Boolean(false) => self.emit_opcode(token, OpCode::False),
+        Value::Null => self.emit_opcode(token, OpCode::Null),
+        _ => self.emit_constant(token, value),
+      },
+      Expression::Group { expression, .. } => {
+        self.compile_expression(*expression);
+      }
+      Expression::Unary {
+        expression,
+        operator,
+        ..
+      } => {
+        self.compile_expression(*expression);
 
-  fn end_compiler(&mut self) {
-    while self.scope_depth > 0 {
-      self.end_scope();
-    }
+        match operator.token_type {
+          TokenType::Minus => self.emit_opcode(operator, OpCode::Negate),
+          TokenType::Bang => self.emit_opcode(operator, OpCode::Not),
+          _ => self.error(operator, Error::UnknownUnaryOperator),
+        }
+      }
+      Expression::Binary {
+        left,
+        right,
+        operator,
+        ..
+      } => {
+        match operator.token_type {
+          TokenType::QuestionQuestion => return self.nullish(operator, *left, *right),
+          TokenType::And => return self.and(operator, *left, *right),
+          TokenType::Or => return self.or(operator, *left, *right),
+          _ => {}
+        }
 
-    self.emit_opcode(OpCode::Return);
-    self.chunk.finalize();
+        self.compile_expression(*left);
+        self.compile_expression(*right);
 
-    #[cfg(feature = "debug-bytecode")]
-    chunk::disassemble(&self.chunk, "Bytecode");
-  }
-}
+        match operator.token_type {
+          TokenType::Plus => self.emit_opcode(operator, OpCode::Add),
+          TokenType::Minus => self.emit_opcode(operator, OpCode::Subtract),
+          TokenType::Star => self.emit_opcode(operator, OpCode::Multiply),
+          TokenType::Slash => self.emit_opcode(operator, OpCode::Divide),
 
-// Emit Bytecode
-impl Parser {
-  fn emit_opcode(&mut self, code: OpCode) {
-    match &self.previous {
-      Some(token) => self.chunk.write(code, token.line),
-      _ => self.chunk.write(code, 0),
-    }
-  }
+          TokenType::EqualEqual => self.emit_opcode(operator, OpCode::Equal),
+          TokenType::Greater => self.emit_opcode(operator, OpCode::Greater),
+          TokenType::Less => self.emit_opcode(operator, OpCode::Less),
 
-  fn emit_value(&mut self, value: u8) {
-    match &self.previous {
-      Some(token) => self.chunk.write_value(value, token.line),
-      _ => self.chunk.write_value(value, 0),
-    }
-  }
+          TokenType::BangEqual => {
+            self.emit_opcode(operator, OpCode::Equal);
+            self.emit_opcode(operator, OpCode::Not);
+          }
+          TokenType::GreaterEqual => {
+            self.emit_opcode(operator, OpCode::Less);
+            self.emit_opcode(operator, OpCode::Not);
+          }
+          TokenType::LessEqual => {
+            self.emit_opcode(operator, OpCode::Greater);
+            self.emit_opcode(operator, OpCode::Not);
+          }
 
-  fn emit_long_value(&mut self, value: u16) {
-    match &self.previous {
-      Some(token) => self.chunk.write_long_value(value, token.line),
-      _ => self.chunk.write_long_value(value, 0),
-    }
-  }
+          _ => self.error(operator, Error::UnknownBinaryOperator),
+        }
+      }
+      Expression::Assignment {
+        variable_name,
+        identifier,
+        expression,
+        ..
+      } => {
+        let local_index = self
+          .locals
+          .iter()
+          .rposition(|local| local.name == variable_name);
 
-  fn emit_constant(&mut self, value: Value) {
-    let constant_position = self.chunk.add_constant(value);
+        self.compile_expression(*expression);
 
-    if constant_position <= u8::max_value() as usize {
-      self.emit_opcode(OpCode::Constant);
-      self.emit_value(constant_position as u8);
-    } else if constant_position <= u16::max_value() as usize {
-      self.emit_opcode(OpCode::ConstantLong);
-      self.emit_long_value(constant_position as u16);
-    } else {
-      self.error(Error::TooManyConstants);
-    }
-  }
+        if let Some(index) = local_index {
+          self.emit_opcode(identifier, OpCode::SetLocal);
+          self.emit_value(identifier, index as u8);
+        } else {
+          self.emit_opcode(identifier, OpCode::SetGlobal);
+          self.emit_constant_string(identifier, variable_name);
+        }
+      }
+      Expression::Variable {
+        identifier,
+        variable_name,
+        ..
+      } => {
+        let local_index = self
+          .locals
+          .iter()
+          .rposition(|local| local.name == variable_name);
 
-  fn emit_constant_string(&mut self, value: String) {
-    let constant_position = self.chunk.add_constant_string(value);
-
-    if constant_position <= u8::max_value() as usize {
-      self.emit_value(constant_position as u8);
-    } else {
-      self.error(Error::TooManyConstants);
-    }
-  }
-}
-
-pub fn compile(source: &str, from: &str) -> (Chunk, bool) {
-  #[cfg(feature = "debug-token")]
-  scanner::print_tokens(source, from);
-
-  let mut parser = Parser::new(source, from);
-
-  parser.advance();
-
-  while !parser.matches(TokenType::EndOfFile) {
-    declaration(&mut parser);
-  }
-
-  parser.consume(TokenType::EndOfFile, Error::MissingEndOfFile);
-  parser.end_compiler();
-
-  (parser.chunk, !parser.had_error)
-}
-
-fn get_rule(token_type: TokenType) -> ParseRule {
-  match token_type {
-    TokenType::LeftParen => ParseRule {
-      prefix: Some(grouping),
-      infix: None,
-      precedence: Precedence::None,
-    },
-
-    TokenType::Plus => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Term,
-    },
-    TokenType::Minus => ParseRule {
-      prefix: Some(unary),
-      infix: Some(binary),
-      precedence: Precedence::Term,
-    },
-    TokenType::Star | TokenType::Slash => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Factor,
-    },
-
-    TokenType::Bang => ParseRule {
-      prefix: Some(unary),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::BangEqual | TokenType::EqualEqual => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Equality,
-    },
-    TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => {
-      ParseRule {
-        prefix: None,
-        infix: Some(binary),
-        precedence: Precedence::Comparison,
+        if let Some(index) = local_index {
+          self.emit_opcode(identifier, OpCode::GetLocal);
+          self.emit_value(identifier, index as u8);
+        } else {
+          self.emit_opcode(identifier, OpCode::GetGlobal);
+          self.emit_constant_string(identifier, variable_name);
+        }
       }
     }
+  }
 
-    TokenType::Identifier => ParseRule {
-      prefix: Some(variable),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::String => ParseRule {
-      prefix: Some(string),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::Number => ParseRule {
-      prefix: Some(number),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::True | TokenType::False | TokenType::Null => ParseRule {
-      prefix: Some(literal),
-      infix: None,
-      precedence: Precedence::None,
-    },
+  fn and(&mut self, operator: Token, left: Expression, right: Expression) {
+    self.compile_expression(left);
+    let jump = self.emit_jump(operator, OpCode::JumpIfFalse);
+    self.emit_opcode(operator, OpCode::Pop);
+    self.compile_expression(right);
+    self.patch_jump(operator, jump);
+  }
 
-    TokenType::And => ParseRule {
-      prefix: None,
-      infix: Some(and),
-      precedence: Precedence::And,
-    },
-    TokenType::Or => ParseRule {
-      prefix: None,
-      infix: Some(or),
-      precedence: Precedence::Or,
-    },
-    TokenType::QuestionQuestion => ParseRule {
-      prefix: None,
-      infix: Some(nullish),
-      precedence: Precedence::Nullish,
-    },
+  fn or(&mut self, operator: Token, left: Expression, right: Expression) {
+    self.compile_expression(left);
+    let else_jump = self.emit_jump(operator, OpCode::JumpIfFalse);
+    let end_jump = self.emit_jump(operator, OpCode::Jump);
 
-    _ => ParseRule {
-      prefix: None,
-      infix: None,
-      precedence: Precedence::None,
-    },
+    self.patch_jump(operator, else_jump);
+    self.emit_opcode(operator, OpCode::Pop);
+
+    self.compile_expression(right);
+    self.patch_jump(operator, end_jump);
+  }
+
+  fn nullish(&mut self, operator: Token, left: Expression, right: Expression) {
+    self.compile_expression(left);
+    let else_jump = self.emit_jump(operator, OpCode::JumpIfNull);
+    let end_jump = self.emit_jump(operator, OpCode::Jump);
+
+    self.patch_jump(operator, else_jump);
+    self.emit_opcode(operator, OpCode::Pop);
+
+    self.compile_expression(right);
+    self.patch_jump(operator, end_jump);
   }
 }
 
-fn synchronize(parser: &mut Parser) {
-  parser.panic_mode = false;
+pub fn compile(ast: Vec<Statement>) -> Result<Chunk, CompileError> {
+  let mut compiler = Compiler::new();
 
-  while parser.current.unwrap().token_type != TokenType::EndOfFile {
-    if parser.previous.unwrap().token_type == TokenType::EndOfLine {
-      return;
-    }
+  for statement in ast {
+    compiler.compile_statement(statement);
 
-    match parser.current.unwrap().token_type {
-      TokenType::Fun
-      | TokenType::Let
-      | TokenType::While
-      | TokenType::If
-      | TokenType::Print
-      | TokenType::Return => return,
-      _ => parser.advance(),
-    }
-  }
-}
-
-fn parse_precedence(parser: &mut Parser, precedence: Precedence) {
-  parser.advance();
-  let token = parser.previous.unwrap().token_type;
-
-  let prefix_rule = get_rule(token).prefix;
-  if prefix_rule.is_none() {
-    parser.error(Error::ExpectedExpression);
-    return;
-  }
-
-  let can_assign = precedence <= Precedence::Assignment;
-  prefix_rule.unwrap()(parser, can_assign);
-
-  while precedence <= get_rule(parser.current.unwrap().token_type).precedence {
-    parser.advance();
-
-    if let Some(infix_rule) = get_rule(parser.previous.unwrap().token_type).infix {
-      infix_rule(parser, can_assign);
+    if let Some(error) = compiler.error {
+      return Err(error);
     }
   }
 
-  if can_assign && parser.matches(TokenType::Equal) {
-    parser.error(Error::InvalidAssignmentTarget);
-  }
-}
-
-fn declaration(parser: &mut Parser) {
-  if parser.matches(TokenType::Let) {
-    var_declaration(parser);
-  } else {
-    statement(parser);
+  while compiler.scope_depth > 0 {
+    compiler.end_scope();
   }
 
-  if parser.panic_mode {
-    synchronize(parser);
-  }
-}
+  compiler.emit_opcode_blank(OpCode::Return);
+  compiler.chunk.finalize();
 
-fn var_declaration(parser: &mut Parser) {
-  parser.consume(TokenType::Identifier, Error::MissingVariableName);
-  let identifier = parser.previous;
-  let variable_name = parser.previous.unwrap().get_value(&parser.scanner);
+  #[cfg(feature = "debug-bytecode")]
+  chunk::disassemble(&compiler.chunk);
 
-  if parser.matches(TokenType::Equal) {
-    expression(parser);
-  } else {
-    parser.emit_opcode(OpCode::Null);
-  }
-
-  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine);
-
-  if parser.scope_depth > 0 {
-    if parser
-      .locals
-      .iter()
-      .any(|local| local.name == variable_name && local.depth == parser.scope_depth)
-    {
-      parser.error_at(identifier, Error::VariableAlreadyExists);
-    } else {
-      parser.locals.push(Local {
-        name: variable_name,
-        depth: parser.scope_depth,
-      });
-    }
-  } else {
-    parser.emit_opcode(OpCode::DefineGlobal);
-    parser.emit_constant_string(variable_name);
-  }
-}
-
-fn statement(parser: &mut Parser) {
-  if parser.matches(TokenType::Print) {
-    print_statement(parser);
-  } else if parser.matches(TokenType::BlockStart) {
-    parser.begin_scope();
-    block(parser);
-    parser.end_scope();
-  } else if parser.matches(TokenType::While) {
-    while_statement(parser);
-  } else if parser.matches(TokenType::If) {
-    if_statement(parser);
-  } else {
-    expression_statement(parser);
-  }
-}
-
-fn block(parser: &mut Parser) {
-  while parser.current.unwrap().token_type != TokenType::EndOfFile
-    && parser.current.unwrap().token_type != TokenType::BlockEnd
-  {
-    declaration(parser);
-  }
-
-  parser.consume(TokenType::BlockEnd, Error::ExpectedEndOfBlock);
-  if parser.current.unwrap().token_type == TokenType::EndOfLine {
-    parser.advance();
-  }
-}
-
-fn print_statement(parser: &mut Parser) {
-  expression(parser);
-  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine);
-  parser.emit_opcode(OpCode::Print);
-}
-
-fn if_statement(parser: &mut Parser) {
-  parser.consume(TokenType::LeftParen, Error::MissingBracketBeforeCondition);
-  expression(parser);
-  parser.consume(TokenType::RightParen, Error::MissingBracketAfterCondition);
-
-  let then_jump = emit_jump(parser, OpCode::JumpIfFalse);
-  parser.emit_opcode(OpCode::Pop);
-  parser.matches(TokenType::EndOfLine);
-  statement(parser);
-
-  if parser.matches(TokenType::Else) {
-    let else_jump = emit_jump(parser, OpCode::Jump);
-    patch_jump(parser, then_jump);
-    parser.emit_opcode(OpCode::Pop);
-    parser.matches(TokenType::EndOfLine);
-    statement(parser);
-    patch_jump(parser, else_jump);
-  }
-}
-
-fn emit_jump(parser: &mut Parser, instruction: OpCode) -> usize {
-  parser.emit_opcode(instruction);
-  parser.emit_long_value(u16::MAX);
-  parser.chunk.len() - 2
-}
-
-fn patch_jump(parser: &mut Parser, offset: usize) {
-  // -2 to adjust for the bytecode for the jump offset itself
-  let jump = parser.chunk.len() - offset;
-
-  if jump > u16::MAX as usize {
-    parser.error(Error::TooBigJump);
-  }
-
-  parser.chunk.set_long_value(offset, jump as u16);
-}
-
-fn while_statement(parser: &mut Parser) {
-  let loop_start = parser.chunk.len();
-  parser.consume(TokenType::LeftParen, Error::MissingBracketBeforeCondition);
-  expression(parser);
-  parser.consume(TokenType::RightParen, Error::MissingBracketAfterCondition);
-
-  let exit_jump = emit_jump(parser, OpCode::JumpIfFalse);
-  parser.emit_opcode(OpCode::Pop);
-
-  parser.matches(TokenType::EndOfLine);
-  statement(parser);
-
-  parser.emit_opcode(OpCode::Loop);
-
-  let offset = parser.chunk.len() - loop_start;
-  if offset > u16::MAX as usize {
-    parser.error(Error::TooBigJump);
-  } else {
-    parser.emit_long_value(offset as u16);
-  }
-
-  patch_jump(parser, exit_jump);
-  parser.emit_opcode(OpCode::Pop);
-}
-
-fn expression_statement(parser: &mut Parser) {
-  expression(parser);
-  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine);
-  parser.emit_opcode(OpCode::Pop);
-}
-
-fn expression(parser: &mut Parser) {
-  parse_precedence(parser, Precedence::Assignment);
-}
-
-fn string(parser: &mut Parser, _can_assign: bool) {
-  if let Some(token) = &parser.previous {
-    let token_value = token.get_value(&parser.scanner);
-    let value = token_value[1..token_value.len() - 1].to_string();
-    parser.emit_constant(Value::from(value));
-  }
-}
-
-fn number(parser: &mut Parser, _can_assign: bool) {
-  if let Some(token) = &parser.previous {
-    let value: f64 = token
-      .get_value(&parser.scanner)
-      .replace("_", "")
-      .parse()
-      .unwrap();
-    parser.emit_constant(Value::from(value));
-  }
-}
-
-macro_rules! get {
-  ($parser:expr, $index:expr, $name:expr) => {
-    match $index {
-      Some(index) => {
-        $parser.emit_opcode(OpCode::GetLocal);
-        $parser.emit_value(index as u8);
-      }
-      _ => {
-        $parser.emit_opcode(OpCode::GetGlobal);
-        $parser.emit_constant_string($name);
-      }
-    }
-  };
-}
-
-macro_rules! set {
-  ($parser:expr, $index:expr, $name:expr) => {
-    match $index {
-      Some(index) => {
-        $parser.emit_opcode(OpCode::SetLocal);
-        $parser.emit_value(index as u8);
-      }
-      _ => {
-        $parser.emit_opcode(OpCode::SetGlobal);
-        $parser.emit_constant_string($name);
-      }
-    }
-  };
-}
-
-fn variable(parser: &mut Parser, can_assign: bool) {
-  let name = parser.previous.unwrap().get_value(&parser.scanner);
-  let local_index = parser.locals.iter().rposition(|local| local.name == name);
-
-  let additional_operator = match parser.current.unwrap().token_type {
-    TokenType::PlusEqual => Some(OpCode::Add),
-    TokenType::MinusEqual => Some(OpCode::Subtract),
-    TokenType::StarEqual => Some(OpCode::Multiply),
-    TokenType::SlashEqual => Some(OpCode::Divide),
-    _ => None,
-  };
-
-  if let (true, Some(operator)) = (can_assign, additional_operator) {
-    parser.advance();
-    get!(parser, local_index, name.clone());
-    expression(parser);
-    parser.emit_opcode(operator);
-    set!(parser, local_index, name);
-  } else if parser.matches(TokenType::Equal) && can_assign {
-    expression(parser);
-    set!(parser, local_index, name);
-  } else {
-    get!(parser, local_index, name);
-  }
-}
-
-fn grouping(parser: &mut Parser, _can_assign: bool) {
-  expression(parser);
-  parser.consume(TokenType::RightParen, Error::ExpectedBracket);
-}
-
-fn unary(parser: &mut Parser, _can_assign: bool) {
-  let operator = parser.previous.unwrap().token_type;
-
-  parse_precedence(parser, Precedence::Unary);
-
-  match operator {
-    TokenType::Minus => parser.emit_opcode(OpCode::Negate),
-    TokenType::Bang => parser.emit_opcode(OpCode::Not),
-    _ => {}
-  }
-}
-
-fn binary(parser: &mut Parser, _can_assign: bool) {
-  let operator = parser.previous.unwrap().token_type;
-  let rule = get_rule(operator);
-  parse_precedence(parser, get_precedence((rule.precedence as u8) + 1));
-
-  match operator {
-    TokenType::Plus => parser.emit_opcode(OpCode::Add),
-    TokenType::Minus => parser.emit_opcode(OpCode::Subtract),
-    TokenType::Star => parser.emit_opcode(OpCode::Multiply),
-    TokenType::Slash => parser.emit_opcode(OpCode::Divide),
-
-    TokenType::EqualEqual => parser.emit_opcode(OpCode::Equal),
-    TokenType::Greater => parser.emit_opcode(OpCode::Greater),
-    TokenType::Less => parser.emit_opcode(OpCode::Less),
-
-    TokenType::BangEqual => {
-      parser.emit_opcode(OpCode::Equal);
-      parser.emit_opcode(OpCode::Not);
-    }
-    TokenType::GreaterEqual => {
-      parser.emit_opcode(OpCode::Less);
-      parser.emit_opcode(OpCode::Not);
-    }
-    TokenType::LessEqual => {
-      parser.emit_opcode(OpCode::Greater);
-      parser.emit_opcode(OpCode::Not);
-    }
-
-    _ => {}
-  }
-}
-
-fn literal(parser: &mut Parser, _can_assign: bool) {
-  match parser.previous.unwrap().token_type {
-    TokenType::True => parser.emit_opcode(OpCode::True),
-    TokenType::False => parser.emit_opcode(OpCode::False),
-    TokenType::Null => parser.emit_opcode(OpCode::Null),
-    _ => {}
-  }
-}
-
-fn and(parser: &mut Parser, _can_assign: bool) {
-  let jump = emit_jump(parser, OpCode::JumpIfFalse);
-  parser.emit_opcode(OpCode::Pop);
-  parse_precedence(parser, Precedence::And);
-  patch_jump(parser, jump);
-}
-
-fn or(parser: &mut Parser, _can_assign: bool) {
-  let else_jump = emit_jump(parser, OpCode::JumpIfFalse);
-  let end_jump = emit_jump(parser, OpCode::Jump);
-
-  patch_jump(parser, else_jump);
-  parser.emit_opcode(OpCode::Pop);
-
-  parse_precedence(parser, Precedence::Or);
-  patch_jump(parser, end_jump);
-}
-
-fn nullish(parser: &mut Parser, _can_assign: bool) {
-  let else_jump = emit_jump(parser, OpCode::JumpIfNull);
-  let end_jump = emit_jump(parser, OpCode::Jump);
-
-  patch_jump(parser, else_jump);
-  parser.emit_opcode(OpCode::Pop);
-
-  parse_precedence(parser, Precedence::Nullish);
-  patch_jump(parser, end_jump);
+  Ok(compiler.chunk)
 }

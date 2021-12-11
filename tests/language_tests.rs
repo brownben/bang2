@@ -1,6 +1,10 @@
-use bang::{InterpreterResult, Value, VM};
+use bang::{chunk, compiler, error, parser, vm, Value};
+
 use regex::Regex;
+
+use std::collections::HashMap;
 use std::fs;
+use std::rc::Rc;
 
 fn is_number(string: &str) -> bool {
   let re = Regex::new(r"^-?([0-9]+.[0-9]+)|([0-9]+)$").unwrap();
@@ -50,6 +54,36 @@ fn get_variable_assertion(string: &str) -> Vec<Assertion> {
     .collect()
 }
 
+#[derive(Debug, PartialEq)]
+enum RunResult {
+  Success,
+  RuntimeError,
+  CompileError,
+}
+
+fn compile(source: &str) -> Result<chunk::Chunk, error::CompileError> {
+  let ast = parser::parse(source)?;
+  compiler::compile(ast)
+
+}
+
+fn run(source: &str) -> (RunResult, HashMap<Rc<str>, Value>) {
+  let mut result = RunResult::Success;
+  let mut globals = HashMap::new();
+
+  match compile(source) {
+    Ok(chunk) => match vm::run(chunk) {
+      Ok(vars) => globals = vars,
+      Err(_) => result = RunResult::RuntimeError,
+    },
+    Err(_) => {
+      result = RunResult::CompileError;
+    }
+  };
+
+  (result, globals)
+}
+
 fn test_bang_file(file: &str) {
   let test_regex: Regex =
     Regex::new(r"//=(?P<name>.*)\n(?P<code>(?:.*\n)*?)(?P<assertions>(?://assert:.*\n)+)").unwrap();
@@ -61,13 +95,13 @@ fn test_bang_file(file: &str) {
 
     println!("Running test: {}", name);
 
-    let mut vm = VM::new();
-    let result = vm.interpret(code, String::from(name).trim());
+    let (result, globals) = run(code);
 
     for assertion in get_variable_assertion(assertions) {
       match assertion {
         Assertion::Variable(variable, expected) => {
-          let actual = vm.globals.get(variable.trim()).unwrap();
+          println!("{} {:?}", variable, globals);
+          let actual = globals.get(variable.trim()).unwrap();
           assert!(
             actual.equals(&expected),
             "<{}> Expected variable '{}' to equal {:?} but got {:?}",
@@ -80,7 +114,7 @@ fn test_bang_file(file: &str) {
         Assertion::RuntimeError => {
           assert_eq!(
             result,
-            InterpreterResult::RuntimeError,
+            RunResult::RuntimeError,
             "<{}> Expected Runtime Error",
             name,
           );
@@ -88,7 +122,7 @@ fn test_bang_file(file: &str) {
         Assertion::CompileError => {
           assert_eq!(
             result,
-            InterpreterResult::CompileError,
+            RunResult::CompileError,
             "<{}> Expected Compile Error",
             name
           );

@@ -1,4 +1,4 @@
-use crate::scanner::{Scanner, Token};
+use crate::token::{LineNumber, Token};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Error {
@@ -16,6 +16,19 @@ pub enum Error {
   ExpectedExpression,
   TooManyConstants,
   TooBigJump,
+  UnknownBinaryOperator,
+  UnknownUnaryOperator,
+}
+
+#[derive(Debug)]
+pub struct CompileError {
+  pub error: Error,
+  pub token: Token,
+}
+
+pub struct RuntimeError {
+  pub line_number: LineNumber,
+  pub message: String,
 }
 
 pub struct Diagnostic {
@@ -24,26 +37,32 @@ pub struct Diagnostic {
   pub note: String,
 }
 
-pub fn get_message(error: Error, scanner: &Scanner, token: &Token) -> Diagnostic {
+pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic {
   match error {
     Error::UnterminatedString => Diagnostic {
       message: "Unterminated String".to_string(),
-      label: format!("Missing closing quote {}", scanner.chars[token.start]),
-      note: format!("Add {} to close the string", scanner.chars[token.start]),
+      label: format!("Missing closing quote {}", token.get_value(source)),
+      note: format!("Add {} to close the string", token.get_value(source)),
     },
     Error::UnknownCharacter => Diagnostic {
       message: "Unknown Character".to_string(),
-      label: format!("Unknown character '{}'", scanner.chars[token.start]),
+      label: format!("Unknown character '{}'", token.get_value(source)),
       note: "Try deleting the character".to_string(),
     },
+    Error::UnknownBinaryOperator => Diagnostic {
+      message: "Unknown Binary Operator".to_string(),
+      label: format!("Unknown binary operator '{}'", token.get_value(source)),
+      note: "Are you using the correct operator?".to_string(),
+    },
+    Error::UnknownUnaryOperator => Diagnostic {
+      message: "Unknown Unary Operator".to_string(),
+      label: format!("Unknown unary operator '{}'", token.get_value(source)),
+      note: "Are you using the correct operator?".to_string(),
+    },
+
     Error::VariableAlreadyExists => Diagnostic {
       message: "Redefining Existing Variable".to_string(),
-      label: format!(
-        "Variable '{}' already exists",
-        scanner.chars[token.start..token.end]
-          .iter()
-          .collect::<String>()
-      ),
+      label: format!("Variable '{}' already exists", token.get_value(source)),
       note: "You could try a new name for your variable".to_string(),
     },
     Error::MissingVariableName => Diagnostic {
@@ -88,7 +107,7 @@ pub fn get_message(error: Error, scanner: &Scanner, token: &Token) -> Diagnostic
     },
     Error::TooBigJump => Diagnostic {
       message: "Jump Too Large".to_string(),
-      label: "Couldn't construct bytecode, asblock too large".to_string(),
+      label: "Couldn't construct bytecode, as block too large".to_string(),
       note: "This is likely to be an issue with the compiler".to_string(),
     },
     Error::ExpectedBracket => Diagnostic {

@@ -1,98 +1,13 @@
-pub type LineNumber = u16;
-pub type MaxSourceLength = usize;
-
-use crate::error::Error;
 use std::cmp::Ordering;
 
-#[derive(PartialEq, Debug, Clone, Copy)]
-pub enum TokenType {
-  // Brackets
-  LeftParen,
-  RightParen,
-  LeftBrace,
-  RightBrace,
-
-  // Separators
-  Comma,
-  Dot,
-
-  // Operators
-  Minus,
-  Plus,
-  Slash,
-  Star,
-  Bang,
-  And,
-  Or,
-  QuestionQuestion,
-
-  // Comparators
-  BangEqual,
-  Equal,
-  EqualEqual,
-  Greater,
-  GreaterEqual,
-  Less,
-  LessEqual,
-
-  // Assignment Operators
-  PlusEqual,
-  MinusEqual,
-  StarEqual,
-  SlashEqual,
-
-  // Values
-  Identifier,
-  String,
-  Number,
-  True,
-  False,
-  Null,
-
-  // Keywords
-  Else,
-  Fun,
-  If,
-  Let,
-  Print,
-  Return,
-  While,
-
-  BlockStart,
-  BlockEnd,
-
-  Blank,
-  Error,
-  EndOfLine,
-  EndOfFile,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct Token {
-  pub token_type: TokenType,
-  pub line: LineNumber,
-  pub start: MaxSourceLength,
-  pub end: MaxSourceLength,
-  pub error_value: Option<Error>,
-}
-
-impl Token {
-  pub fn get_value(&self, scanner: &Scanner) -> String {
-    scanner
-      .chars
-      .get(self.start..self.end)
-      .unwrap()
-      .iter()
-      .collect::<String>()
-  }
-}
+use crate::error::Error;
+use crate::token::{LineNumber, Token, TokenType};
 
 pub struct Scanner {
   pub chars: Vec<char>,
-  pub from: String,
 
-  start: MaxSourceLength,
-  current: MaxSourceLength,
+  start: usize,
+  current: usize,
   line: LineNumber,
 
   last_token_type: TokenType,
@@ -140,24 +55,6 @@ impl Scanner {
     }
 
     matches!(self.chars.get(i), Some('/')) && matches!(self.chars.get(i + 1), Some('/'))
-  }
-
-  pub fn new(source: &str, from: &str) -> Self {
-    Self {
-      chars: source.chars().collect(),
-      from: String::from(from),
-      start: 0,
-      current: 0,
-      line: 1,
-      last_token_type: TokenType::Blank,
-      indentation: 0,
-    }
-  }
-
-  pub fn get_token(&mut self) -> Token {
-    let token = self.find_token();
-    self.last_token_type = token.token_type;
-    token
   }
 
   fn find_token(&mut self) -> Token {
@@ -224,6 +121,23 @@ impl Scanner {
         }
       }
     }
+  }
+
+  pub fn new(source: &str) -> Self {
+    Self {
+      chars: source.chars().collect(),
+      start: 0,
+      current: 0,
+      line: 1,
+      last_token_type: TokenType::Blank,
+      indentation: 0,
+    }
+  }
+
+  pub fn get_token(&mut self) -> Token {
+    let token = self.find_token();
+    self.last_token_type = token.token_type;
+    token
   }
 }
 
@@ -438,8 +352,8 @@ fn is_valid_line_end_token(token_type: TokenType) -> bool {
 
 // Print Tokens
 #[cfg(feature = "debug-token")]
-pub fn print_tokens(source: &str, from: &str) {
-  let mut scanner = Scanner::new(source, from);
+pub fn print_tokens(source: &str) {
+  let mut scanner = Scanner::new(source);
   let mut line = 0;
 
   println!("     ╭─[Tokens]");
@@ -451,7 +365,11 @@ pub fn print_tokens(source: &str, from: &str) {
     } else {
       print!("     │ ");
     }
-    println!("{:?} ({})", token.token_type, token.get_value(&scanner));
+    println!(
+      "{:?} ({})",
+      token.token_type,
+      token.get_value_from_string(source)
+    );
 
     if token.token_type == TokenType::EndOfFile {
       println!("─────╯");
