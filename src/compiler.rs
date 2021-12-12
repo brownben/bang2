@@ -164,6 +164,9 @@ impl Compiler {
           self.emit_opcode(else_token, OpCode::Pop);
           self.compile_statement(*otherwise);
           self.patch_jump(else_token, else_jump);
+        } else {
+          self.patch_jump(if_token, then_jump);
+          self.emit_opcode(if_token, OpCode::Pop);
         }
       }
       Statement::While {

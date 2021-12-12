@@ -81,6 +81,12 @@ impl From<String> for Value {
   }
 }
 
+impl From<&str> for Value {
+  fn from(value: &str) -> Self {
+    Self::String(Rc::from(String::from(value)))
+  }
+}
+
 impl std::fmt::Display for Value {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {

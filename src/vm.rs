@@ -93,9 +93,6 @@ impl VM {
     let mut ip = 0;
 
     loop {
-      #[cfg(feature = "debug-stack")]
-      println!("Stack={:?}", self.stack);
-
       let instruction = self.chunk.get(ip);
 
       match instruction {
@@ -275,6 +272,9 @@ impl VM {
           break self.runtime_error("Unknown OpCode", ip);
         }
       }
+
+      #[cfg(feature = "debug-stack")]
+      println!("Stack={:?}", self.stack);
 
       if ip >= self.chunk.length() {
         break Ok(());
