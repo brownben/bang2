@@ -158,7 +158,7 @@ impl Chunk {
 }
 
 impl Chunk {
-  pub fn len(&self) -> usize {
+  pub fn length(&self) -> usize {
     self.code.len()
   }
 
@@ -184,6 +184,12 @@ impl Chunk {
   }
 }
 
+impl Default for Chunk {
+  fn default() -> Self {
+    Self::new()
+  }
+}
+
 #[cfg(feature = "debug-bytecode")]
 pub fn disassemble(chunk: &Chunk) {
   println!("          ╭─[Bytecode]");
@@ -191,7 +197,7 @@ pub fn disassemble(chunk: &Chunk) {
   let mut position: usize = 0;
   let mut last_line_number = 0;
 
-  while position < chunk.len() {
+  while position < chunk.length() {
     let line_number = chunk.lines.get(position);
     if line_number == last_line_number {
       print!("     {:0>4} │ ", position);

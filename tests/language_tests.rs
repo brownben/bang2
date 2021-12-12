@@ -1,4 +1,5 @@
-use bang::{chunk, compiler, error, parser, vm, Value};
+use bang;
+use bang::{Chunk, CompileError, Value};
 
 use regex::Regex;
 
@@ -61,10 +62,9 @@ enum RunResult {
   CompileError,
 }
 
-fn compile(source: &str) -> Result<chunk::Chunk, error::CompileError> {
-  let ast = parser::parse(source)?;
-  compiler::compile(ast)
-
+fn compile(source: &str) -> Result<Chunk, CompileError> {
+  let ast = bang::parse(source)?;
+  bang::compile(ast)
 }
 
 fn run(source: &str) -> (RunResult, HashMap<Rc<str>, Value>) {
@@ -72,7 +72,7 @@ fn run(source: &str) -> (RunResult, HashMap<Rc<str>, Value>) {
   let mut globals = HashMap::new();
 
   match compile(source) {
-    Ok(chunk) => match vm::run(chunk) {
+    Ok(chunk) => match bang::run(chunk) {
       Ok(vars) => globals = vars,
       Err(_) => result = RunResult::RuntimeError,
     },

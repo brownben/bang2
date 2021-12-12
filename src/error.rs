@@ -33,92 +33,82 @@ pub struct RuntimeError {
 
 pub struct Diagnostic {
   pub message: String,
-  pub label: String,
-  pub note: String,
+  pub note: Option<String>,
 }
 
 pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic {
   match error {
     Error::UnterminatedString => Diagnostic {
-      message: "Unterminated String".to_string(),
-      label: format!("Missing closing quote {}", token.get_value(source)),
-      note: format!("Add {} to close the string", token.get_value(source)),
+      message: format!(
+        "Unterminated String, Missing closing quote {}",
+        token.get_value(source)
+      ),
+      note: None,
     },
     Error::UnknownCharacter => Diagnostic {
-      message: "Unknown Character".to_string(),
-      label: format!("Unknown character '{}'", token.get_value(source)),
-      note: "Try deleting the character".to_string(),
+      message: format!("Unknown Character '{}'", token.get_value(source)),
+      note: None,
     },
     Error::UnknownBinaryOperator => Diagnostic {
-      message: "Unknown Binary Operator".to_string(),
-      label: format!("Unknown binary operator '{}'", token.get_value(source)),
-      note: "Are you using the correct operator?".to_string(),
+      message: format!("Unknown Binary Operator '{}'", token.get_value(source)),
+      note: None,
     },
     Error::UnknownUnaryOperator => Diagnostic {
-      message: "Unknown Unary Operator".to_string(),
-      label: format!("Unknown unary operator '{}'", token.get_value(source)),
-      note: "Are you using the correct operator?".to_string(),
+      message: format!("Unknown Unary Operator '{}'", token.get_value(source)),
+      note: None,
     },
 
     Error::VariableAlreadyExists => Diagnostic {
-      message: "Redefining Existing Variable".to_string(),
-      label: format!("Variable '{}' already exists", token.get_value(source)),
-      note: "You could try a new name for your variable".to_string(),
+      message: format!(
+        "Redefining Exisiting Variable '{}'",
+        token.get_value(source)
+      ),
+      note: None,
     },
     Error::MissingVariableName => Diagnostic {
       message: "Expected Variable Name".to_string(),
-      label: "Variable not assigned a name".to_string(),
-      note: "Add the name for your variable".to_string(),
+      note: None,
     },
-    Error::MissingEndOfFile => Diagnostic {
-      message: "Missing End of File".to_string(),
-      label: "No End of File token".to_string(),
-      note: "This is likely a problem with the compiler rather than your code".to_string(),
-    },
+
     Error::InvalidAssignmentTarget => Diagnostic {
-      message: "Invalid Assignment Target".to_string(),
-      label: "Assignment target is not a variable".to_string(),
-      note: "Assign to a variable rather than an expression".to_string(),
+      message: "Invalid Assignment Target, Must be a Variable".to_string(),
+      note: None,
     },
     Error::MissingBracketBeforeCondition => Diagnostic {
-      message: "Expected Bracket Before Condition".to_string(),
-      label: "Expected '(' before condition".to_string(),
-      note: "Add a ( before the condition".to_string(),
+      message: "Expected Bracket '(' Before Condition".to_string(),
+      note: None,
     },
     Error::MissingBracketAfterCondition => Diagnostic {
-      message: "Expected Bracket After Condition".to_string(),
-      label: "Expected ')' after condition".to_string(),
-      note: "Add a ) after the condition".to_string(),
+      message: "Expected Closing Bracket ')' After Condition".to_string(),
+      note: None,
     },
     Error::ExpectedNewLine => Diagnostic {
       message: "Expected New Line After Expression".to_string(),
-      label: "Expected a new line here".to_string(),
-      note: "Add a new line".to_string(),
+      note: None,
     },
     Error::ExpectedEndOfBlock => Diagnostic {
       message: "Expected End of Block".to_string(),
-      label: "Expected the block to end here".to_string(),
-      note: "Try dedenting the next line".to_string(),
+      note: None,
+    },
+    Error::MissingEndOfFile => Diagnostic {
+      message: "Missing End of File".to_string(),
+      note: Some("This is likely to be an issue with the compiler".to_string()),
     },
     Error::TooManyConstants => Diagnostic {
       message: "Too Many Constants".to_string(),
-      label: "Couldn't add constant, as already too many in chunk".to_string(),
-      note: "This is likely to be an issue with the compiler".to_string(),
+      note: Some("This is likely to be an issue with the compiler".to_string()),
     },
     Error::TooBigJump => Diagnostic {
       message: "Jump Too Large".to_string(),
-      label: "Couldn't construct bytecode, as block too large".to_string(),
-      note: "This is likely to be an issue with the compiler".to_string(),
+      note: Some("This is likely to be an issue with the compiler".to_string()),
     },
     Error::ExpectedBracket => Diagnostic {
-      message: "Expected Closing Bracket".to_string(),
-      label: "Expected ')' after expression".to_string(),
-      note: "Add a ) to close the expression".to_string(),
+      message: "Expected Closing Bracket ')' After Expression".to_string(),
+      note: None,
     },
     Error::ExpectedExpression => Diagnostic {
       message: "Expected Expression".to_string(),
-      label: "Expected expression here".to_string(),
-      note: "Add an expression here".to_string(),
+      note: None,
     },
   }
 }

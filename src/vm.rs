@@ -276,7 +276,7 @@ impl VM {
         }
       }
 
-      if ip >= self.chunk.len() {
+      if ip >= self.chunk.length() {
         break Ok(());
       }
     }

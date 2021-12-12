@@ -67,12 +67,12 @@ impl Compiler {
   fn emit_jump(&mut self, token: Token, instruction: OpCode) -> usize {
     self.emit_opcode(token, instruction);
     self.emit_long_value(token, u16::MAX);
-    self.chunk.len() - 2
+    self.chunk.length() - 2
   }
 
   fn patch_jump(&mut self, token: Token, offset: usize) {
     // -2 to adjust for the bytecode for the jump offset itself
-    let jump = self.chunk.len() - offset;
+    let jump = self.chunk.length() - offset;
 
     if jump > u16::MAX as usize {
       self.error(token, Error::TooBigJump);
@@ -172,7 +172,7 @@ impl Compiler {
         body,
         ..
       } => {
-        let loop_start = self.chunk.len();
+        let loop_start = self.chunk.length();
         self.compile_expression(condition);
 
         let exit_jump = self.emit_jump(token, OpCode::JumpIfFalse);
@@ -181,7 +181,7 @@ impl Compiler {
         self.compile_statement(*body);
         self.emit_opcode(token, OpCode::Loop);
 
-        let offset = self.chunk.len() - loop_start;
+        let offset = self.chunk.length() - loop_start;
         if offset > u16::MAX as usize {
           self.error(token, Error::TooBigJump);
         } else {

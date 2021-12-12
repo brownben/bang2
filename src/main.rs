@@ -1,6 +1,3 @@
-#![warn(clippy::pedantic)]
-#![allow(clippy::non_ascii_literal)]
-
 mod ast;
 mod chunk;
 mod compiler;
@@ -41,8 +38,11 @@ fn print_compile_error(file: &str, source: &str, error: &error::CompileError) {
   let diagnostic = error::get_message(&chars, error, token);
 
   eprintln!("{} {}", red("Error:"), diagnostic.message);
-  eprintln!("{}", diagnostic.label);
   print_code_frame(file, source, token.line as usize);
+
+  if let Some(note) = diagnostic.note {
+    eprintln!("{}", note)
+  }
 }
 
 fn print_runtime_error(file: &str, source: &str, error: &error::RuntimeError) {
@@ -57,7 +57,7 @@ fn compile(source: &str) -> Result<chunk::Chunk, error::CompileError> {
 }
 
 fn main() {
-  let filename = "./fib.bang";
+  let filename = "./benchmarks/fibonacci.bang";
   if let Ok(file) = fs::read_to_string(filename) {
     match compile(&file) {
       Ok(chunk) => match vm::run(chunk) {
@@ -67,6 +67,6 @@ fn main() {
       Err(details) => print_compile_error(filename, &file, &details),
     }
   } else {
-    println!("Problem reading file '{}'", filename);
+    eprintln!("Problem reading file '{}'", filename);
   }
 }
