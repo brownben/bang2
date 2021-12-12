@@ -5,6 +5,12 @@ use crate::value::Value;
 use crate::token::TokenType;
 
 #[derive(Debug, Clone)]
+pub struct Parameter {
+  pub identifier: Token,
+  pub value: String,
+}
+
+#[derive(Debug, Clone)]
 pub enum Expression {
   Literal {
     value: Value,
@@ -30,6 +36,11 @@ pub enum Expression {
   Variable {
     variable_name: String,
     identifier: Token,
+  },
+  Call {
+    expression: Box<Expression>,
+    token: Token,
+    arguments: Vec<Expression>,
   },
 }
 
@@ -62,6 +73,13 @@ pub enum Statement {
   },
   Expression {
     expression: Expression,
+  },
+  Function {
+    name: String,
+    token: Token,
+    identifier: Token,
+    parameters: Vec<Parameter>,
+    body: Box<Statement>,
   },
 }
 
@@ -118,6 +136,27 @@ fn print_expression(expression: &Expression, prefix: String, prefix_raw: String)
     }
     Expression::Variable { variable_name, .. } => {
       println!("{}Variable ({})", prefix, variable_name)
+    }
+    Expression::Call {
+      expression,
+      arguments,
+      ..
+    } => {
+      println!("{}Call", prefix);
+      println!("{}├─ Expression", prefix_raw);
+      print_expression(
+        expression,
+        prefix_raw.clone() + "│  ╰─ ",
+        prefix_raw.clone() + "│     ",
+      );
+      println!("{}╰─ Arguments", prefix_raw);
+      for arg in arguments {
+        print_expression(
+          &arg,
+          prefix_raw.clone() + "   ├─ ",
+          prefix_raw.clone() + "   │  ",
+        );
+      }
     }
   }
 }
@@ -192,6 +231,24 @@ fn print_statement(statement: &Statement, prefix: String, prefix_raw: String) {
     Statement::Expression { expression, .. } => {
       println!("{}Expression", prefix);
       print_expression(expression, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
+    }
+    Statement::Function {
+      name,
+      body,
+      parameters,
+      ..
+    } => {
+      println!(
+        "{}Function ({}) <{}>",
+        prefix,
+        name,
+        parameters
+          .iter()
+          .map(|p| p.value.clone())
+          .collect::<Vec<String>>()
+          .join(", ")
+      );
+      print_statement(&*body, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
     }
   }
 }

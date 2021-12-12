@@ -38,18 +38,16 @@ macro_rules! get {
 }
 
 macro_rules! runtime_error {
-  ($vm:expr, $message:expr, $chunk:expr, $ip:expr) => {
-    {
-      let line_number = $chunk.get_line_number($ip);
+  ($vm:expr, $message:expr, $chunk:expr, $ip:expr) => {{
+    let line_number = $chunk.get_line_number($ip);
 
-      $vm.stack.clear();
+    $vm.stack.clear();
 
-      Err(RuntimeError {
-        message: $message.to_string(),
-        line_number,
-      })
-    }
-  };
+    Err(RuntimeError {
+      message: $message.to_string(),
+      line_number,
+    })
+  }};
 }
 
 macro_rules! numeric_expression {
@@ -91,12 +89,12 @@ impl VM {
     self.stack.last().unwrap()
   }
 
-  fn peek_2(&self) -> &Value {
+  fn peek_second(&self) -> &Value {
     self.stack.get(self.stack.len() - 2).unwrap()
   }
 
-  fn run(&mut self, chunk: Chunk) -> Result<(), RuntimeError> {
-    let mut ip = 0;
+  fn run(&mut self, chunk: &Chunk, offset: usize) -> Result<(), RuntimeError> {
+    let mut ip: usize = 0;
 
     loop {
       let instruction = chunk.get(ip);
@@ -127,7 +125,7 @@ impl VM {
           ip += 1;
         }
         Some(OpCode::Add) => {
-          let first_operand = self.peek_2();
+          let first_operand = self.peek_second();
           if first_operand.is_string() {
             let (right, left) = get!(Two self, chunk, ip);
 
@@ -244,12 +242,12 @@ impl VM {
         }
         Some(OpCode::GetLocal) => {
           let slot = get!(Value self, chunk, ip + 1);
-          self.stack.push(self.stack[slot as usize].clone());
+          self.stack.push(self.stack[offset + slot as usize].clone());
           ip += 2;
         }
         Some(OpCode::SetLocal) => {
           let slot = get!(Value self, chunk, ip + 1);
-          self.stack[slot as usize] = self.peek().clone();
+          self.stack[offset + slot as usize] = self.peek().clone();
           ip += 2;
         }
 
@@ -279,24 +277,57 @@ impl VM {
         }
 
         Some(OpCode::Return) => break Ok(()),
+        Some(OpCode::Call) => {
+          let arg_count = get!(Value self, chunk, ip + 1);
+
+          let pos = self.stack.len() - arg_count as usize - 1;
+          let callee = self.stack[offset + pos].clone();
+
+          let function = if callee.is_function() {
+            callee.get_function_value().unwrap()
+          } else {
+            break runtime_error!(self, "Can only call functions.", chunk, ip);
+          };
+
+          if arg_count != function.arity {
+            let message = format!(
+              "Expected {} arguments but got {}.",
+              function.arity, arg_count
+            );
+            break runtime_error!(self, message, chunk, ip);
+          }
+          self.run(&function.chunk, self.stack.len() - arg_count as usize)?;
+
+          ip += 2;
+        }
         None => {
           break runtime_error!(self, "Unknown OpCode", chunk, ip);
         }
       }
 
       #[cfg(feature = "debug-stack")]
-      println!("Stack={:?}", self.stack);
+      self.print_stack(ip);
 
       if ip >= chunk.length() {
         break Ok(());
       }
     }
   }
+
+  #[cfg(feature = "debug-stack")]
+  fn print_stack(&self, ip: usize) {
+    print!("{:0>4} │ ", ip);
+    for item in &self.stack {
+      print!("{}, ", item);
+    }
+    println!("");
+  }
 }
 
 pub fn run(chunk: Chunk) -> Result<HashMap<Rc<str>, Value>, RuntimeError> {
   let mut vm = VM::new();
-  vm.run(chunk)?;
+
+  vm.run(&chunk, 0)?;
 
   Ok(vm.globals)
 }

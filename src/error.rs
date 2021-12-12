@@ -8,12 +8,14 @@ pub enum Error {
   MissingVariableName,
   MissingEndOfFile,
   InvalidAssignmentTarget,
+  MissingBracketBeforeParameters,
   MissingBracketBeforeCondition,
   MissingBracketAfterCondition,
   ExpectedNewLine,
   ExpectedEndOfBlock,
   ExpectedBracket,
   ExpectedExpression,
+  TooManyArguments,
   TooManyConstants,
   TooBigJump,
   UnknownBinaryOperator,
@@ -82,6 +84,10 @@ pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic 
       message: "Expected Closing Bracket ')' After Condition".to_string(),
       note: None,
     },
+    Error::MissingBracketBeforeParameters => Diagnostic {
+      message: "Expected Bracket '(' Before Parameters".to_string(),
+      note: None,
+    },
     Error::ExpectedNewLine => Diagnostic {
       message: "Expected New Line After Expression".to_string(),
       note: None,
@@ -93,6 +99,10 @@ pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic 
     Error::MissingEndOfFile => Diagnostic {
       message: "Missing End of File".to_string(),
       note: Some("This is likely to be an issue with the compiler".to_string()),
+    },
+    Error::TooManyArguments => Diagnostic {
+      message: "Too Many Arguments (Max 255)".to_string(),
+      note: None,
     },
     Error::TooManyConstants => Diagnostic {
       message: "Too Many Constants".to_string(),

@@ -32,6 +32,7 @@ pub enum OpCode {
   GetLocal,
   SetLocal,
   Return,
+  Call,
 }
 
 fn get_op_code(code: Option<&u8>) -> Option<OpCode> {
@@ -40,6 +41,8 @@ fn get_op_code(code: Option<&u8>) -> Option<OpCode> {
 
 type TokensOnLine = u8;
 type Line = (LineNumber, TokensOnLine);
+
+#[derive(Debug)]
 struct LineInfo {
   lines: Vec<Line>,
   last: LineNumber,
@@ -80,8 +83,13 @@ impl LineInfo {
 
       line += 1;
     }
-
-    self.lines[line].0
+    if length == 0 {
+      0
+    } else if line == length {
+      self.lines[length - 1].0
+    } else {
+      self.lines[line].0
+    }
   }
 
   fn finalize(&mut self) {
@@ -94,15 +102,18 @@ impl LineInfo {
   }
 }
 
+#[derive(Debug)]
 pub struct Chunk {
+  name: String,
   code: Vec<u8>,
   constants: Vec<Value>,
   lines: LineInfo,
 }
 
 impl Chunk {
-  pub fn new() -> Self {
+  pub fn new(name: String) -> Self {
     Self {
+      name,
       code: Vec::new(),
       constants: Vec::new(),
       lines: LineInfo::new(),
@@ -180,19 +191,23 @@ impl Chunk {
   pub fn get_constant(&self, pointer: usize) -> Option<Value> {
     let value = self.constants.get(pointer)?;
 
-    Some(value.duplicate())
-  }
-}
-
-impl Default for Chunk {
-  fn default() -> Self {
-    Self::new()
+    Some(value.clone())
   }
 }
 
 #[cfg(feature = "debug-bytecode")]
 pub fn disassemble(chunk: &Chunk) {
-  println!("          ╭─[Bytecode]");
+  disassemble_chunk(chunk);
+  for constant in &chunk.constants {
+    if constant.is_function() {
+      disassemble(&constant.get_function_value().unwrap().chunk);
+    }
+  }
+}
+
+#[cfg(feature = "debug-bytecode")]
+pub fn disassemble_chunk(chunk: &Chunk) {
+  println!("          ╭─[Bytecode:{}]", chunk.name);
 
   let mut position: usize = 0;
   let mut last_line_number = 0;
@@ -242,6 +257,7 @@ pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
     Some(OpCode::Loop) => jump_instruction("Loop", -1, chunk, position),
     Some(OpCode::GetLocal) => byte_instruction("Get Local", chunk, position),
     Some(OpCode::SetLocal) => byte_instruction("Set Local", chunk, position),
+    Some(OpCode::Call) => byte_instruction("Call", chunk, position),
     None => simple_instruction("Unknown OpCode", position),
   }
 }

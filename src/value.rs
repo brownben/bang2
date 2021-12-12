@@ -1,4 +1,13 @@
+use crate::chunk::Chunk;
+
 use std::rc::Rc;
+
+#[derive(Debug)]
+pub struct Function {
+  pub arity: u8,
+  pub chunk: Chunk,
+  pub name: Rc<str>,
+}
 
 #[derive(Debug, Clone)]
 pub enum Value {
@@ -21,6 +30,10 @@ impl Value {
     matches!(self, Value::String(_))
   }
 
+  pub fn is_function(&self) -> bool {
+    matches!(self, Value::Function(_))
+  }
+
   pub fn get_number_value(&self) -> f64 {
     match self {
       Value::Number(number) => *number,
@@ -35,12 +48,20 @@ impl Value {
     }
   }
 
+  pub fn get_function_value(&self) -> Option<&Rc<Function>> {
+    match self {
+      Value::Function(func) => Some(func),
+      _ => None,
+    }
+  }
+
   pub fn is_falsy(&self) -> bool {
     match self {
       Value::Boolean(value) => !value,
       Value::Null => true,
       Value::Number(value) => (*value - 0.0).abs() < f64::EPSILON,
       Value::String(value) => value.is_empty(),
+      Value::Function(_) => false,
     }
   }
 
@@ -50,12 +71,9 @@ impl Value {
       (Value::Null, Value::Null) => true,
       (Value::Number(value), Value::Number(other)) => (*value - *other).abs() < f64::EPSILON,
       (Value::String(value), Value::String(other)) => value.eq(other),
+      (Value::Function(value), Value::Function(other)) => Rc::ptr_eq(&value, &other),
       _ => false,
     }
-  }
-
-  pub fn duplicate(&self) -> Self {
-    self.clone()
   }
 }
 
@@ -87,6 +105,12 @@ impl From<&str> for Value {
   }
 }
 
+impl From<Function> for Value {
+  fn from(value: Function) -> Self {
+    Self::Function(Rc::from(value))
+  }
+}
+
 impl std::fmt::Display for Value {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
@@ -94,6 +118,7 @@ impl std::fmt::Display for Value {
       Value::Null => write!(f, "null"),
       Value::Number(value) => write!(f, "{}", value),
       Value::String(value) => write!(f, "{}", value),
+      Value::Function(value) => write!(f, "<function {}>", value.name),
     }
   }
 }

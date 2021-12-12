@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Statement};
+use crate::ast::{Expression, Parameter, Statement};
 use crate::error::{CompileError, Error};
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenType};
@@ -53,8 +53,8 @@ fn get_rule(token_type: TokenType) -> ParseRule {
   match token_type {
     TokenType::LeftParen => ParseRule {
       prefix: Some(grouping),
-      infix: None,
-      precedence: Precedence::None,
+      infix: Some(call),
+      precedence: Precedence::Call,
     },
 
     TokenType::Plus => ParseRule {
@@ -243,11 +243,53 @@ pub fn parse(source: &str) -> Result<Vec<Statement>, CompileError> {
 }
 
 fn declaration(parser: &mut Parser) -> StatementResult {
-  if parser.matches(TokenType::Let) {
+  if parser.matches(TokenType::Fun) {
+    function_declaration(parser)
+  } else if parser.matches(TokenType::Let) {
     var_declaration(parser)
   } else {
     statement(parser)
   }
+}
+
+fn function_declaration(parser: &mut Parser) -> StatementResult {
+  let token = parser.current.unwrap();
+  parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
+  let identifier = parser.previous.unwrap();
+  let name = identifier.get_value(&parser.scanner.chars);
+
+  let mut parameters = Vec::new();
+  parser.consume(TokenType::LeftParen, Error::MissingBracketBeforeParameters)?;
+  if parser.current.unwrap().token_type != TokenType::RightParen {
+    loop {
+      if parser.current.unwrap().token_type == TokenType::RightParen {
+        break;
+      }
+
+      parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
+      let token = parser.previous.unwrap();
+      parameters.push(Parameter {
+        identifier: token,
+        value: token.get_value(&parser.scanner.chars),
+      });
+
+      if !parser.matches(TokenType::Comma) {
+        break;
+      }
+    }
+  }
+  parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
+
+  parser.matches(TokenType::EndOfLine);
+  let body = statement(parser)?;
+
+  Ok(Statement::Function {
+    name,
+    identifier,
+    token,
+    body: Box::new(body),
+    parameters,
+  })
 }
 
 fn var_declaration(parser: &mut Parser) -> StatementResult {
@@ -432,6 +474,33 @@ fn unary(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
   Ok(Expression::Unary {
     operator,
     expression: Box::new(expression),
+  })
+}
+
+fn call(parser: &mut Parser, previous: Expression, _can_assign: bool) -> ExpressionResult {
+  let token = parser.previous.unwrap();
+  let mut arguments = Vec::new();
+
+  if parser.current.unwrap().token_type != TokenType::RightParen {
+    loop {
+      if parser.current.unwrap().token_type == TokenType::RightParen {
+        break;
+      }
+
+      arguments.push(expression(parser)?);
+
+      if !parser.matches(TokenType::Comma) {
+        break;
+      }
+    }
+  }
+
+  parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
+
+  Ok(Expression::Call {
+    expression: Box::new(previous),
+    token,
+    arguments,
   })
 }
 

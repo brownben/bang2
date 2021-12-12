@@ -7,6 +7,8 @@ use crate::value::Value;
 #[cfg(feature = "debug-bytecode")]
 use crate::chunk;
 
+use std::rc::Rc;
+
 #[derive(Debug)]
 struct Local {
   name: String,
@@ -15,6 +17,7 @@ struct Local {
 
 struct Compiler {
   chunk: Chunk,
+  chunk_stack: Vec<Chunk>,
 
   locals: Vec<Local>,
   scope_depth: u8,
@@ -80,12 +83,17 @@ impl Compiler {
 
     self.chunk.set_long_value(offset, jump as u16);
   }
+
+  fn length(&self) -> usize {
+    self.chunk.length()
+  }
 }
 
 impl Compiler {
   fn new() -> Self {
     Self {
-      chunk: Chunk::new(),
+      chunk: Chunk::new(String::from("SCRIPT")),
+      chunk_stack: Vec::new(),
       locals: Vec::new(),
       scope_depth: 0,
       error: None,
@@ -97,14 +105,28 @@ impl Compiler {
   }
 
   fn end_scope(&mut self) {
-    while let Some(value) = self.locals.last() {
-      if value.depth == self.scope_depth {
+    loop {
+      if self.locals.last().is_some() && self.locals.last().unwrap().depth == self.scope_depth {
         self.locals.pop();
         self.emit_opcode_blank(OpCode::Pop);
+      } else {
+        break;
       }
     }
 
     self.scope_depth -= 1;
+  }
+
+  fn new_chunk(&mut self, name: String) {
+    let chunk = std::mem::replace(&mut self.chunk, Chunk::new(name));
+    self.chunk_stack.push(chunk);
+    self.begin_scope();
+  }
+
+  fn finish_chunk(&mut self) -> Chunk {
+    let chunk = std::mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
+    self.end_scope();
+    chunk
   }
 
   fn error(&mut self, token: Token, error: Error) {
@@ -210,6 +232,44 @@ impl Compiler {
       Statement::Expression { expression, .. } => {
         self.compile_expression(expression);
         self.emit_opcode_blank(OpCode::Pop);
+      }
+      Statement::Function {
+        name,
+        identifier,
+        token,
+        parameters,
+        body,
+        ..
+      } => {
+        self.new_chunk(name.clone());
+        for parameter in &parameters {
+          self.locals.push(Local {
+            name: parameter.value.clone(),
+            depth: self.scope_depth,
+          });
+        }
+        self.compile_statement(*body);
+
+        let chunk = self.finish_chunk();
+
+        self.emit_constant(
+          token,
+          Value::from(Function {
+            chunk,
+            name: Rc::from(name.clone()),
+            arity: parameters.len() as u8,
+          }),
+        );
+
+        if self.scope_depth > 0 {
+          self.locals.push(Local {
+            name: name.clone(),
+            depth: self.scope_depth,
+          });
+        } else {
+          self.emit_opcode(identifier, OpCode::DefineGlobal);
+          self.emit_constant_string(identifier, name.clone());
+        }
       }
     }
   }
@@ -318,6 +378,30 @@ impl Compiler {
           self.emit_opcode(identifier, OpCode::GetGlobal);
           self.emit_constant_string(identifier, variable_name);
         }
+      }
+      Expression::Call {
+        token,
+        expression,
+        arguments,
+        ..
+      } => {
+        self.compile_expression(*expression);
+
+        if arguments.len() > 255 {
+          self.error(token, Error::TooManyArguments);
+        }
+
+        for argument in arguments.clone() {
+          self.compile_expression(argument);
+        }
+
+        self.emit_opcode(token, OpCode::Call);
+        self.emit_value(token, arguments.len() as u8);
+
+        for _argument in &arguments {
+          self.emit_opcode(token, OpCode::Pop);
+        }
+        self.emit_opcode(token, OpCode::Pop); // Callee
       }
     }
   }
