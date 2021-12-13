@@ -1,4 +1,5 @@
 mod ast;
+mod builtin;
 mod chunk;
 mod compiler;
 mod error;

@@ -52,7 +52,6 @@ pub enum TokenType {
   Fun,
   If,
   Let,
-  Print,
   Return,
   While,
 

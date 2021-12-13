@@ -19,6 +19,31 @@ impl Function {
   }
 }
 
+pub struct NativeFunction {
+  pub name: String,
+  pub arity: u8,
+  pub func: fn(args: &[Value]) -> Value,
+}
+
+impl NativeFunction {
+  pub fn create(name: &str, arity: u8, func: fn(args: &[Value]) -> Value) -> Value {
+    Value::from(Self {
+      name: name.to_string(),
+      arity,
+      func,
+    })
+  }
+}
+
+impl std::fmt::Debug for NativeFunction {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    f.debug_struct("NativeFunction")
+      .field("name", &self.name)
+      .field("arity", &self.arity)
+      .finish()
+  }
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
   Null,
@@ -26,6 +51,7 @@ pub enum Value {
   Number(f64),
   String(Rc<str>),
   Function(Rc<Function>),
+  NativeFunction(Rc<NativeFunction>),
 }
 
 impl Value {
@@ -41,8 +67,8 @@ impl Value {
     matches!(self, Value::String(_))
   }
 
-  pub fn is_function(&self) -> bool {
-    matches!(self, Value::Function(_))
+  pub fn is_callable(&self) -> bool {
+    matches!(self, Value::Function(_) | Value::NativeFunction(_))
   }
 
   pub fn get_number_value(&self) -> f64 {
@@ -59,13 +85,6 @@ impl Value {
     }
   }
 
-  pub fn get_function_value(&self) -> Option<&Rc<Function>> {
-    match self {
-      Value::Function(func) => Some(func),
-      _ => None,
-    }
-  }
-
   pub fn is_falsy(&self) -> bool {
     match self {
       Value::Boolean(value) => !value,
@@ -73,6 +92,7 @@ impl Value {
       Value::Number(value) => (*value - 0.0).abs() < f64::EPSILON,
       Value::String(value) => value.is_empty(),
       Value::Function(_) => false,
+      Value::NativeFunction(_) => false,
     }
   }
 
@@ -83,6 +103,7 @@ impl Value {
       (Value::Number(value), Value::Number(other)) => (*value - *other).abs() < f64::EPSILON,
       (Value::String(value), Value::String(other)) => value.eq(other),
       (Value::Function(value), Value::Function(other)) => Rc::ptr_eq(value, other),
+      (Value::NativeFunction(value), Value::NativeFunction(other)) => Rc::ptr_eq(value, other),
       _ => false,
     }
   }
@@ -128,14 +149,21 @@ impl From<Function> for Value {
   }
 }
 
+impl From<NativeFunction> for Value {
+  fn from(value: NativeFunction) -> Self {
+    Self::NativeFunction(Rc::from(value))
+  }
+}
+
 impl std::fmt::Display for Value {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
       Value::Boolean(value) => write!(f, "{}", value),
       Value::Null => write!(f, "null"),
       Value::Number(value) => write!(f, "{}", value),
-      Value::String(value) => write!(f, "{}", value),
+      Value::String(value) => write!(f, "'{}'", value),
       Value::Function(value) => write!(f, "<function {}>", value.name),
+      Value::NativeFunction(value) => write!(f, "<function {}>", value.name),
     }
   }
 }

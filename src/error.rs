@@ -16,6 +16,7 @@ pub enum Error {
   ExpectedBracket,
   ExpectedExpression,
   TooManyArguments,
+  TooManyParameters,
   TooManyConstants,
   TooBigJump,
   UnknownBinaryOperator,
@@ -99,6 +100,10 @@ pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic 
     Error::MissingEndOfFile => Diagnostic {
       message: "Missing End of File".to_string(),
       note: Some("This is likely to be an issue with the compiler".to_string()),
+    },
+    Error::TooManyParameters => Diagnostic {
+      message: "Too Many Parameters (Max 255)".to_string(),
+      note: None,
     },
     Error::TooManyArguments => Diagnostic {
       message: "Too Many Arguments (Max 255)".to_string(),

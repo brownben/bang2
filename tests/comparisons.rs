@@ -187,3 +187,12 @@ let f = a() == b()
   e == true
   f == true
 );
+
+bang_test!(built_strings
+"
+let a = 'hel' + 'lo' == 'hello'
+let b = 'hell' + 'o' == 'he' + 'llo'
+"
+  a == true
+  b == true
+);

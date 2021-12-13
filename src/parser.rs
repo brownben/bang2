@@ -309,9 +309,7 @@ fn var_declaration(parser: &mut Parser) -> StatementResult {
 }
 
 fn statement(parser: &mut Parser) -> StatementResult {
-  if parser.matches(TokenType::Print) {
-    print_statement(parser)
-  } else if parser.matches(TokenType::Return) {
+  if parser.matches(TokenType::Return) {
     return_statement(parser)
   } else if parser.matches(TokenType::BlockStart) {
     block(parser)
@@ -338,15 +336,6 @@ fn block(parser: &mut Parser) -> StatementResult {
   }
 
   Ok(Statement::Block { body: statements })
-}
-
-fn print_statement(parser: &mut Parser) -> StatementResult {
-  let token = parser.current.unwrap();
-  let expression = expression(parser)?;
-
-  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine)?;
-
-  Ok(Statement::Print { token, expression })
 }
 
 fn return_statement(parser: &mut Parser) -> StatementResult {

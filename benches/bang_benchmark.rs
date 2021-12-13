@@ -10,6 +10,7 @@ pub fn compile(source: &str) -> Result<Chunk, CompileError> {
 macro_rules! bang_benchmark {
   ($name:ident, $source:expr) => {
     mod $name {
+
       extern crate test;
       use super::*;
       use test::Bencher;
@@ -19,6 +20,7 @@ macro_rules! bang_benchmark {
         b.iter(|| compile($source));
       }
 
+      #[allow(unused_must_use)]
       #[bench]
       fn vm(b: &mut Bencher) {
         match compile($source) {
@@ -29,6 +31,7 @@ macro_rules! bang_benchmark {
         }
       }
 
+      #[allow(unused_must_use)]
       #[bench]
       fn all(b: &mut Bencher) {
         b.iter(|| match compile($source) {

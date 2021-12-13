@@ -86,10 +86,6 @@ pub enum Statement {
     condition: Expression,
     body: Box<Statement>,
   },
-  Print {
-    token: Token,
-    expression: Expression,
-  },
   Block {
     body: Vec<Statement>,
   },
@@ -236,10 +232,6 @@ fn print_statement(statement: &Statement, prefix: String, prefix_raw: String) {
       );
       println!("{}╰─ Body", prefix_raw);
       print_statement(&*body, prefix_raw.clone() + "   ╰─ ", prefix_raw + "      ");
-    }
-    Statement::Print { expression, .. } => {
-      println!("{}Print", prefix);
-      print_expression(expression, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
     }
     Statement::Return { expression, .. } => {
       println!("{}Return", prefix);

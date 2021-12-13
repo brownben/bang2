@@ -294,7 +294,6 @@ fn identifier_type(scanner: &Scanner) -> TokenType {
     Some('l') => check_keyword(scanner, "let", TokenType::Let),
     Some('n') => check_keyword(scanner, "null", TokenType::Null),
     Some('o') => check_keyword(scanner, "or", TokenType::Or),
-    Some('p') => check_keyword(scanner, "print", TokenType::Print),
     Some('r') => check_keyword(scanner, "return", TokenType::Return),
     Some('t') => check_keyword(scanner, "true", TokenType::True),
     Some('w') => check_keyword(scanner, "while", TokenType::While),

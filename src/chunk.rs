@@ -20,7 +20,6 @@ pub enum OpCode {
   Equal,
   Greater,
   Less,
-  Print,
   Pop,
   DefineGlobal,
   GetGlobal,
@@ -194,12 +193,11 @@ impl Chunk {
 }
 
 #[cfg(feature = "debug-bytecode")]
-pub fn disassemble(chunk: &Chunk) {
-  disassemble_chunk(chunk, "");
+pub fn disassemble(chunk: &Chunk, name: &str) {
+  disassemble_chunk(chunk, name);
   for constant in &chunk.constants {
-    if constant.is_function() {
-      let function = &constant.get_function_value().unwrap();
-      disassemble_chunk(&function.chunk, &function.name);
+    if let Value::Function(function) = constant {
+      disassemble(&function.chunk, &function.name);
     }
   }
 }
@@ -244,7 +242,6 @@ pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
     Some(OpCode::Equal) => simple_instruction("Equal", position),
     Some(OpCode::Greater) => simple_instruction("Greater", position),
     Some(OpCode::Less) => simple_instruction("Less", position),
-    Some(OpCode::Print) => simple_instruction("Print", position),
     Some(OpCode::Pop) => simple_instruction("Pop", position),
     Some(OpCode::Return) => simple_instruction("Return", position),
     Some(OpCode::DefineGlobal) => constant_instruction("Define Global", chunk, position),

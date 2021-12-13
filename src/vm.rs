@@ -1,6 +1,8 @@
+use crate::builtin;
 use crate::chunk::{Chunk, OpCode};
 use crate::error::RuntimeError;
 use crate::value::{Function, Value};
+
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -49,12 +51,13 @@ struct CallFrame {
   offset: usize,
 }
 
-struct VM {
+pub struct VM {
   stack: Vec<Value>,
   pub globals: HashMap<Rc<str>, Value>,
   frames: Vec<CallFrame>,
 }
 
+use std::convert::From;
 impl VM {
   fn new() -> Self {
     Self {
@@ -189,11 +192,6 @@ impl VM {
           ip += 1;
         }
 
-        Some(OpCode::Print) => {
-          let value = self.stack.pop().unwrap();
-          println!("{}", value);
-          ip += 1;
-        }
         Some(OpCode::Pop) => {
           self.stack.pop();
           ip += 1;
@@ -298,22 +296,41 @@ impl VM {
           let pos = self.stack.len() - arg_count as usize - 1;
           let callee = self.stack[pos].clone();
 
-          let func = if callee.is_function() {
-            callee.get_function_value().unwrap().clone()
-          } else {
+          if !callee.is_callable() {
             break runtime_error!(self, "Can only call functions.", function.chunk, ip);
           };
 
-          if arg_count != func.arity {
-            let message = format!("Expected {} arguments but got {}.", func.arity, arg_count);
-            break runtime_error!(self, message, function.chunk, ip);
+          match callee {
+            Value::Function(func) => {
+              if arg_count != func.arity {
+                let message = format!("Expected {} arguments but got {}.", func.arity, arg_count);
+                break runtime_error!(self, message, function.chunk, ip);
+              }
+
+              self.store_frame(function.clone(), ip + 2, offset);
+
+              offset = self.stack.len() - arg_count as usize;
+              function = func;
+              ip = 0;
+            }
+            Value::NativeFunction(func) => {
+              if arg_count != func.arity {
+                let message = format!("Expected {} arguments but got {}.", func.arity, arg_count);
+                break runtime_error!(self, message, function.chunk, ip);
+              }
+
+              let start_of_args = self.stack.len() - arg_count as usize;
+              let result = {
+                let args = self.stack.drain(start_of_args..);
+                (func.func)(args.as_slice())
+              };
+              self.stack.pop();
+              self.stack.push(result);
+
+              ip += 2;
+            }
+            _ => unreachable!(),
           }
-
-          self.store_frame(function.clone(), ip + 2, offset);
-
-          offset = self.stack.len() - arg_count as usize;
-          function = func;
-          ip = 0;
         }
         None => {
           break runtime_error!(self, "Unknown OpCode", function.chunk, ip);
@@ -341,6 +358,7 @@ impl VM {
 
 pub fn run(chunk: Chunk) -> Result<HashMap<Rc<str>, Value>, RuntimeError> {
   let mut vm = VM::new();
+  builtin::define_globals(&mut vm);
 
   vm.run(Function::script(chunk))?;
 

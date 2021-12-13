@@ -216,12 +216,6 @@ impl Compiler {
         self.patch_jump(token, exit_jump);
         self.emit_opcode(token, OpCode::Pop);
       }
-      Statement::Print {
-        token, expression, ..
-      } => {
-        self.compile_expression(expression);
-        self.emit_opcode(token, OpCode::Print);
-      }
       Statement::Return {
         token, expression, ..
       } => {
@@ -251,6 +245,10 @@ impl Compiler {
         body,
         ..
       } => {
+        if parameters.len() > u8::MAX as usize {
+          self.error(token, Error::TooManyParameters);
+        };
+
         self.new_chunk();
         for parameter in &parameters {
           self.locals.push(Local {
@@ -465,7 +463,7 @@ pub fn compile(ast: Vec<Statement>) -> Result<Chunk, CompileError> {
   compiler.chunk.finalize();
 
   #[cfg(feature = "debug-bytecode")]
-  chunk::disassemble(&compiler.chunk);
+  chunk::disassemble(&compiler.chunk, "");
 
   Ok(compiler.chunk)
 }
