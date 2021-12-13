@@ -83,7 +83,7 @@ impl VM {
   }
 
   fn peek_second(&self) -> &Value {
-    self.stack.get(self.stack.len() - 2).unwrap()
+    &self.stack[self.stack.len() - 2]
   }
 
   fn run(&mut self, function: Rc<Function>) -> Result<(), RuntimeError> {
@@ -96,20 +96,20 @@ impl VM {
 
       match instruction {
         Some(OpCode::Constant) => {
-          let constant_location = function.chunk.get_value(ip + 1).unwrap();
+          let constant_location = function.chunk.get_value(ip + 1);
           let constant = function
             .chunk
             .get_constant(constant_location as usize)
-            .unwrap();
+            ;
           self.stack.push(constant);
           ip += 2;
         }
         Some(OpCode::ConstantLong) => {
-          let constant_location = function.chunk.get_long_value(ip + 1).unwrap() as u16;
+          let constant_location = function.chunk.get_long_value(ip + 1) as u16;
           let constant = function
             .chunk
             .get_constant(constant_location as usize)
-            .unwrap();
+            ;
           self.stack.push(constant);
           ip += 3;
         }
@@ -197,8 +197,8 @@ impl VM {
         }
 
         Some(OpCode::DefineGlobal) => {
-          let name_location = function.chunk.get_value(ip + 1).unwrap();
-          let name = function.chunk.get_constant(name_location as usize).unwrap();
+          let name_location = function.chunk.get_value(ip + 1);
+          let name = function.chunk.get_constant(name_location as usize);
 
           let value = self.stack.pop().unwrap();
           self.globals.insert(name.get_string_value(), value);
@@ -206,8 +206,8 @@ impl VM {
           ip += 2;
         }
         Some(OpCode::GetGlobal) => {
-          let name_location = function.chunk.get_value(ip + 1).unwrap();
-          let name = function.chunk.get_constant(name_location as usize).unwrap();
+          let name_location = function.chunk.get_value(ip + 1);
+          let name = function.chunk.get_constant(name_location as usize);
 
           let value = self.globals.get(&name.get_string_value());
 
@@ -221,8 +221,8 @@ impl VM {
           ip += 2;
         }
         Some(OpCode::SetGlobal) => {
-          let name_location = function.chunk.get_value(ip + 1).unwrap();
-          let name = function.chunk.get_constant(name_location as usize).unwrap();
+          let name_location = function.chunk.get_value(ip + 1);
+          let name = function.chunk.get_constant(name_location as usize);
           let value = self.peek().clone();
 
           if let std::collections::hash_map::Entry::Occupied(mut entry) =
@@ -237,18 +237,18 @@ impl VM {
           ip += 2;
         }
         Some(OpCode::GetLocal) => {
-          let slot = function.chunk.get_value(ip + 1).unwrap();
+          let slot = function.chunk.get_value(ip + 1);
           self.stack.push(self.stack[offset + slot as usize].clone());
           ip += 2;
         }
         Some(OpCode::SetLocal) => {
-          let slot = function.chunk.get_value(ip + 1).unwrap();
+          let slot = function.chunk.get_value(ip + 1);
           self.stack[offset + slot as usize] = self.peek().clone();
           ip += 2;
         }
 
         Some(OpCode::JumpIfFalse) => {
-          let offset = function.chunk.get_long_value(ip + 1).unwrap();
+          let offset = function.chunk.get_long_value(ip + 1);
           if self.peek().is_falsy() {
             ip += offset as usize + 1;
           } else {
@@ -256,7 +256,7 @@ impl VM {
           }
         }
         Some(OpCode::JumpIfNull) => {
-          let offset = function.chunk.get_long_value(ip + 1).unwrap();
+          let offset = function.chunk.get_long_value(ip + 1);
           if self.peek().is_null() {
             ip += offset as usize + 1;
           } else {
@@ -264,11 +264,11 @@ impl VM {
           }
         }
         Some(OpCode::Jump) => {
-          let offset = function.chunk.get_long_value(ip + 1).unwrap();
+          let offset = function.chunk.get_long_value(ip + 1);
           ip += offset as usize + 1;
         }
         Some(OpCode::Loop) => {
-          let offset = function.chunk.get_long_value(ip + 1).unwrap();
+          let offset = function.chunk.get_long_value(ip + 1);
           ip -= offset as usize - 1;
         }
 
@@ -291,7 +291,7 @@ impl VM {
           offset = frame.offset;
         }
         Some(OpCode::Call) => {
-          let arg_count = function.chunk.get_value(ip + 1).unwrap();
+          let arg_count = function.chunk.get_value(ip + 1);
           let pos = self.stack.len() - arg_count as usize - 1;
           let callee = self.stack[pos].clone();
 

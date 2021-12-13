@@ -34,8 +34,8 @@ pub enum OpCode {
   Call,
 }
 
-fn get_op_code(code: Option<&u8>) -> Option<OpCode> {
-  FromPrimitive::from_u8(*code?)
+fn get_op_code(code: u8) -> Option<OpCode> {
+  FromPrimitive::from_u8(code)
 }
 
 type TokensOnLine = u16;
@@ -171,24 +171,22 @@ impl Chunk {
   }
 
   pub fn get(&self, position: usize) -> Option<OpCode> {
-    get_op_code(self.code.get(position))
+    get_op_code(self.code[position])
   }
 
-  pub fn get_value(&self, position: usize) -> Option<u8> {
-    Some(*self.code.get(position)?)
+  pub fn get_value(&self, position: usize) -> u8 {
+    self.code[position]
   }
 
-  pub fn get_long_value(&self, position: usize) -> Option<u16> {
-    let first_byte = u16::from(self.get_value(position)?);
-    let second_byte = u16::from(self.get_value(position + 1)?);
+  pub fn get_long_value(&self, position: usize) -> u16 {
+    let first_byte = u16::from(self.get_value(position));
+    let second_byte = u16::from(self.get_value(position + 1));
 
-    Some((first_byte << 8) + second_byte)
+    (first_byte << 8) + second_byte
   }
 
-  pub fn get_constant(&self, pointer: usize) -> Option<Value> {
-    let value = self.constants.get(pointer)?;
-
-    Some(value.clone())
+  pub fn get_constant(&self, pointer: usize) -> Value {
+    self.constants[pointer].clone()
   }
 }
 
