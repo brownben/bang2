@@ -91,8 +91,7 @@ impl Value {
       Value::Null => true,
       Value::Number(value) => (*value - 0.0).abs() < f64::EPSILON,
       Value::String(value) => value.is_empty(),
-      Value::Function(_) => false,
-      Value::NativeFunction(_) => false,
+      Value::Function(_) | Value::NativeFunction(_) => false,
     }
   }
 

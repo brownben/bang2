@@ -28,19 +28,19 @@ struct Compiler {
 // Emit Bytecode
 impl Compiler {
   fn emit_opcode(&mut self, token: Token, code: OpCode) {
-    self.chunk.write(code, token.line)
+    self.chunk.write(code, token.line);
   }
 
   fn emit_opcode_blank(&mut self, code: OpCode) {
-    self.chunk.write(code, 0)
+    self.chunk.write(code, 0);
   }
 
   fn emit_value(&mut self, token: Token, value: u8) {
-    self.chunk.write_value(value, token.line)
+    self.chunk.write_value(value, token.line);
   }
 
   fn emit_long_value(&mut self, token: Token, value: u16) {
-    self.chunk.write_long_value(value, token.line)
+    self.chunk.write_long_value(value, token.line);
   }
 
   fn emit_constant(&mut self, token: Token, value: Value) {
@@ -130,7 +130,7 @@ impl Compiler {
   }
 
   fn error(&mut self, token: Token, error: Error) {
-    self.error = Some(CompileError { error, token })
+    self.error = Some(CompileError { error, token });
   }
 
   fn compile_statement(&mut self, statement: Statement) {

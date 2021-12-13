@@ -57,7 +57,6 @@ pub struct VM {
   frames: Vec<CallFrame>,
 }
 
-use std::convert::From;
 impl VM {
   fn new() -> Self {
     Self {
@@ -165,7 +164,7 @@ impl VM {
         Some(OpCode::Negate) => {
           let value = self.stack.pop().unwrap();
           if let Value::Number(n) = value {
-            self.stack.push(Value::from(-n))
+            self.stack.push(Value::from(-n));
           } else {
             break runtime_error!(self, "Operand must be a number.", function.chunk, ip);
           }

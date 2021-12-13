@@ -44,7 +44,7 @@ fn print_compile_error(file: &str, source: &str, error: &error::CompileError) {
   print_code_frame(file, source, token.line as usize);
 
   if let Some(note) = diagnostic.note {
-    eprintln!("{}", note)
+    eprintln!("{}", note);
   }
 }
 

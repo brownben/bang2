@@ -180,10 +180,10 @@ impl Parser {
 
   fn consume(&mut self, token_type: TokenType, message: Error) -> Result<(), CompileError> {
     let current = self.current.unwrap();
-    if current.token_type != token_type {
-      Err(self.error(current, message))
-    } else {
+    if current.token_type == token_type {
       self.advance()
+    } else {
+      Err(self.error(current, message))
     }
   }
 
