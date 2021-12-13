@@ -55,29 +55,6 @@ pub enum Value {
 }
 
 impl Value {
-  pub fn is_number(&self) -> bool {
-    matches!(self, Value::Number(_))
-  }
-
-  pub fn is_null(&self) -> bool {
-    matches!(self, Value::Null)
-  }
-
-  pub fn is_string(&self) -> bool {
-    matches!(self, Value::String(_))
-  }
-
-  pub fn is_callable(&self) -> bool {
-    matches!(self, Value::Function(_) | Value::NativeFunction(_))
-  }
-
-  pub fn get_number_value(&self) -> f64 {
-    match self {
-      Value::Number(number) => *number,
-      _ => 0.0,
-    }
-  }
-
   pub fn get_string_value(&self) -> Rc<str> {
     match self {
       Value::String(string) => string.clone(),

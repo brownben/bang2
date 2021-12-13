@@ -31,17 +31,14 @@ macro_rules! numeric_expression {
   ($vm:expr, $token:tt, $type:tt, $chunk:expr, $ip:expr) => {
     let (right, left) = ($vm.stack.pop().unwrap(),$vm.stack.pop().unwrap());
 
-    if !left.is_number() || !right.is_number() {
-      break runtime_error!($vm, "Both operands must be numbers.", $chunk, $ip);
+    match (left, right) {
+      (Value::Number(left), Value::Number(right)) => {
+        $vm.stack.push(Value::$type(left $token right));
+      }
+      _ => {
+        break runtime_error!($vm, "Both operands must be numbers.", $chunk, $ip);
+      }
     }
-
-    $vm.stack.push(
-      Value::$type(
-        left.get_number_value()
-          $token
-        right.get_number_value()
-      )
-    );
   };
 }
 
@@ -82,10 +79,6 @@ impl VM {
     self.stack.last().unwrap()
   }
 
-  fn peek_second(&self) -> &Value {
-    &self.stack[self.stack.len() - 2]
-  }
-
   fn run(&mut self, function: Rc<Function>) -> Result<(), RuntimeError> {
     let mut function = function;
     let mut ip: usize = 0;
@@ -97,19 +90,13 @@ impl VM {
       match instruction {
         Some(OpCode::Constant) => {
           let constant_location = function.chunk.get_value(ip + 1);
-          let constant = function
-            .chunk
-            .get_constant(constant_location as usize)
-            ;
+          let constant = function.chunk.get_constant(constant_location as usize);
           self.stack.push(constant);
           ip += 2;
         }
         Some(OpCode::ConstantLong) => {
           let constant_location = function.chunk.get_long_value(ip + 1) as u16;
-          let constant = function
-            .chunk
-            .get_constant(constant_location as usize)
-            ;
+          let constant = function.chunk.get_constant(constant_location as usize);
           self.stack.push(constant);
           ip += 3;
         }
@@ -118,33 +105,31 @@ impl VM {
           ip += 1;
         }
         Some(OpCode::True) => {
-          self.stack.push(Value::from(true));
+          self.stack.push(Value::Boolean(true));
           ip += 1;
         }
         Some(OpCode::False) => {
-          self.stack.push(Value::from(false));
+          self.stack.push(Value::Boolean(false));
           ip += 1;
         }
         Some(OpCode::Add) => {
-          let first_operand = self.peek_second();
-          if first_operand.is_string() {
-            let (right, left) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+          let (right, left) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
 
-            if !left.is_string() || !right.is_string() {
-              break runtime_error!(self, "Both operands must be strings.", function.chunk, ip);
+          match (left, right) {
+            (Value::Number(left), Value::Number(right)) => {
+              self.stack.push(Value::Number(left + right));
             }
-
-            let concatenated = format!("{}{}", left.get_string_value(), right.get_string_value());
-            self.stack.push(Value::from(concatenated));
-          } else if first_operand.is_number() {
-            numeric_expression!(self, +, function.chunk, ip);
-          } else {
-            break runtime_error!(
-              self,
-              "Operands must be two numbers or two strings.",
-              function.chunk,
-              ip
-            );
+            (Value::String(left), Value::String(right)) => {
+              self.stack.push(Value::from(format!("{}{}", left, right)));
+            }
+            _ => {
+              break runtime_error!(
+                self,
+                "Operands must be two numbers or two strings.",
+                function.chunk,
+                ip
+              );
+            }
           }
 
           ip += 1;
@@ -164,7 +149,7 @@ impl VM {
         Some(OpCode::Negate) => {
           let value = self.stack.pop().unwrap();
           if let Value::Number(n) = value {
-            self.stack.push(Value::from(-n));
+            self.stack.push(Value::Number(-n));
           } else {
             break runtime_error!(self, "Operand must be a number.", function.chunk, ip);
           }
@@ -173,13 +158,13 @@ impl VM {
         }
         Some(OpCode::Not) => {
           let value = self.stack.pop().unwrap();
-          self.stack.push(Value::from(value.is_falsy()));
+          self.stack.push(Value::Boolean(value.is_falsy()));
           ip += 1;
         }
 
         Some(OpCode::Equal) => {
           let (right, left) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-          self.stack.push(Value::from(left.equals(&right)));
+          self.stack.push(Value::Boolean(left.equals(&right)));
           ip += 1;
         }
         Some(OpCode::Less) => {
@@ -257,11 +242,10 @@ impl VM {
         }
         Some(OpCode::JumpIfNull) => {
           let offset = function.chunk.get_long_value(ip + 1);
-          if self.peek().is_null() {
-            ip += offset as usize + 1;
-          } else {
-            ip += 3;
-          }
+          ip += match self.peek() {
+            Value::Null => offset as usize + 1,
+            _ => 3,
+          };
         }
         Some(OpCode::Jump) => {
           let offset = function.chunk.get_long_value(ip + 1);
@@ -279,10 +263,7 @@ impl VM {
             break Ok(());
           }
 
-          while self.stack.len() > offset {
-            self.stack.pop();
-          }
-          self.stack.pop();
+          self.stack.drain(offset-1..);
           self.stack.push(result.unwrap());
 
           let frame = self.restore_frame();
@@ -294,10 +275,6 @@ impl VM {
           let arg_count = function.chunk.get_value(ip + 1);
           let pos = self.stack.len() - arg_count as usize - 1;
           let callee = self.stack[pos].clone();
-
-          if !callee.is_callable() {
-            break runtime_error!(self, "Can only call functions.", function.chunk, ip);
-          };
 
           match callee {
             Value::Function(func) => {
@@ -328,7 +305,9 @@ impl VM {
 
               ip += 2;
             }
-            _ => unreachable!(),
+            _ => {
+              break runtime_error!(self, "Can only call functions.", function.chunk, ip);
+            }
           }
         }
         None => {
