@@ -136,12 +136,6 @@ fn get_rule(token_type: TokenType) -> ParseRule {
   }
 }
 
-#[derive(Debug)]
-struct Local {
-  name: String,
-  depth: u8,
-}
-
 struct Parser {
   scanner: Scanner,
 
@@ -317,6 +311,8 @@ fn var_declaration(parser: &mut Parser) -> StatementResult {
 fn statement(parser: &mut Parser) -> StatementResult {
   if parser.matches(TokenType::Print) {
     print_statement(parser)
+  } else if parser.matches(TokenType::Return) {
+    return_statement(parser)
   } else if parser.matches(TokenType::BlockStart) {
     block(parser)
   } else if parser.matches(TokenType::While) {
@@ -351,6 +347,20 @@ fn print_statement(parser: &mut Parser) -> StatementResult {
   parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine)?;
 
   Ok(Statement::Print { token, expression })
+}
+
+fn return_statement(parser: &mut Parser) -> StatementResult {
+  let token = parser.current.unwrap();
+
+  let expression = if parser.matches(TokenType::EndOfLine) {
+    None
+  } else {
+    let exp = Some(expression(parser)?);
+    parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine)?;
+    exp
+  };
+
+  Ok(Statement::Return { token, expression })
 }
 
 fn if_statement(parser: &mut Parser) -> StatementResult {
@@ -531,7 +541,7 @@ fn number(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
   let token = parser.previous.unwrap();
   let value: f64 = token
     .get_value(&parser.scanner.chars)
-    .replace("_", "")
+    .replace('_', "")
     .parse()
     .unwrap();
 

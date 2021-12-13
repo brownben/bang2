@@ -81,6 +81,10 @@ pub enum Statement {
     parameters: Vec<Parameter>,
     body: Box<Statement>,
   },
+  Return {
+    token: Token,
+    expression: Option<Expression>,
+  },
 }
 
 #[cfg(feature = "debug-ast")]
@@ -214,6 +218,12 @@ fn print_statement(statement: &Statement, prefix: String, prefix_raw: String) {
     Statement::Print { expression, .. } => {
       println!("{}Print", prefix);
       print_expression(expression, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
+    }
+    Statement::Return { expression, .. } => {
+      println!("{}Return", prefix);
+      if let Some(expression) = expression {
+        print_expression(expression, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
+      }
     }
     Statement::Block { body, .. } => {
       println!("{}Block", prefix);

@@ -1,0 +1,7 @@
+fun identity(x)
+  return x
+
+fun f(a)
+  return a(4) * 4
+
+let result = f(identity)

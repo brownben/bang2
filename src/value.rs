@@ -9,12 +9,23 @@ pub struct Function {
   pub name: Rc<str>,
 }
 
+impl Function {
+  pub fn script(chunk: Chunk) -> Rc<Self> {
+    Rc::new(Self {
+      arity: 0,
+      chunk,
+      name: Rc::from(String::from("Main")),
+    })
+  }
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
   Null,
   Boolean(bool),
   Number(f64),
   String(Rc<str>),
+  Function(Rc<Function>),
 }
 
 impl Value {
@@ -71,7 +82,7 @@ impl Value {
       (Value::Null, Value::Null) => true,
       (Value::Number(value), Value::Number(other)) => (*value - *other).abs() < f64::EPSILON,
       (Value::String(value), Value::String(other)) => value.eq(other),
-      (Value::Function(value), Value::Function(other)) => Rc::ptr_eq(&value, &other),
+      (Value::Function(value), Value::Function(other)) => Rc::ptr_eq(value, other),
       _ => false,
     }
   }

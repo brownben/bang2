@@ -29,8 +29,8 @@ pub struct CompileError {
 }
 
 pub struct RuntimeError {
-  pub line_number: LineNumber,
   pub message: String,
+  pub line_numbers: Vec<LineNumber>,
 }
 
 pub struct Diagnostic {

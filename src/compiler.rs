@@ -2,7 +2,7 @@ use crate::ast::{Expression, Statement};
 use crate::chunk::{Chunk, OpCode};
 use crate::error::{CompileError, Error};
 use crate::token::{Token, TokenType};
-use crate::value::Value;
+use crate::value::{Function, Value};
 
 #[cfg(feature = "debug-bytecode")]
 use crate::chunk;
@@ -74,7 +74,6 @@ impl Compiler {
   }
 
   fn patch_jump(&mut self, token: Token, offset: usize) {
-    // -2 to adjust for the bytecode for the jump offset itself
     let jump = self.chunk.length() - offset;
 
     if jump > u16::MAX as usize {
@@ -92,7 +91,7 @@ impl Compiler {
 impl Compiler {
   fn new() -> Self {
     Self {
-      chunk: Chunk::new(String::from("SCRIPT")),
+      chunk: Chunk::new(),
       chunk_stack: Vec::new(),
       locals: Vec::new(),
       scope_depth: 0,
@@ -117,15 +116,16 @@ impl Compiler {
     self.scope_depth -= 1;
   }
 
-  fn new_chunk(&mut self, name: String) {
-    let chunk = std::mem::replace(&mut self.chunk, Chunk::new(name));
+  fn new_chunk(&mut self) {
+    let chunk = std::mem::replace(&mut self.chunk, Chunk::new());
     self.chunk_stack.push(chunk);
     self.begin_scope();
   }
 
   fn finish_chunk(&mut self) -> Chunk {
-    let chunk = std::mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
+    let mut chunk = std::mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
     self.end_scope();
+    chunk.finalize();
     chunk
   }
 
@@ -197,7 +197,7 @@ impl Compiler {
         body,
         ..
       } => {
-        let loop_start = self.chunk.length();
+        let loop_start = self.length();
         self.compile_expression(condition);
 
         let exit_jump = self.emit_jump(token, OpCode::JumpIfFalse);
@@ -206,7 +206,7 @@ impl Compiler {
         self.compile_statement(*body);
         self.emit_opcode(token, OpCode::Loop);
 
-        let offset = self.chunk.length() - loop_start;
+        let offset = self.length() - loop_start;
         if offset > u16::MAX as usize {
           self.error(token, Error::TooBigJump);
         } else {
@@ -221,6 +221,16 @@ impl Compiler {
       } => {
         self.compile_expression(expression);
         self.emit_opcode(token, OpCode::Print);
+      }
+      Statement::Return {
+        token, expression, ..
+      } => {
+        if let Some(expression) = expression {
+          self.compile_expression(expression);
+        } else {
+          self.emit_opcode(token, OpCode::Null);
+        }
+        self.emit_opcode(token, OpCode::Return);
       }
       Statement::Block { body, .. } => {
         self.begin_scope();
@@ -241,7 +251,7 @@ impl Compiler {
         body,
         ..
       } => {
-        self.new_chunk(name.clone());
+        self.new_chunk();
         for parameter in &parameters {
           self.locals.push(Local {
             name: parameter.value.clone(),
@@ -249,7 +259,8 @@ impl Compiler {
           });
         }
         self.compile_statement(*body);
-
+        self.emit_opcode(token, OpCode::Null);
+        self.emit_opcode(token, OpCode::Return);
         let chunk = self.finish_chunk();
 
         self.emit_constant(
@@ -263,12 +274,12 @@ impl Compiler {
 
         if self.scope_depth > 0 {
           self.locals.push(Local {
-            name: name.clone(),
+            name,
             depth: self.scope_depth,
           });
         } else {
           self.emit_opcode(identifier, OpCode::DefineGlobal);
-          self.emit_constant_string(identifier, name.clone());
+          self.emit_constant_string(identifier, name);
         }
       }
     }
@@ -397,11 +408,6 @@ impl Compiler {
 
         self.emit_opcode(token, OpCode::Call);
         self.emit_value(token, arguments.len() as u8);
-
-        for _argument in &arguments {
-          self.emit_opcode(token, OpCode::Pop);
-        }
-        self.emit_opcode(token, OpCode::Pop); // Callee
       }
     }
   }

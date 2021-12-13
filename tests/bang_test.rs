@@ -45,7 +45,13 @@ macro_rules! bang_test {
         {
           let variable = globals.get(stringify!($var)).unwrap();
           let expected = Value::from($expected);
-          assert!(variable.equals(&expected));
+          assert!(
+            variable.equals(&expected),
+            "Expected Variable {} to equal {} but recieved {}",
+            stringify!($var),
+            expected,
+            variable
+          );
         };
       )*
     }

@@ -39,7 +39,7 @@ fn get_op_code(code: Option<&u8>) -> Option<OpCode> {
   FromPrimitive::from_u8(*code?)
 }
 
-type TokensOnLine = u8;
+type TokensOnLine = u16;
 type Line = (LineNumber, TokensOnLine);
 
 #[derive(Debug)]
@@ -59,7 +59,7 @@ impl LineInfo {
   }
 
   fn add(&mut self, line: LineNumber) {
-    if line == self.last {
+    if line == 0 || line == self.last {
       self.repeated += 1;
     } else {
       self.lines.push((self.last, self.repeated));
@@ -104,16 +104,14 @@ impl LineInfo {
 
 #[derive(Debug)]
 pub struct Chunk {
-  name: String,
   code: Vec<u8>,
   constants: Vec<Value>,
   lines: LineInfo,
 }
 
 impl Chunk {
-  pub fn new(name: String) -> Self {
+  pub fn new() -> Self {
     Self {
-      name,
       code: Vec::new(),
       constants: Vec::new(),
       lines: LineInfo::new(),
@@ -197,17 +195,18 @@ impl Chunk {
 
 #[cfg(feature = "debug-bytecode")]
 pub fn disassemble(chunk: &Chunk) {
-  disassemble_chunk(chunk);
+  disassemble_chunk(chunk, "");
   for constant in &chunk.constants {
     if constant.is_function() {
-      disassemble(&constant.get_function_value().unwrap().chunk);
+      let function = &constant.get_function_value().unwrap();
+      disassemble_chunk(&function.chunk, &function.name);
     }
   }
 }
 
 #[cfg(feature = "debug-bytecode")]
-pub fn disassemble_chunk(chunk: &Chunk) {
-  println!("          ╭─[Bytecode:{}]", chunk.name);
+pub fn disassemble_chunk(chunk: &Chunk, name: &str) {
+  println!("          ╭─[Bytecode:{}]", name);
 
   let mut position: usize = 0;
   let mut last_line_number = 0;
@@ -259,6 +258,12 @@ pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
     Some(OpCode::SetLocal) => byte_instruction("Set Local", chunk, position),
     Some(OpCode::Call) => byte_instruction("Call", chunk, position),
     None => simple_instruction("Unknown OpCode", position),
+  }
+}
+
+impl Default for Chunk {
+  fn default() -> Self {
+    Self::new()
   }
 }
 

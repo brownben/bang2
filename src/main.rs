@@ -16,12 +16,14 @@ fn red(string: &str) -> String {
 
 fn print_code_frame(file: &str, source: &str, line_number: usize) {
   eprintln!("    ╭─[{}]", file);
-  if line_number > 1 {
+  if line_number > 2 {
     eprintln!("    ·");
   } else {
     eprintln!("    │");
   }
-  for i in (line_number - 2)..=line_number {
+
+  let before = if line_number >= 2 { 2 } else { 1 };
+  for i in (line_number - before)..=line_number {
     if let Some(line) = source.lines().nth(i as usize) {
       eprintln!("{:>3} │ {}", i + 1, line);
     }
@@ -47,7 +49,12 @@ fn print_compile_error(file: &str, source: &str, error: &error::CompileError) {
 
 fn print_runtime_error(file: &str, source: &str, error: &error::RuntimeError) {
   eprintln!("{} {}", red("Error:"), error.message);
-  print_code_frame(file, source, error.line_number as usize);
+
+  for line_number in &error.line_numbers {
+    if *line_number > 0 {
+      print_code_frame(file, source, *line_number as usize);
+    }
+  }
 }
 
 fn compile(source: &str) -> Result<chunk::Chunk, error::CompileError> {
@@ -57,7 +64,7 @@ fn compile(source: &str) -> Result<chunk::Chunk, error::CompileError> {
 }
 
 fn main() {
-  let filename = "./benchmarks/fibonacci.bang";
+  let filename = "./test.bang";
   if let Ok(file) = fs::read_to_string(filename) {
     match compile(&file) {
       Ok(chunk) => match vm::run(chunk) {
