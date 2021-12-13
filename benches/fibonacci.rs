@@ -1,4 +1,5 @@
 #![feature(test)]
+#![feature(concat_idents)]
 
 extern crate test;
 use test::Bencher;

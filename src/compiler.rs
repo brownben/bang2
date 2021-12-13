@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Statement};
+use crate::ast::{Expression, Statement, LiteralValue};
 use crate::chunk::{Chunk, OpCode};
 use crate::error::{CompileError, Error};
 use crate::token::{Token, TokenType};
@@ -288,10 +288,11 @@ impl Compiler {
   fn compile_expression(&mut self, expression: Expression) {
     match expression {
       Expression::Literal { token, value, .. } => match value {
-        Value::Boolean(true) => self.emit_opcode(token, OpCode::True),
-        Value::Boolean(false) => self.emit_opcode(token, OpCode::False),
-        Value::Null => self.emit_opcode(token, OpCode::Null),
-        _ => self.emit_constant(token, value),
+        LiteralValue::True => self.emit_opcode(token, OpCode::True),
+        LiteralValue::False => self.emit_opcode(token, OpCode::False),
+        LiteralValue::Null => self.emit_opcode(token, OpCode::Null),
+        LiteralValue::Number(number) => self.emit_constant(token, Value::from(number)),
+        LiteralValue::String(string) => self.emit_constant(token, Value::from(string)),
       },
       Expression::Group { expression, .. } => {
         self.compile_expression(*expression);

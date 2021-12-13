@@ -1,5 +1,28 @@
 use crate::token::Token;
-use crate::value::Value;
+
+use std::rc::Rc;
+
+#[derive(Debug, Clone)]
+pub enum LiteralValue {
+  String(Rc<str>),
+  Number(f64),
+  True,
+  False,
+  Null
+}
+
+impl std::fmt::Display for LiteralValue {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      Self::True => write!(f, "true"),
+      Self::False => write!(f, "false"),
+      Self::Null => write!(f, "null"),
+      Self::Number(value) => write!(f, "{}", value),
+      Self::String(value) => write!(f, "{}", value),
+    }
+  }
+}
+
 
 #[cfg(feature = "debug-ast")]
 use crate::token::TokenType;
@@ -13,7 +36,7 @@ pub struct Parameter {
 #[derive(Debug, Clone)]
 pub enum Expression {
   Literal {
-    value: Value,
+    value: LiteralValue,
     token: Token,
   },
   Group {

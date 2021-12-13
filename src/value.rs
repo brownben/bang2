@@ -116,6 +116,12 @@ impl From<&str> for Value {
   }
 }
 
+impl From<Rc<str>> for Value {
+  fn from(value: Rc<str>) -> Self {
+    Self::String(value)
+  }
+}
+
 impl From<Function> for Value {
   fn from(value: Function) -> Self {
     Self::Function(Rc::from(value))

@@ -1,8 +1,7 @@
-use crate::ast::{Expression, Parameter, Statement};
+use crate::ast::{Expression, Parameter, Statement, LiteralValue};
 use crate::error::{CompileError, Error};
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenType};
-use crate::value::Value;
 
 #[cfg(feature = "debug-token")]
 use crate::scanner;
@@ -10,6 +9,7 @@ use crate::scanner;
 #[cfg(feature = "debug-ast")]
 use crate::ast;
 
+use std::rc::Rc;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -533,7 +533,7 @@ fn string(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
 
   Ok(Expression::Literal {
     token,
-    value: Value::from(value),
+    value: LiteralValue::String(Rc::from(value)),
   })
 }
 
@@ -547,7 +547,7 @@ fn number(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
 
   Ok(Expression::Literal {
     token,
-    value: Value::from(value),
+    value: LiteralValue::Number(value),
   })
 }
 
@@ -555,9 +555,9 @@ fn literal(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
   let token = parser.previous.unwrap();
 
   let value = match token.token_type {
-    TokenType::True => Value::Boolean(true),
-    TokenType::False => Value::Boolean(false),
-    _ => Value::Null,
+    TokenType::True => LiteralValue::True,
+    TokenType::False => LiteralValue::False,
+    _ => LiteralValue::Null,
   };
 
   Ok(Expression::Literal { value, token })
