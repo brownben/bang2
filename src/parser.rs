@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Parameter, Statement, LiteralValue};
+use crate::ast::{Expression, LiteralValue, Parameter, Statement};
 use crate::error::{CompileError, Error};
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenType};
@@ -9,9 +9,9 @@ use crate::scanner;
 #[cfg(feature = "debug-ast")]
 use crate::ast;
 
-use std::rc::Rc;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
+use std::rc::Rc;
 
 #[derive(Debug, FromPrimitive, PartialOrd, PartialEq, Clone, Copy)]
 enum Precedence {

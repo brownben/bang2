@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Statement, LiteralValue};
+use crate::ast::{Expression, LiteralValue, Statement};
 use crate::chunk::{Chunk, OpCode};
 use crate::error::{CompileError, Error};
 use crate::token::{Token, TokenType};

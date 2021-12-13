@@ -1,14 +1,10 @@
 #![feature(test)]
-#![feature(concat_idents)]
-
-extern crate test;
-use test::Bencher;
 
 mod bang_benchmark;
 use bang_benchmark::*;
 
 bang_benchmark!(
-  bench_recursive_fibonacci,
+  recursive_fibonacci,
   "
 fun fib_recursive(n)
   if (n <= 2)
@@ -23,7 +19,7 @@ fib_recursive(25)
 );
 
 bang_benchmark!(
-  bench_iterative_fibonacci,
+  iterative_fibonacci,
   "
 fun fib_iterative(n)
   let x = 0

@@ -6,24 +6,38 @@ pub fn compile(source: &str) -> Result<Chunk, CompileError> {
   bang::compile(ast)
 }
 
-pub fn run(source: &str) {
-  match compile(source) {
-    Ok(chunk) => {
-      match bang::run(chunk) {
-        Ok(_) => (),
-        Err(_) => (),
-      };
-    }
-    _ => {}
-  }
-}
-
 #[macro_export]
 macro_rules! bang_benchmark {
   ($name:ident, $source:expr) => {
-    #[bench]
-    fn $name(b: &mut Bencher) {
-      b.iter(|| run($source))
+    mod $name {
+      extern crate test;
+      use super::*;
+      use test::Bencher;
+
+      #[bench]
+      fn to_bytecode(b: &mut Bencher) {
+        b.iter(|| compile($source));
+      }
+
+      #[bench]
+      fn vm(b: &mut Bencher) {
+        match compile($source) {
+          Ok(chunk) => {
+            b.iter(|| bang::run(chunk.clone()));
+          }
+          _ => {}
+        }
+      }
+
+      #[bench]
+      fn all(b: &mut Bencher) {
+        b.iter(|| match compile($source) {
+          Ok(chunk) => {
+            bang::run(chunk);
+          }
+          _ => {}
+        })
+      }
     }
   };
 }

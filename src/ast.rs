@@ -8,7 +8,7 @@ pub enum LiteralValue {
   Number(f64),
   True,
   False,
-  Null
+  Null,
 }
 
 impl std::fmt::Display for LiteralValue {
@@ -22,7 +22,6 @@ impl std::fmt::Display for LiteralValue {
     }
   }
 }
-
 
 #[cfg(feature = "debug-ast")]
 use crate::token::TokenType;

@@ -42,7 +42,7 @@ fn get_op_code(code: Option<&u8>) -> Option<OpCode> {
 type TokensOnLine = u16;
 type Line = (LineNumber, TokensOnLine);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct LineInfo {
   lines: Vec<Line>,
   last: LineNumber,
@@ -102,7 +102,7 @@ impl LineInfo {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Chunk {
   code: Vec<u8>,
   constants: Vec<Value>,
