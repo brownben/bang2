@@ -1,5 +1,5 @@
-use super::rule::{Visitor, Rule, RuleResult};
-use crate::ast::{Statement};
+use super::rule::{Rule, RuleResult, Visitor};
+use crate::ast::Statement;
 use crate::token::Token;
 
 pub struct NoUnreachable {
@@ -12,12 +12,11 @@ impl Rule for NoUnreachable {
 
     visitor.visit(ast);
 
-   RuleResult {
-        name: "No Unreachable Code",
-        message: "Code after a return can never be executed",
-        issues: visitor.issues,
-      }
-
+    RuleResult {
+      name: "No Unreachable Code",
+      message: "Code after a return can never be executed",
+      issues: visitor.issues,
+    }
   }
 }
 

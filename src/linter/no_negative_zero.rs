@@ -1,5 +1,5 @@
-use super::rule::{Visitor, Rule, RuleResult};
-use crate::ast::{Statement, Expression, LiteralValue};
+use super::rule::{Rule, RuleResult, Visitor};
+use crate::ast::{Expression, LiteralValue, Statement};
 use crate::token::Token;
 
 pub struct NoNegativeZero {
@@ -12,11 +12,10 @@ impl Rule for NoNegativeZero {
     visitor.visit(ast);
 
     RuleResult {
-        name: "No Negative Zero",
-        message: "Negative zero is unnecessary as 0 == -0",
-        issues: visitor.issues,
-      }
-
+      name: "No Negative Zero",
+      message: "Negative zero is unnecessary as 0 == -0",
+      issues: visitor.issues,
+    }
   }
 }
 

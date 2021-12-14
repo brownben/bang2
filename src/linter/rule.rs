@@ -1,4 +1,4 @@
-use crate::ast::{Statement, Expression};
+use crate::ast::{Expression, Statement};
 use crate::token::Token;
 
 pub struct RuleResult {
