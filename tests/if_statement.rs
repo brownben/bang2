@@ -102,3 +102,19 @@ if (a = true) x = 7
   x == 7.0
   a == true
 );
+
+bang_test!(close_multiple_scopes_at_once
+"
+let a
+if (true)
+  if (true)
+    a = true
+
+let b
+if (true)
+  if (true)
+    b = true
+"
+  a == true
+  b == true
+);

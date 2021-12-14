@@ -12,6 +12,7 @@ pub struct Scanner {
 
   last_token_type: TokenType,
   indentation: u8,
+  block_change_remaining: i16,
 }
 
 impl Scanner {
@@ -58,15 +59,33 @@ impl Scanner {
   }
 
   fn find_token(&mut self) -> Token {
+    match self.block_change_remaining.cmp(&0) {
+      Ordering::Greater => {
+        self.indentation += 1;
+        self.block_change_remaining -= 1;
+        return make_token(self, TokenType::BlockStart);
+      }
+      Ordering::Less => {
+        self.indentation -= 1;
+        self.block_change_remaining += 1;
+        return make_token(self, TokenType::BlockEnd);
+      }
+      Ordering::Equal => {}
+    }
+
     if self.last_token_type == TokenType::EndOfLine && !self.is_next_line_comment() {
       let indentation = get_indentation(self);
+
       match indentation.cmp(&self.indentation) {
         Ordering::Greater => {
-          self.indentation = indentation;
+          self.indentation += 1;
+          self.block_change_remaining = indentation as i16 - self.indentation as i16;
+          self.start = self.current;
           return make_token(self, TokenType::BlockStart);
         }
         Ordering::Less => {
-          self.indentation = indentation;
+          self.indentation -= 1;
+          self.block_change_remaining = indentation as i16 - self.indentation as i16;
           self.start = self.current;
           return make_token(self, TokenType::BlockEnd);
         }
@@ -131,6 +150,7 @@ impl Scanner {
       line: 1,
       last_token_type: TokenType::Blank,
       indentation: 0,
+      block_change_remaining: 0,
     }
   }
 
