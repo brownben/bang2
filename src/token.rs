@@ -80,7 +80,6 @@ impl Token {
     chars[self.start..self.end].iter().collect()
   }
 
-  #[cfg(feature = "debug-token")]
   pub fn get_value_from_string(&self, string: &str) -> String {
     String::from(string).chars().collect::<Vec<char>>()[self.start..self.end]
       .iter()

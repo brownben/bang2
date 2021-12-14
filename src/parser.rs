@@ -3,12 +3,6 @@ use crate::error::{CompileError, Error};
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenType};
 
-#[cfg(feature = "debug-token")]
-use crate::scanner;
-
-#[cfg(feature = "debug-ast")]
-use crate::ast;
-
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use std::rc::Rc;
@@ -216,9 +210,6 @@ impl Parser {
 }
 
 pub fn parse(source: &str) -> Result<Vec<Statement>, CompileError> {
-  #[cfg(feature = "debug-token")]
-  scanner::print_tokens(source);
-
   let mut parser = Parser::new(source);
 
   parser.advance()?;
@@ -229,9 +220,6 @@ pub fn parse(source: &str) -> Result<Vec<Statement>, CompileError> {
   }
 
   parser.consume(TokenType::EndOfFile, Error::MissingEndOfFile)?;
-
-  #[cfg(feature = "debug-ast")]
-  ast::print_ast(&statements);
 
   Ok(statements)
 }

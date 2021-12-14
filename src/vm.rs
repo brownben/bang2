@@ -55,7 +55,7 @@ pub struct VM {
 }
 
 impl VM {
-  fn new() -> Self {
+  pub fn new() -> Self {
     Self {
       stack: Vec::new(),
       globals: HashMap::new(),
@@ -79,7 +79,7 @@ impl VM {
     self.stack.last().unwrap()
   }
 
-  fn run(&mut self, function: Rc<Function>) -> Result<(), RuntimeError> {
+  pub fn run(&mut self, function: Rc<Function>) -> Result<(), RuntimeError> {
     let mut function = function;
     let mut ip: usize = 0;
     let mut offset: usize = 0;
@@ -315,7 +315,7 @@ impl VM {
         }
       }
 
-      #[cfg(feature = "debug-stack")]
+      #[cfg(feature = "debug")]
       self.print_stack(ip);
 
       if ip >= function.chunk.length() {
@@ -324,7 +324,7 @@ impl VM {
     }
   }
 
-  #[cfg(feature = "debug-stack")]
+  #[cfg(feature = "debug")]
   fn print_stack(&self, ip: usize) {
     print!("{:0>4} │ ", ip);
     for item in &self.stack {

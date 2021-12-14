@@ -4,9 +4,6 @@ use crate::error::{CompileError, Error};
 use crate::token::{Token, TokenType};
 use crate::value::{Function, Value};
 
-#[cfg(feature = "debug-bytecode")]
-use crate::chunk;
-
 use std::rc::Rc;
 
 #[derive(Debug)]
@@ -461,9 +458,6 @@ pub fn compile(ast: Vec<Statement>) -> Result<Chunk, CompileError> {
   compiler.emit_opcode_blank(OpCode::Return);
 
   let chunk = compiler.chunk.finalize();
-
-  #[cfg(feature = "debug-bytecode")]
-  chunk::disassemble(&chunk, "");
 
   Ok(chunk)
 }
