@@ -10,8 +10,6 @@ mod token;
 mod value;
 mod vm;
 
-use crate::linter::Rule;
-
 use ansi_term::Colour::{Red, Yellow};
 use ansi_term::Style;
 use std::fs;
@@ -83,10 +81,7 @@ fn print_lint_warning(file: &str, source: &str, result: &linter::RuleResult) {
 fn compile(file: &str, source: &str) -> Result<chunk::Chunk, error::CompileError> {
   let ast = parser::parse(source)?;
 
-  if let Some(warning) = linter::NoNegativeZero::check(&ast) {
-    print_lint_warning(file, source, &warning);
-  }
-  if let Some(warning) = linter::NoUnreachable::check(&ast) {
+  for warning in linter::lint(&ast) {
     print_lint_warning(file, source, &warning);
   }
 
@@ -96,7 +91,7 @@ fn compile(file: &str, source: &str) -> Result<chunk::Chunk, error::CompileError
 fn main() {
   let filename = "./test.bang";
   if let Ok(file) = fs::read_to_string(filename) {
-    match compile(&filename, &file) {
+    match compile(filename, &file) {
       Ok(chunk) => match vm::run(chunk) {
         Ok(_) => {}
         Err(error) => print_runtime_error(filename, &file, &error),
