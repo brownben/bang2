@@ -31,7 +31,7 @@ pub enum OpCode {
   GetLocal,
   SetLocal,
   Return,
-  Call,
+  Call
 }
 
 fn get_op_code(code: u8) -> Option<OpCode> {
@@ -42,13 +42,12 @@ type TokensOnLine = u16;
 type Line = (LineNumber, TokensOnLine);
 
 #[derive(Debug, Clone)]
-struct LineInfo {
+struct LineInfoCreator {
   lines: Vec<Line>,
   last: LineNumber,
   repeated: TokensOnLine,
 }
-
-impl LineInfo {
+impl LineInfoCreator {
   fn new() -> Self {
     Self {
       lines: Vec::new(),
@@ -67,6 +66,24 @@ impl LineInfo {
     }
   }
 
+  fn finalize(&mut self) -> LineInfo {
+    if self.repeated > 0 {
+      self.lines.push((self.last, self.repeated));
+      self.last = 0;
+      self.repeated = 0;
+    }
+    self.lines.shrink_to_fit();
+    LineInfo {
+      lines: self.lines.clone(),
+    }
+  }
+}
+
+#[derive(Debug, Clone)]
+struct LineInfo {
+  lines: Vec<Line>,
+}
+impl LineInfo {
   fn get(&self, opcode_position: usize) -> LineNumber {
     let length = self.lines.len();
     let mut count = 0;
@@ -90,34 +107,28 @@ impl LineInfo {
       self.lines[line].0
     }
   }
-
-  fn finalize(&mut self) {
-    if self.repeated > 0 {
-      self.lines.push((self.last, self.repeated));
-      self.last = 0;
-      self.repeated = 0;
-      self.lines.shrink_to_fit();
-    }
-  }
 }
 
 #[derive(Debug, Clone)]
-pub struct Chunk {
+pub struct ChunkCreator {
   code: Vec<u8>,
   constants: Vec<Value>,
-  lines: LineInfo,
+  lines: LineInfoCreator,
 }
-
-impl Chunk {
+impl ChunkCreator {
   pub fn new() -> Self {
     Self {
       code: Vec::new(),
       constants: Vec::new(),
-      lines: LineInfo::new(),
+      lines: LineInfoCreator::new(),
     }
   }
 
-  pub fn write(&mut self, code: OpCode, line: LineNumber) {
+  pub fn length(&self) -> usize {
+    self.code.len()
+  }
+
+  pub fn write_opcode(&mut self, code: OpCode, line: LineNumber) {
     self.write_value(code as u8, line);
   }
 
@@ -154,17 +165,24 @@ impl Chunk {
     self.code[offset + 1] = value as u8;
   }
 
-  pub fn finalize(&mut self) {
+  pub fn finalize(&mut self) -> Chunk {
     self.code.shrink_to_fit();
     self.constants.shrink_to_fit();
-    self.lines.finalize();
-  }
 
-  pub fn get_line_number(&self, opcode_position: usize) -> LineNumber {
-    self.lines.get(opcode_position)
+    Chunk {
+      code: self.code.clone(),
+      constants: self.constants.clone(),
+      lines: self.lines.finalize(),
+    }
   }
 }
 
+#[derive(Debug, Clone)]
+pub struct Chunk {
+  code: Vec<u8>,
+  constants: Vec<Value>,
+  lines: LineInfo,
+}
 impl Chunk {
   pub fn length(&self) -> usize {
     self.code.len()
@@ -187,6 +205,10 @@ impl Chunk {
 
   pub fn get_constant(&self, pointer: usize) -> Value {
     self.constants[pointer].clone()
+  }
+
+  pub fn get_line_number(&self, opcode_position: usize) -> LineNumber {
+    self.lines.get(opcode_position)
   }
 }
 
@@ -223,7 +245,7 @@ pub fn disassemble_chunk(chunk: &Chunk, name: &str) {
 
 #[cfg(feature = "debug-bytecode")]
 pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
-  let instruction = get_op_code(chunk.code.get(position));
+  let instruction = get_op_code(chunk.code[position]);
 
   match instruction {
     Some(OpCode::Constant) => constant_instruction("Constant", chunk, position),
@@ -256,12 +278,6 @@ pub fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
   }
 }
 
-impl Default for Chunk {
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
 #[cfg(feature = "debug-bytecode")]
 fn simple_instruction(name: &str, position: usize) -> usize {
   println!("{}", name);
@@ -270,54 +286,35 @@ fn simple_instruction(name: &str, position: usize) -> usize {
 
 #[cfg(feature = "debug-bytecode")]
 fn constant_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
-  let (constant_location, constant) = match chunk.get_value(position + 1) {
-    Some(value) => (value, chunk.get_constant(value as usize)),
-    None => (0, None),
-  };
+  let constant_location = chunk.get_value(position + 1);
+  let constant = chunk.get_constant(constant_location as usize);
 
-  match constant {
-    Some(constant) => println!("{} '{}' ({})", name, constant, constant_location),
-    None => println!("{} '' ({})", name, constant_location),
-  };
+  println!("{} '{}' ({})", name, constant, constant_location);
 
   position + 2
 }
 
 #[cfg(feature = "debug-bytecode")]
 fn constant_long_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
-  let (constant_location, constant) = match chunk.get_long_value(position + 1) {
-    Some(value) => (value, chunk.get_constant(value as usize)),
-    None => (0, None),
-  };
+  let constant_location = chunk.get_long_value(position + 1);
+  let constant = chunk.get_constant(constant_location as usize);
 
-  match constant {
-    Some(constant) => println!("{} '{}' ({})", name, constant, constant_location),
-    None => println!("{} '' ({})", name, constant_location),
-  };
-
+  println!("{} '{}' ({})", name, constant, constant_location);
   position + 3
 }
 
 #[cfg(feature = "debug-bytecode")]
 fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
-  let value = match chunk.get_value(position + 1) {
-    Some(value) => value,
-    None => 0,
-  };
+  let value = chunk.get_value(position + 1);
 
   println!("{} {}", name, value);
-
   position + 2
 }
 
 #[cfg(feature = "debug-bytecode")]
 fn jump_instruction(name: &str, direction: i8, chunk: &Chunk, position: usize) -> usize {
-  let jump = match chunk.get_long_value(position + 1) {
-    Some(value) => value,
-    _ => 0,
-  };
+  let jump = chunk.get_long_value(position + 1);
 
   println!("{} {}", name, jump as i32 * direction as i32);
-
   position + 3
 }

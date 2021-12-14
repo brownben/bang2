@@ -263,7 +263,7 @@ impl VM {
             break Ok(());
           }
 
-          self.stack.drain(offset-1..);
+          self.stack.drain(offset - 1..);
           self.stack.push(result.unwrap());
 
           let frame = self.restore_frame();

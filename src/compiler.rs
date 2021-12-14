@@ -1,5 +1,5 @@
 use crate::ast::{Expression, LiteralValue, Statement};
-use crate::chunk::{Chunk, OpCode};
+use crate::chunk::{Chunk, ChunkCreator, OpCode};
 use crate::error::{CompileError, Error};
 use crate::token::{Token, TokenType};
 use crate::value::{Function, Value};
@@ -16,8 +16,8 @@ struct Local {
 }
 
 struct Compiler {
-  chunk: Chunk,
-  chunk_stack: Vec<Chunk>,
+  chunk: ChunkCreator,
+  chunk_stack: Vec<ChunkCreator>,
 
   locals: Vec<Local>,
   scope_depth: u8,
@@ -28,11 +28,11 @@ struct Compiler {
 // Emit Bytecode
 impl Compiler {
   fn emit_opcode(&mut self, token: Token, code: OpCode) {
-    self.chunk.write(code, token.line);
+    self.chunk.write_opcode(code, token.line);
   }
 
   fn emit_opcode_blank(&mut self, code: OpCode) {
-    self.chunk.write(code, 0);
+    self.chunk.write_opcode(code, 0);
   }
 
   fn emit_value(&mut self, token: Token, value: u8) {
@@ -91,7 +91,7 @@ impl Compiler {
 impl Compiler {
   fn new() -> Self {
     Self {
-      chunk: Chunk::new(),
+      chunk: ChunkCreator::new(),
       chunk_stack: Vec::new(),
       locals: Vec::new(),
       scope_depth: 0,
@@ -117,7 +117,7 @@ impl Compiler {
   }
 
   fn new_chunk(&mut self) {
-    let chunk = std::mem::replace(&mut self.chunk, Chunk::new());
+    let chunk = std::mem::replace(&mut self.chunk, ChunkCreator::new());
     self.chunk_stack.push(chunk);
     self.begin_scope();
   }
@@ -125,8 +125,7 @@ impl Compiler {
   fn finish_chunk(&mut self) -> Chunk {
     let mut chunk = std::mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
     self.end_scope();
-    chunk.finalize();
-    chunk
+    chunk.finalize()
   }
 
   fn error(&mut self, token: Token, error: Error) {
@@ -460,10 +459,11 @@ pub fn compile(ast: Vec<Statement>) -> Result<Chunk, CompileError> {
   }
 
   compiler.emit_opcode_blank(OpCode::Return);
-  compiler.chunk.finalize();
+
+  let chunk = compiler.chunk.finalize();
 
   #[cfg(feature = "debug-bytecode")]
-  chunk::disassemble(&compiler.chunk, "");
+  chunk::disassemble(&chunk, "");
 
-  Ok(compiler.chunk)
+  Ok(chunk)
 }
