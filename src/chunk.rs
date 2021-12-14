@@ -31,7 +31,7 @@ pub enum OpCode {
   GetLocal,
   SetLocal,
   Return,
-  Call
+  Call,
 }
 
 fn get_op_code(code: u8) -> Option<OpCode> {

@@ -3,17 +3,18 @@ mod builtin;
 mod chunk;
 mod compiler;
 mod error;
+mod linter;
 mod parser;
 mod scanner;
 mod token;
 mod value;
 mod vm;
 
-use std::fs;
+use crate::linter::Rule;
 
-fn red(string: &str) -> String {
-  format!("\x1b[0;31m{}\x1b[0m", string)
-}
+use ansi_term::Colour::{Red, Yellow};
+use ansi_term::Style;
+use std::fs;
 
 fn print_code_frame(file: &str, source: &str, line_number: usize) {
   eprintln!("    ╭─[{}]", file);
@@ -40,7 +41,11 @@ fn print_compile_error(file: &str, source: &str, error: &error::CompileError) {
   let chars = source.to_string().chars().collect::<Vec<char>>();
   let diagnostic = error::get_message(&chars, error, token);
 
-  eprintln!("{} {}", red("Error:"), diagnostic.message);
+  eprintln!(
+    "{} {}",
+    Red.bold().paint("Complie Error:"),
+    Style::new().bold().paint(diagnostic.message)
+  );
   print_code_frame(file, source, token.line as usize);
 
   if let Some(note) = diagnostic.note {
@@ -49,7 +54,11 @@ fn print_compile_error(file: &str, source: &str, error: &error::CompileError) {
 }
 
 fn print_runtime_error(file: &str, source: &str, error: &error::RuntimeError) {
-  eprintln!("{} {}", red("Error:"), error.message);
+  eprintln!(
+    "{} {}",
+    Red.bold().paint("Runtime Error:"),
+    Style::new().bold().paint(&error.message)
+  );
 
   for line_number in &error.line_numbers {
     if *line_number > 0 {
@@ -58,8 +67,28 @@ fn print_runtime_error(file: &str, source: &str, error: &error::RuntimeError) {
   }
 }
 
-fn compile(source: &str) -> Result<chunk::Chunk, error::CompileError> {
+fn print_lint_warning(file: &str, source: &str, result: &linter::RuleResult) {
+  eprintln!(
+    "{} {}",
+    Yellow.bold().paint("Warning:"),
+    Style::new().bold().paint(result.name)
+  );
+  eprintln!("{}\n", result.message);
+
+  for token in &result.issues {
+    print_code_frame(file, source, token.line as usize);
+  }
+}
+
+fn compile(file: &str, source: &str) -> Result<chunk::Chunk, error::CompileError> {
   let ast = parser::parse(source)?;
+
+  if let Some(warning) = linter::NoNegativeZero::check(&ast) {
+    print_lint_warning(file, source, &warning);
+  }
+  if let Some(warning) = linter::NoUnreachable::check(&ast) {
+    print_lint_warning(file, source, &warning);
+  }
 
   compiler::compile(ast)
 }
@@ -67,7 +96,7 @@ fn compile(source: &str) -> Result<chunk::Chunk, error::CompileError> {
 fn main() {
   let filename = "./test.bang";
   if let Ok(file) = fs::read_to_string(filename) {
-    match compile(&file) {
+    match compile(&filename, &file) {
       Ok(chunk) => match vm::run(chunk) {
         Ok(_) => {}
         Err(error) => print_runtime_error(filename, &file, &error),

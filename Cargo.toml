@@ -9,6 +9,7 @@ edition = "2021"
 num-traits = "0.2"
 num-derive = "0.2"
 rustyline = "9.0.0"
+ansi_term = "0.12"
 
 [features]
 debug-token = []
