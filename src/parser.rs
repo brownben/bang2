@@ -216,7 +216,7 @@ pub fn parse(source: &str) -> Result<Vec<Statement>, CompileError> {
 
   let mut statements = Vec::new();
   while !parser.matches(TokenType::EndOfFile) {
-    statements.push(declaration(&mut parser)?);
+    statements.push(statement(&mut parser)?);
   }
 
   parser.consume(TokenType::EndOfFile, Error::MissingEndOfFile)?;
@@ -224,13 +224,21 @@ pub fn parse(source: &str) -> Result<Vec<Statement>, CompileError> {
   Ok(statements)
 }
 
-fn declaration(parser: &mut Parser) -> StatementResult {
+fn statement(parser: &mut Parser) -> StatementResult {
   if parser.matches(TokenType::Fun) {
     function_declaration(parser)
   } else if parser.matches(TokenType::Let) {
     var_declaration(parser)
+  } else if parser.matches(TokenType::Return) {
+    return_statement(parser)
+  } else if parser.matches(TokenType::BlockStart) {
+    block(parser)
+  } else if parser.matches(TokenType::While) {
+    while_statement(parser)
+  } else if parser.matches(TokenType::If) {
+    if_statement(parser)
   } else {
-    statement(parser)
+    expression_statement(parser)
   }
 }
 
@@ -296,26 +304,12 @@ fn var_declaration(parser: &mut Parser) -> StatementResult {
   })
 }
 
-fn statement(parser: &mut Parser) -> StatementResult {
-  if parser.matches(TokenType::Return) {
-    return_statement(parser)
-  } else if parser.matches(TokenType::BlockStart) {
-    block(parser)
-  } else if parser.matches(TokenType::While) {
-    while_statement(parser)
-  } else if parser.matches(TokenType::If) {
-    if_statement(parser)
-  } else {
-    expression_statement(parser)
-  }
-}
-
 fn block(parser: &mut Parser) -> StatementResult {
   let mut statements = Vec::new();
   while parser.current.unwrap().token_type != TokenType::EndOfFile
     && parser.current.unwrap().token_type != TokenType::BlockEnd
   {
-    statements.push(declaration(parser)?);
+    statements.push(statement(parser)?);
   }
 
   parser.consume(TokenType::BlockEnd, Error::ExpectedEndOfBlock)?;
