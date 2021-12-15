@@ -81,10 +81,14 @@ bang_test!(concatenate_strings
 let a = \"Hello \" + \"World\"
 let b = 'Whats Up' + `?`
 let c = \"Merged\" + 'together'
+
+// Keep original strings
+let d = a + b
 "
   a == "Hello World"
   b == "Whats Up?"
   c == "Mergedtogether"
+  d == "Hello WorldWhats Up?"
 );
 
 bang_test!(lots_of_minuses

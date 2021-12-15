@@ -120,7 +120,7 @@ impl VM {
               self.stack.push(Value::Number(left + right));
             }
             (Value::String(left), Value::String(right)) => {
-              self.stack.push(Value::from(format!("{}{}", left, right)));
+              self.stack.push(Value::from([left, right].concat()));
             }
             _ => {
               break runtime_error!(
