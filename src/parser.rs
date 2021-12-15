@@ -1,4 +1,4 @@
-use crate::ast::{Expression, LiteralValue, Parameter, Statement};
+use crate::ast::{BinaryOperator, Expression, LiteralValue, Parameter, Statement, UnaryOperator};
 use crate::error::{CompileError, Error};
 use crate::scanner::Scanner;
 use crate::token::{Token, TokenType};
@@ -399,15 +399,14 @@ fn variable(parser: &mut Parser, can_assign: bool) -> ExpressionResult {
     _ => None,
   };
 
-  if let (true, Some(mut operator)) = (can_assign, additional_operator) {
+  if let (true, Some(token)) = (can_assign, additional_operator) {
     parser.advance()?;
     let expression = expression(parser)?;
-
-    operator.token_type = match operator.token_type {
-      TokenType::PlusEqual => TokenType::Plus,
-      TokenType::MinusEqual => TokenType::Minus,
-      TokenType::StarEqual => TokenType::Star,
-      TokenType::SlashEqual => TokenType::Slash,
+    let operator = match token.token_type {
+      TokenType::PlusEqual => BinaryOperator::Plus,
+      TokenType::MinusEqual => BinaryOperator::Minus,
+      TokenType::StarEqual => BinaryOperator::Star,
+      TokenType::SlashEqual => BinaryOperator::Slash,
       _ => unreachable!(),
     };
 
@@ -415,6 +414,7 @@ fn variable(parser: &mut Parser, can_assign: bool) -> ExpressionResult {
       identifier,
       variable_name: name.clone(),
       expression: Box::new(Expression::Binary {
+        token,
         left: Box::new(Expression::Variable {
           identifier,
           variable_name: name,
@@ -448,11 +448,16 @@ fn grouping(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
 }
 
 fn unary(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
-  let operator = parser.previous.unwrap();
-
+  let token = parser.previous.unwrap();
+  let operator = match token.token_type {
+    TokenType::Minus => UnaryOperator::Minus,
+    TokenType::Bang => UnaryOperator::Bang,
+    _ => unreachable!(),
+  };
   let expression = parser.parse(Precedence::Unary)?;
 
   Ok(Expression::Unary {
+    token,
     operator,
     expression: Box::new(expression),
   })
@@ -486,11 +491,29 @@ fn call(parser: &mut Parser, previous: Expression, _can_assign: bool) -> Express
 }
 
 fn binary(parser: &mut Parser, previous: Expression, _can_assign: bool) -> ExpressionResult {
-  let operator = parser.previous.unwrap();
-  let rule = get_rule(operator.token_type);
+  let token = parser.previous.unwrap();
+  let operator = match token.token_type {
+    TokenType::Plus => BinaryOperator::Plus,
+    TokenType::Minus => BinaryOperator::Minus,
+    TokenType::Star => BinaryOperator::Star,
+    TokenType::Slash => BinaryOperator::Slash,
+    TokenType::BangEqual => BinaryOperator::BangEqual,
+    TokenType::EqualEqual => BinaryOperator::EqualEqual,
+    TokenType::Equal => BinaryOperator::EqualEqual,
+    TokenType::Greater => BinaryOperator::Greater,
+    TokenType::GreaterEqual => BinaryOperator::GreaterEqual,
+    TokenType::Less => BinaryOperator::Less,
+    TokenType::LessEqual => BinaryOperator::LessEqual,
+    TokenType::And => BinaryOperator::And,
+    TokenType::Or => BinaryOperator::Or,
+    TokenType::QuestionQuestion => BinaryOperator::QuestionQuestion,
+    _ => unreachable!(),
+  };
+  let rule = get_rule(token.token_type);
   let right = parser.parse(get_precedence((rule.precedence as u8) + 1))?;
 
   Ok(Expression::Binary {
+    token,
     left: Box::new(previous),
     operator,
     right: Box::new(right),

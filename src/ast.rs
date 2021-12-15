@@ -11,6 +11,29 @@ pub enum LiteralValue {
   Null,
 }
 
+#[derive(Debug, Clone)]
+pub enum BinaryOperator {
+  Plus,
+  Minus,
+  Star,
+  Slash,
+  BangEqual,
+  EqualEqual,
+  Greater,
+  GreaterEqual,
+  Less,
+  LessEqual,
+  And,
+  Or,
+  QuestionQuestion,
+}
+
+#[derive(Debug, Clone)]
+pub enum UnaryOperator {
+  Minus,
+  Bang,
+}
+
 impl std::fmt::Display for LiteralValue {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
@@ -39,12 +62,14 @@ pub enum Expression {
     expression: Box<Expression>,
   },
   Unary {
-    operator: Token,
+    token: Token,
+    operator: UnaryOperator,
     expression: Box<Expression>,
   },
   Binary {
+    token: Token,
     left: Box<Expression>,
-    operator: Token,
+    operator: BinaryOperator,
     right: Box<Expression>,
   },
   Assignment {

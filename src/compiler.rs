@@ -1,7 +1,7 @@
-use crate::ast::{Expression, LiteralValue, Statement};
+use crate::ast::{BinaryOperator, Expression, LiteralValue, Statement, UnaryOperator};
 use crate::chunk::{Chunk, ChunkCreator, OpCode};
 use crate::error::{CompileError, Error};
-use crate::token::{Token, TokenType};
+use crate::token::Token;
 use crate::value::{Function, Value};
 
 use std::rc::Rc;
@@ -296,56 +296,56 @@ impl Compiler {
       Expression::Unary {
         expression,
         operator,
+        token,
         ..
       } => {
         self.compile_expression(*expression);
 
-        match operator.token_type {
-          TokenType::Minus => self.emit_opcode(operator, OpCode::Negate),
-          TokenType::Bang => self.emit_opcode(operator, OpCode::Not),
-          _ => self.error(operator, Error::UnknownUnaryOperator),
+        match operator {
+          UnaryOperator::Minus => self.emit_opcode(token, OpCode::Negate),
+          UnaryOperator::Bang => self.emit_opcode(token, OpCode::Not),
         }
       }
       Expression::Binary {
         left,
         right,
         operator,
+        token,
         ..
       } => {
-        match operator.token_type {
-          TokenType::QuestionQuestion => return self.nullish(operator, *left, *right),
-          TokenType::And => return self.and(operator, *left, *right),
-          TokenType::Or => return self.or(operator, *left, *right),
+        match operator {
+          BinaryOperator::QuestionQuestion => return self.nullish(token, *left, *right),
+          BinaryOperator::And => return self.and(token, *left, *right),
+          BinaryOperator::Or => return self.or(token, *left, *right),
           _ => {}
         }
 
         self.compile_expression(*left);
         self.compile_expression(*right);
 
-        match operator.token_type {
-          TokenType::Plus => self.emit_opcode(operator, OpCode::Add),
-          TokenType::Minus => self.emit_opcode(operator, OpCode::Subtract),
-          TokenType::Star => self.emit_opcode(operator, OpCode::Multiply),
-          TokenType::Slash => self.emit_opcode(operator, OpCode::Divide),
-
-          TokenType::EqualEqual => self.emit_opcode(operator, OpCode::Equal),
-          TokenType::Greater => self.emit_opcode(operator, OpCode::Greater),
-          TokenType::Less => self.emit_opcode(operator, OpCode::Less),
-
-          TokenType::BangEqual => {
-            self.emit_opcode(operator, OpCode::Equal);
-            self.emit_opcode(operator, OpCode::Not);
+        match operator {
+          BinaryOperator::Plus => self.emit_opcode(token, OpCode::Add),
+          BinaryOperator::Minus => self.emit_opcode(token, OpCode::Subtract),
+          BinaryOperator::Star => self.emit_opcode(token, OpCode::Multiply),
+          BinaryOperator::Slash => self.emit_opcode(token, OpCode::Divide),
+          BinaryOperator::EqualEqual => self.emit_opcode(token, OpCode::Equal),
+          BinaryOperator::Greater => self.emit_opcode(token, OpCode::Greater),
+          BinaryOperator::Less => self.emit_opcode(token, OpCode::Less),
+          BinaryOperator::BangEqual => {
+            self.emit_opcode(token, OpCode::Equal);
+            self.emit_opcode(token, OpCode::Not);
           }
-          TokenType::GreaterEqual => {
-            self.emit_opcode(operator, OpCode::Less);
-            self.emit_opcode(operator, OpCode::Not);
+          BinaryOperator::GreaterEqual => {
+            self.emit_opcode(token, OpCode::Less);
+            self.emit_opcode(token, OpCode::Not);
           }
-          TokenType::LessEqual => {
-            self.emit_opcode(operator, OpCode::Greater);
-            self.emit_opcode(operator, OpCode::Not);
+          BinaryOperator::LessEqual => {
+            self.emit_opcode(token, OpCode::Greater);
+            self.emit_opcode(token, OpCode::Not);
           }
-
-          _ => self.error(operator, Error::UnknownBinaryOperator),
+          BinaryOperator::And | BinaryOperator::QuestionQuestion | BinaryOperator::Or => {
+            unreachable!()
+          }
         }
       }
       Expression::Assignment {

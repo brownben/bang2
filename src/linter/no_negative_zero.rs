@@ -23,14 +23,12 @@ impl Visitor for NoNegativeZero {
   fn visit_expression(&mut self, expression: &Expression) {
     match expression {
       Expression::Unary {
-        expression,
-        operator,
-        ..
+        expression, token, ..
       } => {
         if let Expression::Literal { value, .. } = expression.as_ref() {
           if let LiteralValue::Number(num) = value {
             if *num == 0.0 {
-              self.issues.push(*operator);
+              self.issues.push(*token);
             }
           }
         } else {

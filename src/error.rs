@@ -19,8 +19,6 @@ pub enum Error {
   TooManyParameters,
   TooManyConstants,
   TooBigJump,
-  UnknownBinaryOperator,
-  UnknownUnaryOperator,
 }
 
 #[derive(Debug)]
@@ -50,14 +48,6 @@ pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic 
     },
     Error::UnknownCharacter => Diagnostic {
       message: format!("Unknown Character '{}'", token.get_value(source)),
-      note: None,
-    },
-    Error::UnknownBinaryOperator => Diagnostic {
-      message: format!("Unknown Binary Operator '{}'", token.get_value(source)),
-      note: None,
-    },
-    Error::UnknownUnaryOperator => Diagnostic {
-      message: format!("Unknown Unary Operator '{}'", token.get_value(source)),
       note: None,
     },
 

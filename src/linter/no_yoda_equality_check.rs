@@ -1,6 +1,6 @@
 use super::rule::{Rule, RuleResult, Visitor};
-use crate::ast::{Expression, Statement};
-use crate::token::{Token, TokenType};
+use crate::ast::{BinaryOperator, Expression, Statement};
+use crate::token::Token;
 
 pub struct NoYodaEqualityCheck {
   issues: Vec<Token>,
@@ -27,12 +27,13 @@ impl Visitor for NoYodaEqualityCheck {
         left,
         right,
         operator,
+        token,
         ..
       } => {
-        if let TokenType::EqualEqual | TokenType::BangEqual = operator.token_type {
+        if let BinaryOperator::EqualEqual | BinaryOperator::BangEqual = operator {
           if let Expression::Variable { .. } = &**right {
             if let Expression::Literal { .. } = &**left {
-              self.issues.push(*operator);
+              self.issues.push(*token);
             }
           }
         }
