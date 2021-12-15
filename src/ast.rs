@@ -63,6 +63,20 @@ pub enum Expression {
   },
 }
 
+impl Expression {
+  pub fn has_side_effect(&self) -> bool {
+    match self {
+      Expression::Variable { .. } => false,
+      Expression::Literal { .. } => false,
+      Expression::Assignment { .. } => true,
+      Expression::Group { expression, .. } => expression.has_side_effect(),
+      Expression::Unary { expression, .. } => expression.has_side_effect(),
+      Expression::Binary { left, right, .. } => left.has_side_effect() || right.has_side_effect(),
+      Expression::Call { .. } => true,
+    }
+  }
+}
+
 #[derive(Debug, Clone)]
 pub enum Statement {
   Declaration {

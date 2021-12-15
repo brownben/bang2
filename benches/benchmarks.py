@@ -22,75 +22,6 @@ def fib_iterative(n):
     return x
 
 
-def loop():
-    i = 0
-    while i < 100000:
-        i = i + 1
-        1
-        1
-        1
-        2
-        1
-        None
-        1
-        "str"
-        1
-        True
-        None
-        None
-        None
-        1
-        None
-        "str"
-        None
-        True
-        True
-        True
-        True
-        1
-        True
-        False
-        True
-        "str"
-        True
-        None
-        "str"
-        "str"
-        "str"
-        "stru"
-        "str"
-        1
-        "str"
-        None
-        "str"
-        True
-
-
-def equality():
-    i = 0
-    while i < 100000:
-        i = i + 1
-        1 == 1
-        1 == 2
-        1 == None
-        1 == "str"
-        1 == True
-        None == None
-        None == 1
-        None == "str"
-        None == True
-        True == True
-        True == 1
-        True == False
-        True == "str"
-        True == None
-        "str" == "str"
-        "str" == "stru"
-        "str" == 1
-        "str" == None
-        "str" == True
-
-
 def arithmetic():
     result = 0
     i = 0
@@ -108,11 +39,6 @@ print(f"Recursive Fibonacci: {result}s")
 result = timeit.timeit(lambda: fib_iterative(25), number=10)
 print(f"Iterative Fibonacci: {result}s")
 
-result = timeit.timeit(lambda: loop(), number=10)
-print(f"Loop: {result}s")
-
-result = timeit.timeit(lambda: equality(), number=10)
-print(f"Equality: {result}s")
 
 result = timeit.timeit(lambda: arithmetic(), number=10)
 print(f"Arithmetic: {result}s")

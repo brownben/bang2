@@ -30,77 +30,6 @@ function fib_iterative(n) {
   return x
 }
 
-function loop() {
-  let i = 0
-  while (i < 100000) {
-    i = i + 1
-    1
-    1
-    1
-    2
-    1
-    null
-    1
-    ;('str')
-    1
-    true
-    null
-    null
-    null
-    1
-    null
-    ;('str')
-    null
-    true
-    true
-    true
-    true
-    1
-    true
-    false
-    true
-    ;('str')
-    true
-    null
-    ;('str')
-    ;('str')
-    ;('str')
-    ;('stru')
-    ;('str')
-    1
-    ;('str')
-    null
-    ;('str')
-    true
-  }
-}
-
-function equality() {
-  let i = 0
-  while (i < 100000) {
-    i = i + 1
-    1 == 1
-    1 == 2
-    1 == null
-    1 == 'str'
-    1 == true
-    null == null
-    null == 1
-    null == 'str'
-    null == true
-    true == true
-    true == 1
-    true == false
-    true == 'str'
-    true == null
-    'str' == 'str'
-    'str' == 'stru'
-    'str' == 1
-    'str' == null
-    'str' == true
-  }
-}
-
 function arithmetic() {
   let result = 0
   let i = 0
@@ -121,13 +50,5 @@ fib_iterative(25)
 performance.measure('Fib Iterative', 'B')
 
 performance.mark('C')
-loop()
-performance.measure('Loop', 'C')
-
-performance.mark('D')
-equality()
-performance.measure('Equality', 'D')
-
-performance.mark('E')
 arithmetic()
-performance.measure('Arithmetic', 'E')
+performance.measure('Arithmetic', 'C')

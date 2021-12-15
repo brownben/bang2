@@ -102,35 +102,35 @@ let b = 4--------------------------------4
 
 bang_test!(cant_add_string_and_number
 "
-\"Hello\" + 4
+let a = \"Hello\" + 4
 "
   RuntimeError
 );
 
 bang_test!(cant_add_boolean_and_number
 "
-true + 4
+let a = true + 4
 "
   RuntimeError
 );
 
 bang_test!(cant_minus_boolean_and_number
 "
-4 - false
+let a = 4 - false
 "
   RuntimeError
 );
 
 bang_test!(cant_multiply_string
 "
-\"Hello\" * 4
+let a = \"Hello\" * 4
 "
   RuntimeError
 );
 
 bang_test!(cant_divide_null
 "
-null / 45
+let a = null / 45
 "
   RuntimeError
 );
@@ -146,7 +146,7 @@ let b = 5 + 3 * 2
 
 bang_test!(cant_add_boolean_null
 "
-false + null
+let a = false + null
 "
   RuntimeError
 );

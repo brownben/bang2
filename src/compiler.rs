@@ -230,8 +230,10 @@ impl Compiler {
         self.end_scope();
       }
       Statement::Expression { expression, .. } => {
-        self.compile_expression(expression);
-        self.emit_opcode_blank(OpCode::Pop);
+        if expression.has_side_effect() {
+          self.compile_expression(expression);
+          self.emit_opcode_blank(OpCode::Pop);
+        }
       }
       Statement::Function {
         name,
