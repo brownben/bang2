@@ -1,5 +1,5 @@
-use super::rule::{Rule, RuleResult, Visitor};
-use crate::ast::{Expression, LiteralValue, Statement};
+use super::rule::{Rule, RuleResult};
+use crate::ast::{Expression, LiteralValue, Statement, Visitor};
 use crate::token::Token;
 
 pub struct NoNegativeZero {
@@ -20,37 +20,20 @@ impl Rule for NoNegativeZero {
 }
 
 impl Visitor for NoNegativeZero {
-  fn visit_expression(&mut self, expression: &Expression) {
-    match expression {
-      Expression::Unary {
-        expression, token, ..
-      } => {
-        if let Expression::Literal { value, .. } = expression.as_ref() {
-          if let LiteralValue::Number(num) = value {
-            if *num == 0.0 {
-              self.issues.push(*token);
-            }
-          }
-        } else {
-          self.visit_expression(expression)
+  fn exit_expression(&mut self, expression: &Expression) {
+    if let Expression::Unary {
+      expression, token, ..
+    } = expression
+    {
+      if let Expression::Literal {
+        value: LiteralValue::Number(num),
+        ..
+      } = expression.as_ref()
+      {
+        if *num == 0.0 {
+          self.issues.push(*token);
         }
       }
-      Expression::Assignment { expression, .. } => self.visit_expression(expression),
-      Expression::Binary { left, right, .. } => {
-        self.visit_expression(left);
-        self.visit_expression(right);
-      }
-      Expression::Call {
-        expression,
-        arguments,
-        ..
-      } => {
-        self.visit_expression(expression);
-        arguments.iter().for_each(|arg| self.visit_expression(arg));
-      }
-      Expression::Group { expression, .. } => self.visit_expression(expression),
-      Expression::Literal { .. } => {}
-      Expression::Variable { .. } => {}
     }
   }
 }

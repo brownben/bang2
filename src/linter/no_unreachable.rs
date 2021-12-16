@@ -1,5 +1,5 @@
-use super::rule::{Rule, RuleResult, Visitor};
-use crate::ast::Statement;
+use super::rule::{Rule, RuleResult};
+use crate::ast::{Statement, Visitor};
 use crate::token::Token;
 
 pub struct NoUnreachable {
@@ -21,52 +21,18 @@ impl Rule for NoUnreachable {
 }
 
 impl Visitor for NoUnreachable {
-  fn visit_statement(&mut self, statement: &Statement) {
-    match statement {
-      Statement::Block { body, .. } => {
-        let mut seen_return: Option<Token> = None;
-        for statement in body {
-          if let Some(token) = seen_return {
-            self.issues.push(token);
-            break;
-          }
+  fn exit_statement(&mut self, statement: &Statement) {
+    if let Statement::Block { body, .. } = statement {
+      let mut seen_return: Option<Token> = None;
+      for statement in body {
+        if let Some(token) = seen_return {
+          self.issues.push(token);
+          break;
+        }
 
-          if let Statement::Return { token, .. } = statement {
-            seen_return = Some(*token);
-          } else {
-            self.visit_statement(statement);
-          }
+        if let Statement::Return { token, .. } = statement {
+          seen_return = Some(*token);
         }
-      }
-      Statement::Declaration { expression, .. } => {
-        if let Some(expression) = &*expression {
-          self.visit_expression(expression)
-        }
-      }
-      Statement::Expression { expression, .. } => self.visit_expression(expression),
-      Statement::Function { body, .. } => self.visit_statement(body),
-      Statement::If {
-        condition,
-        then,
-        otherwise,
-        ..
-      } => {
-        self.visit_expression(condition);
-        self.visit_statement(then);
-        if let Some(otherwise) = &*otherwise {
-          self.visit_statement(otherwise.as_ref())
-        }
-      }
-      Statement::Return { expression, .. } => {
-        if let Some(expression) = expression {
-          self.visit_expression(expression)
-        }
-      }
-      Statement::While {
-        condition, body, ..
-      } => {
-        self.visit_expression(condition);
-        self.visit_statement(body)
       }
     }
   }

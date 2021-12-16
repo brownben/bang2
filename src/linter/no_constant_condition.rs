@@ -1,5 +1,5 @@
-use super::rule::{Rule, RuleResult, Visitor};
-use crate::ast::{Expression, Statement};
+use super::rule::{Rule, RuleResult};
+use crate::ast::{Expression, Statement, Visitor};
 use crate::token::Token;
 
 pub struct NoConstantCondition {
@@ -38,39 +38,25 @@ fn has_variable_access(expression: &Expression) -> bool {
 }
 
 impl Visitor for NoConstantCondition {
-  fn visit_statement(&mut self, statement: &Statement) {
+  fn exit_statement(&mut self, statement: &Statement) {
     match statement {
       Statement::If {
         if_token,
         condition,
-        then,
-        otherwise,
         ..
       } => {
         if !has_variable_access(condition) {
           self.issues.push(*if_token);
         }
-        self.visit_statement(then);
-        if let Some(otherwise) = &*otherwise {
-          self.visit_statement(otherwise.as_ref())
-        }
       }
       Statement::While {
-        token,
-        condition,
-        body,
-        ..
+        token, condition, ..
       } => {
         if !has_variable_access(condition) {
           self.issues.push(*token);
         }
-        self.visit_statement(body)
       }
-      Statement::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
-      Statement::Declaration { .. } => {}
-      Statement::Expression { .. } => {}
-      Statement::Function { body, .. } => self.visit_statement(body),
-      Statement::Return { .. } => {}
+      _ => {}
     }
   }
 }

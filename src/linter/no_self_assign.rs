@@ -1,5 +1,5 @@
-use super::rule::{Rule, RuleResult, Visitor};
-use crate::ast::{Expression, Statement};
+use super::rule::{Rule, RuleResult};
+use crate::ast::{Expression, Statement, Visitor};
 use crate::token::Token;
 
 pub struct NoSelfAssign {
@@ -20,38 +20,19 @@ impl Rule for NoSelfAssign {
 }
 
 impl Visitor for NoSelfAssign {
-  fn visit_expression(&mut self, expression: &Expression) {
-    match expression {
-      Expression::Assignment {
-        identifier,
-        variable_name: name,
-        expression,
-        ..
-      } => {
-        if let Expression::Variable { variable_name, .. } = &**expression {
-          if name == variable_name {
-            self.issues.push(*identifier);
-          }
-        } else {
-          self.visit_expression(expression)
+  fn exit_expression(&mut self, expression: &Expression) {
+    if let Expression::Assignment {
+      identifier,
+      variable_name: name,
+      expression,
+      ..
+    } = expression
+    {
+      if let Expression::Variable { variable_name, .. } = expression.as_ref() {
+        if name == variable_name {
+          self.issues.push(*identifier);
         }
       }
-      Expression::Binary { left, right, .. } => {
-        self.visit_expression(left);
-        self.visit_expression(right);
-      }
-      Expression::Call {
-        expression,
-        arguments,
-        ..
-      } => {
-        self.visit_expression(expression);
-        arguments.iter().for_each(|arg| self.visit_expression(arg));
-      }
-      Expression::Group { expression, .. } => self.visit_expression(expression),
-      Expression::Literal { .. } => {}
-      Expression::Unary { expression, .. } => self.visit_expression(expression),
-      Expression::Variable { .. } => {}
     }
   }
 }

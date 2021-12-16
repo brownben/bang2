@@ -1,5 +1,5 @@
-use super::rule::{Rule, RuleResult, Visitor};
-use crate::ast::{BinaryOperator, Expression, Statement};
+use super::rule::{Rule, RuleResult};
+use crate::ast::{BinaryOperator, Expression, Statement, Visitor};
 use crate::token::Token;
 
 pub struct NoYodaEqualityCheck {
@@ -20,39 +20,22 @@ impl Rule for NoYodaEqualityCheck {
 }
 
 impl Visitor for NoYodaEqualityCheck {
-  fn visit_expression(&mut self, expression: &Expression) {
-    match expression {
-      Expression::Assignment { expression, .. } => self.visit_expression(expression),
-      Expression::Binary {
-        left,
-        right,
-        operator,
-        token,
-        ..
-      } => {
-        if let BinaryOperator::EqualEqual | BinaryOperator::BangEqual = operator {
-          if let Expression::Variable { .. } = &**right {
-            if let Expression::Literal { .. } = &**left {
-              self.issues.push(*token);
-            }
+  fn exit_expression(&mut self, expression: &Expression) {
+    if let Expression::Binary {
+      left,
+      right,
+      operator,
+      token,
+      ..
+    } = expression
+    {
+      if let BinaryOperator::EqualEqual | BinaryOperator::BangEqual = operator {
+        if let Expression::Variable { .. } = right.as_ref() {
+          if let Expression::Literal { .. } = left.as_ref() {
+            self.issues.push(*token);
           }
         }
-
-        self.visit_expression(left);
-        self.visit_expression(right);
       }
-      Expression::Call {
-        expression,
-        arguments,
-        ..
-      } => {
-        self.visit_expression(expression);
-        arguments.iter().for_each(|arg| self.visit_expression(arg));
-      }
-      Expression::Group { expression, .. } => self.visit_expression(expression),
-      Expression::Literal { .. } => {}
-      Expression::Unary { expression, .. } => self.visit_expression(expression),
-      Expression::Variable { .. } => {}
     }
   }
 }
