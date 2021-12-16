@@ -11,6 +11,18 @@ pub enum LiteralValue {
   Null,
 }
 
+impl std::fmt::Display for LiteralValue {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      Self::True => write!(f, "true"),
+      Self::False => write!(f, "false"),
+      Self::Null => write!(f, "null"),
+      Self::Number(value) => write!(f, "{}", value),
+      Self::String(value) => write!(f, "{}", value),
+    }
+  }
+}
+
 #[derive(Debug, Clone)]
 pub enum BinaryOperator {
   Plus,
@@ -28,20 +40,37 @@ pub enum BinaryOperator {
   QuestionQuestion,
 }
 
+impl std::fmt::Display for BinaryOperator {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      BinaryOperator::Plus => write!(f, "+"),
+      BinaryOperator::Minus => write!(f, "-"),
+      BinaryOperator::Star => write!(f, "*"),
+      BinaryOperator::Slash => write!(f, "/"),
+      BinaryOperator::BangEqual => write!(f, "!="),
+      BinaryOperator::EqualEqual => write!(f, "=="),
+      BinaryOperator::Greater => write!(f, ">"),
+      BinaryOperator::GreaterEqual => write!(f, ">="),
+      BinaryOperator::Less => write!(f, "<"),
+      BinaryOperator::LessEqual => write!(f, "<="),
+      BinaryOperator::And => write!(f, "and"),
+      BinaryOperator::Or => write!(f, "or"),
+      BinaryOperator::QuestionQuestion => write!(f, "??"),
+    }
+  }
+}
+
 #[derive(Debug, Clone)]
 pub enum UnaryOperator {
   Minus,
   Bang,
 }
 
-impl std::fmt::Display for LiteralValue {
+impl std::fmt::Display for UnaryOperator {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
-      Self::True => write!(f, "true"),
-      Self::False => write!(f, "false"),
-      Self::Null => write!(f, "null"),
-      Self::Number(value) => write!(f, "{}", value),
-      Self::String(value) => write!(f, "{}", value),
+      UnaryOperator::Minus => write!(f, "-"),
+      UnaryOperator::Bang => write!(f, "!"),
     }
   }
 }

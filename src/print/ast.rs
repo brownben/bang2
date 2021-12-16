@@ -1,4 +1,4 @@
-use crate::ast::{BinaryOperator, Expression, Statement, UnaryOperator};
+use crate::ast::{Expression, Statement};
 
 pub fn ast(ast: &[Statement]) {
   println!("  ╭─[Abstract Syntax Tree]");
@@ -20,9 +20,7 @@ fn print_expression(expression: &Expression, prefix: String, prefix_raw: String)
       operator,
       ..
     } => {
-      print!("{}Unary (", prefix);
-      print_unary_operator(operator);
-      println!(")");
+      println!("{}Unary ({})", prefix, operator);
       print_expression(&*expression, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
     }
     Expression::Binary {
@@ -31,9 +29,7 @@ fn print_expression(expression: &Expression, prefix: String, prefix_raw: String)
       operator,
       ..
     } => {
-      print!("{}Binary (", prefix);
-      print_binary_operator(operator);
-      println!(")");
+      println!("{}Binary ({})", prefix, operator);
       print_expression(
         &*left,
         prefix_raw.clone() + "├─ ",
@@ -166,30 +162,5 @@ fn print_statement(statement: &Statement, prefix: String, prefix_raw: String) {
       );
       print_statement(&*body, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
     }
-  }
-}
-
-fn print_binary_operator(operator: &BinaryOperator) {
-  match operator {
-    BinaryOperator::Plus => print!("+"),
-    BinaryOperator::Minus => print!("-"),
-    BinaryOperator::Star => print!("*"),
-    BinaryOperator::Slash => print!("/"),
-    BinaryOperator::BangEqual => print!("!="),
-    BinaryOperator::EqualEqual => print!("=="),
-    BinaryOperator::Greater => print!(">"),
-    BinaryOperator::GreaterEqual => print!(">="),
-    BinaryOperator::Less => print!("<"),
-    BinaryOperator::LessEqual => print!("<="),
-    BinaryOperator::And => print!("and"),
-    BinaryOperator::Or => print!("or"),
-    BinaryOperator::QuestionQuestion => print!("??"),
-  }
-}
-
-fn print_unary_operator(operator: &UnaryOperator) {
-  match operator {
-    UnaryOperator::Minus => print!("-"),
-    UnaryOperator::Bang => print!("!"),
   }
 }
