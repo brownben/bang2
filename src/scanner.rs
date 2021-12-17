@@ -321,12 +321,12 @@ fn identifier_type(scanner: &Scanner) -> TokenType {
   }
 }
 
-fn check_keyword(scanner: &Scanner, rest: &str, token_type: TokenType) -> TokenType {
-  let string: String = scanner.chars[scanner.start..scanner.start + rest.len()]
+fn check_keyword(scanner: &Scanner, keyword: &str, token_type: TokenType) -> TokenType {
+  let string: String = scanner.chars[scanner.start..scanner.current]
     .iter()
     .collect();
 
-  if string == *rest {
+  if string == *keyword && string.len() == keyword.len() {
     token_type
   } else {
     TokenType::Identifier
