@@ -79,6 +79,7 @@ impl std::fmt::Display for UnaryOperator {
 pub struct Parameter {
   pub identifier: Token,
   pub value: String,
+  pub type_: String,
 }
 
 #[derive(Debug, Clone)]
@@ -163,6 +164,7 @@ pub enum Statement {
     identifier: Token,
     parameters: Vec<Parameter>,
     body: Box<Statement>,
+    return_type: Option<String>,
   },
   Return {
     token: Token,

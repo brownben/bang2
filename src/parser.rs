@@ -1,7 +1,9 @@
-use crate::ast::{BinaryOperator, Expression, LiteralValue, Parameter, Statement, UnaryOperator};
-use crate::error::{CompileError, Error};
-use crate::scanner::Scanner;
-use crate::token::{Token, TokenType};
+use crate::{
+  ast::{BinaryOperator, Expression, LiteralValue, Parameter, Statement, UnaryOperator},
+  error::{CompileError, Error},
+  scanner::Scanner,
+  token::{Token, TokenType},
+};
 
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -258,9 +260,14 @@ fn function_declaration(parser: &mut Parser) -> StatementResult {
 
       parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
       let token = parser.previous.unwrap();
+      parser.consume(TokenType::Colon, Error::MissingColonBeforeType)?;
+      parser.consume(TokenType::Identifier, Error::MissingTypeName)?;
+      let type_token = parser.previous.unwrap();
+
       parameters.push(Parameter {
         identifier: token,
         value: token.get_value(&parser.scanner.chars),
+        type_: type_token.get_value(&parser.scanner.chars),
       });
 
       if !parser.matches(TokenType::Comma) {
@@ -269,6 +276,13 @@ fn function_declaration(parser: &mut Parser) -> StatementResult {
     }
   }
   parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
+
+  let return_type = if parser.matches(TokenType::RightArrow) {
+    parser.consume(TokenType::Identifier, Error::MissingTypeName)?;
+    Some(parser.previous.unwrap().get_value(&parser.scanner.chars))
+  } else {
+    None
+  };
 
   parser.matches(TokenType::EndOfLine);
   let body = statement(parser)?;
@@ -279,6 +293,7 @@ fn function_declaration(parser: &mut Parser) -> StatementResult {
     token,
     body: Box::new(body),
     parameters,
+    return_type,
   })
 }
 

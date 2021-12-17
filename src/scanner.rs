@@ -136,6 +136,7 @@ impl Scanner {
           '=' => make_token(self, TokenType::Equal),
           '<' => make_token(self, TokenType::Less),
           '>' => make_token(self, TokenType::Greater),
+          ':' => make_token(self, TokenType::Colon),
           _ => error_token(self, Error::UnknownCharacter),
         }
       }
@@ -174,6 +175,7 @@ fn get_two_character_token(char1: char, char2: Option<&char>) -> Option<TokenTyp
     ('*', '=') => Some(TokenType::StarEqual),
     ('/', '=') => Some(TokenType::SlashEqual),
     ('?', '?') => Some(TokenType::QuestionQuestion),
+    ('-', '>') => Some(TokenType::RightArrow),
     _ => None,
   }
 }

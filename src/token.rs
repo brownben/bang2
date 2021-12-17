@@ -14,6 +14,10 @@ pub enum TokenType {
   Comma,
   Dot,
 
+  // Types
+  Colon,
+  RightArrow,
+
   // Operators
   Minus,
   Plus,

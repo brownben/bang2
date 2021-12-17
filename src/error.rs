@@ -19,6 +19,8 @@ pub enum Error {
   TooManyParameters,
   TooManyConstants,
   TooBigJump,
+  MissingColonBeforeType,
+  MissingTypeName,
 }
 
 #[derive(Debug)]
@@ -113,6 +115,14 @@ pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic 
     },
     Error::ExpectedExpression => Diagnostic {
       message: "Expected Expression".to_string(),
+      note: None,
+    },
+    Error::MissingColonBeforeType => Diagnostic {
+      message: "Missing Colon Before Parameter Type".to_string(),
+      note: None,
+    },
+    Error::MissingTypeName => Diagnostic {
+      message: "Expected Type Name".to_string(),
       note: None,
     },
   }
