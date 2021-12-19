@@ -6,16 +6,11 @@ use std::rc::Rc;
 pub struct Function {
   pub arity: u8,
   pub chunk: Chunk,
-  pub name: Rc<str>,
 }
 
 impl Function {
   pub fn script(chunk: Chunk) -> Rc<Self> {
-    Rc::new(Self {
-      arity: 0,
-      chunk,
-      name: Rc::from(String::from("Main")),
-    })
+    Rc::new(Self { arity: 0, chunk })
   }
 }
 
@@ -134,7 +129,7 @@ impl std::fmt::Display for Value {
       Value::Null => write!(f, "null"),
       Value::Number(value) => write!(f, "{}", value),
       Value::String(value) => write!(f, "'{}'", value),
-      Value::Function(value) => write!(f, "<function {}>", value.name),
+      Value::Function(_) => write!(f, "<function>"),
       Value::NativeFunction(value) => write!(f, "<function {}>", value.name),
     }
   }

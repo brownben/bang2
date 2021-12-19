@@ -5,7 +5,7 @@ pub fn disassemble(chunk: &Chunk, name: &str) {
   disassemble_chunk(chunk, name);
   for constant in &chunk.constants {
     if let Value::Function(function) = constant {
-      disassemble(&function.chunk, &function.name);
+      disassemble(&function.chunk, "function");
     }
   }
 }

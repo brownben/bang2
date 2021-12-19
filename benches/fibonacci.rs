@@ -6,13 +6,11 @@ use bang_benchmark::*;
 bang_benchmark!(
   recursive_fibonacci,
   "
-fun fib_recursive(n: number)
-  if (n <= 2)
-    if (n == 0)
-      return 0
-    return n - 1
+let fibonacci_recursive = (n: number) -> number
+  if n < 2
+    return n
   else
-    return fib_recursive(n - 1) + fib_recursive(n - 2)
+    return fibonacci_recursive(n - 1) + fibonacci_recursive(n - 2);
 
 fib_recursive(25)
 "
@@ -21,7 +19,7 @@ fib_recursive(25)
 bang_benchmark!(
   iterative_fibonacci,
   "
-fun fib_iterative(n: number)
+let fib_iterative(n: number) -> number
   let x = 0
   let y = 1
   let i = 1

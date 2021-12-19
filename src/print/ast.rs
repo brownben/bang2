@@ -69,6 +69,20 @@ fn print_expression(expression: &Expression, prefix: String, prefix_raw: String)
         );
       }
     }
+    Expression::Function {
+      body, parameters, ..
+    } => {
+      println!(
+        "{}Function ({})",
+        prefix,
+        parameters
+          .iter()
+          .map(|p| p.value.clone())
+          .collect::<Vec<String>>()
+          .join(", ")
+      );
+      print_statement(&*body, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
+    }
   }
 }
 
@@ -143,24 +157,6 @@ fn print_statement(statement: &Statement, prefix: String, prefix_raw: String) {
     Statement::Expression { expression, .. } => {
       println!("{}Expression", prefix);
       print_expression(expression, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
-    }
-    Statement::Function {
-      name,
-      body,
-      parameters,
-      ..
-    } => {
-      println!(
-        "{}Function ({}) <{}>",
-        prefix,
-        name,
-        parameters
-          .iter()
-          .map(|p| p.value.clone())
-          .collect::<Vec<String>>()
-          .join(", ")
-      );
-      print_statement(&*body, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
     }
   }
 }

@@ -176,6 +176,7 @@ fn get_two_character_token(char1: char, char2: Option<&char>) -> Option<TokenTyp
     ('/', '=') => Some(TokenType::SlashEqual),
     ('?', '?') => Some(TokenType::QuestionQuestion),
     ('-', '>') => Some(TokenType::RightArrow),
+    ('=', '>') => Some(TokenType::FatRightArrow),
     _ => None,
   }
 }

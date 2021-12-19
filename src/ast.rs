@@ -116,6 +116,12 @@ pub enum Expression {
     token: Token,
     arguments: Vec<Expression>,
   },
+  Function {
+    token: Token,
+    parameters: Vec<Parameter>,
+    body: Box<Statement>,
+    return_type: Option<String>,
+  },
 }
 
 impl Expression {
@@ -128,6 +134,7 @@ impl Expression {
       Expression::Unary { expression, .. } => expression.has_side_effect(),
       Expression::Binary { left, right, .. } => left.has_side_effect() || right.has_side_effect(),
       Expression::Call { .. } => true,
+      Expression::Function { .. } => false,
     }
   }
 }
@@ -158,14 +165,6 @@ pub enum Statement {
   Expression {
     expression: Expression,
   },
-  Function {
-    name: String,
-    token: Token,
-    identifier: Token,
-    parameters: Vec<Parameter>,
-    body: Box<Statement>,
-    return_type: Option<String>,
-  },
   Return {
     token: Token,
     expression: Option<Expression>,
@@ -186,7 +185,6 @@ pub trait Visitor {
         }
       }
       Statement::Expression { expression, .. } => self.visit_expression(expression),
-      Statement::Function { body, .. } => self.visit_statement(body),
       Statement::If {
         condition,
         then,
@@ -230,6 +228,7 @@ pub trait Visitor {
         self.visit_expression(expression);
         arguments.iter().for_each(|arg| self.visit_expression(arg));
       }
+      Expression::Function { body, .. } => self.visit_statement(body),
       Expression::Group { expression, .. } => self.visit_expression(expression),
       Expression::Literal { .. } => {}
       Expression::Unary { expression, .. } => self.visit_expression(expression),

@@ -134,6 +134,7 @@ fn get_rule(token_type: TokenType) -> ParseRule {
 
 struct Parser {
   scanner: Scanner,
+  backlog: Vec<Token>,
 
   current: Option<Token>,
   previous: Option<Token>,
@@ -143,6 +144,7 @@ impl Parser {
   fn new(source: &str) -> Self {
     Self {
       scanner: Scanner::new(source),
+      backlog: Vec::new(),
 
       current: None,
       previous: None,
@@ -155,8 +157,12 @@ impl Parser {
 
   fn advance(&mut self) -> Result<(), CompileError> {
     self.previous = self.current.take();
+    let token = if self.backlog.is_empty() {
+      self.scanner.get_token()
+    } else {
+      self.backlog.remove(0)
+    };
 
-    let token = self.scanner.get_token();
     if token.token_type == TokenType::Error {
       Err(self.error(token, token.error_value.unwrap()))
     } else {
@@ -172,6 +178,42 @@ impl Parser {
     } else {
       false
     }
+  }
+
+  fn get_token_or_backlog(&mut self, initial: usize, count: usize) -> Token {
+    if count < initial {
+      self.backlog[count]
+    } else {
+      let token = self.scanner.get_token();
+      self.backlog.push(token);
+      token
+    }
+  }
+
+  fn is_function_bracket(&mut self) -> bool {
+    let initial_depth = self.backlog.len();
+
+    let mut token = self.current.unwrap();
+    let mut depth = 0;
+    let mut count = 0;
+
+    loop {
+      if depth == 0 && token.token_type == TokenType::RightParen {
+        break;
+      } else if token.token_type == TokenType::EndOfFile {
+        return false;
+      } else if token.token_type == TokenType::RightParen {
+        depth += 1;
+      } else if token.token_type == TokenType::LeftParen {
+        depth -= 1;
+      }
+
+      token = self.get_token_or_backlog(initial_depth, count);
+      count += 1;
+    }
+
+    token = self.get_token_or_backlog(initial_depth, count);
+    token.token_type == TokenType::FatRightArrow || token.token_type == TokenType::RightArrow
   }
 
   fn consume(&mut self, token_type: TokenType, message: Error) -> Result<(), CompileError> {
@@ -227,9 +269,7 @@ pub fn parse(source: &str) -> Result<Vec<Statement>, CompileError> {
 }
 
 fn statement(parser: &mut Parser) -> StatementResult {
-  if parser.matches(TokenType::Fun) {
-    function_declaration(parser)
-  } else if parser.matches(TokenType::Let) {
+  if parser.matches(TokenType::Let) {
     var_declaration(parser)
   } else if parser.matches(TokenType::Return) {
     return_statement(parser)
@@ -244,59 +284,6 @@ fn statement(parser: &mut Parser) -> StatementResult {
   }
 }
 
-fn function_declaration(parser: &mut Parser) -> StatementResult {
-  let token = parser.current.unwrap();
-  parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
-  let identifier = parser.previous.unwrap();
-  let name = identifier.get_value(&parser.scanner.chars);
-
-  let mut parameters = Vec::new();
-  parser.consume(TokenType::LeftParen, Error::MissingBracketBeforeParameters)?;
-  if parser.current.unwrap().token_type != TokenType::RightParen {
-    loop {
-      if parser.current.unwrap().token_type == TokenType::RightParen {
-        break;
-      }
-
-      parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
-      let token = parser.previous.unwrap();
-      parser.consume(TokenType::Colon, Error::MissingColonBeforeType)?;
-      parser.consume(TokenType::Identifier, Error::MissingTypeName)?;
-      let type_token = parser.previous.unwrap();
-
-      parameters.push(Parameter {
-        identifier: token,
-        value: token.get_value(&parser.scanner.chars),
-        type_: type_token.get_value(&parser.scanner.chars),
-      });
-
-      if !parser.matches(TokenType::Comma) {
-        break;
-      }
-    }
-  }
-  parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
-
-  let return_type = if parser.matches(TokenType::RightArrow) {
-    parser.consume(TokenType::Identifier, Error::MissingTypeName)?;
-    Some(parser.previous.unwrap().get_value(&parser.scanner.chars))
-  } else {
-    None
-  };
-
-  parser.matches(TokenType::EndOfLine);
-  let body = statement(parser)?;
-
-  Ok(Statement::Function {
-    name,
-    identifier,
-    token,
-    body: Box::new(body),
-    parameters,
-    return_type,
-  })
-}
-
 fn var_declaration(parser: &mut Parser) -> StatementResult {
   let token = parser.current.unwrap();
   parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
@@ -308,7 +295,6 @@ fn var_declaration(parser: &mut Parser) -> StatementResult {
   } else {
     None
   };
-
   parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine)?;
 
   Ok(Statement::Declaration {
@@ -321,12 +307,9 @@ fn var_declaration(parser: &mut Parser) -> StatementResult {
 
 fn block(parser: &mut Parser) -> StatementResult {
   let mut statements = Vec::new();
-  while parser.current.unwrap().token_type != TokenType::EndOfFile
-    && parser.current.unwrap().token_type != TokenType::BlockEnd
-  {
+  while parser.current.unwrap().token_type != TokenType::BlockEnd {
     statements.push(statement(parser)?);
   }
-
   parser.consume(TokenType::BlockEnd, Error::ExpectedEndOfBlock)?;
 
   Ok(Statement::Block { body: statements })
@@ -451,11 +434,82 @@ fn variable(parser: &mut Parser, can_assign: bool) -> ExpressionResult {
 }
 
 fn grouping(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
+  if parser.is_function_bracket() {
+    return function(parser);
+  }
+
   let expression = expression(parser)?;
   parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
 
   Ok(Expression::Group {
     expression: Box::new(expression),
+  })
+}
+
+fn function(parser: &mut Parser) -> ExpressionResult {
+  let token = parser.current.unwrap();
+
+  let mut parameters = Vec::new();
+  if token.token_type != TokenType::RightParen {
+    loop {
+      if parser.current.unwrap().token_type == TokenType::RightParen {
+        break;
+      }
+
+      parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
+      let token = parser.previous.unwrap();
+      parser.consume(TokenType::Colon, Error::MissingColonBeforeType)?;
+      parser.consume(TokenType::Identifier, Error::MissingTypeName)?;
+      let type_token = parser.previous.unwrap();
+
+      parameters.push(Parameter {
+        identifier: token,
+        value: token.get_value(&parser.scanner.chars),
+        type_: type_token.get_value(&parser.scanner.chars),
+      });
+
+      if !parser.matches(TokenType::Comma) {
+        break;
+      }
+    }
+  }
+  parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
+
+  let (return_type, body) = if parser.matches(TokenType::RightArrow) {
+    parser.consume(TokenType::Identifier, Error::MissingTypeName)?;
+    let return_type = parser.previous.unwrap().get_value(&parser.scanner.chars);
+    parser.matches(TokenType::EndOfLine);
+
+    parser.consume(TokenType::BlockStart, Error::ExpectedStartOfBlock)?;
+
+    let mut statements = Vec::new();
+    while parser.current.unwrap().token_type != TokenType::BlockEnd {
+      statements.push(statement(parser)?);
+    }
+
+    // Make sure that the expression always ends with a end of line
+    if let Some(mut current) = parser.current {
+      current.token_type = TokenType::EndOfLine;
+      parser.current = Some(current);
+    }
+
+    (Some(return_type), Statement::Block { body: statements })
+  } else {
+    parser.consume(TokenType::FatRightArrow, Error::MissingFunctionArrow)?;
+    (
+      None,
+      Statement::Return {
+        token: parser.current.unwrap(),
+        expression: Some(expression(parser)?),
+      },
+    )
+  };
+
+  Ok(Expression::Function {
+    token,
+    body: Box::new(body),
+    parameters,
+    return_type,
   })
 }
 

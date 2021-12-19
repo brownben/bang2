@@ -13,10 +13,9 @@ pub enum TokenType {
   // Separators
   Comma,
   Dot,
-
-  // Types
   Colon,
   RightArrow,
+  FatRightArrow,
 
   // Operators
   Minus,

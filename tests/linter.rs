@@ -63,14 +63,14 @@ b = b
 
 bang_lint!(no_unreachable_code
 "
-fun x()
+let x = () -> number
   if (true)
     return 10
     type(\"Hello\")
   else
     return 5
 
-fun y()
+let y = () -> number
   if (true)
     return 10
   x()

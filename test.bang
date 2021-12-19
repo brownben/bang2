@@ -1,30 +1,5 @@
-fun fib_iterative(n)
-  let x = 0
-  let y = 1
-  let i = 1
-  while (i < n)
-    let z = x + y
-    x = y
-    y = z
-    i += 1
-  return x
+// TODO: should be null
+let b() -> nu
+  return
 
-print(fib_iterative(25))
-
-print(0 == a)
-
-fun x(a)
-  if (x > 3)
-    return 3
-    2 + 5
-  else
-    7
-
-
-fun x(a)
-  if (x > 3)
-    2 + 5
-    return 3
-  return 7
-
-print(---0)
+let a = b() == null

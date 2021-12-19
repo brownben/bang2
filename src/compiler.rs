@@ -1,10 +1,10 @@
-use crate::ast::{BinaryOperator, Expression, LiteralValue, Statement, UnaryOperator};
-use crate::chunk::{Chunk, ChunkCreator, OpCode};
-use crate::error::{CompileError, Error};
-use crate::token::Token;
-use crate::value::{Function, Value};
-
-use std::rc::Rc;
+use crate::{
+  ast::{BinaryOperator, Expression, LiteralValue, Statement, UnaryOperator},
+  chunk::{Chunk, ChunkCreator, OpCode},
+  error::{CompileError, Error},
+  token::Token,
+  value::{Function, Value},
+};
 
 #[derive(Debug)]
 struct Local {
@@ -235,49 +235,6 @@ impl Compiler {
           self.emit_opcode_blank(OpCode::Pop);
         }
       }
-      Statement::Function {
-        name,
-        identifier,
-        token,
-        parameters,
-        body,
-        ..
-      } => {
-        if parameters.len() > u8::MAX as usize {
-          self.error(token, Error::TooManyParameters);
-        };
-
-        self.new_chunk();
-        for parameter in &parameters {
-          self.locals.push(Local {
-            name: parameter.value.clone(),
-            depth: self.scope_depth,
-          });
-        }
-        self.compile_statement(*body);
-        self.emit_opcode(token, OpCode::Null);
-        self.emit_opcode(token, OpCode::Return);
-        let chunk = self.finish_chunk();
-
-        self.emit_constant(
-          token,
-          Value::from(Function {
-            chunk,
-            name: Rc::from(name.clone()),
-            arity: parameters.len() as u8,
-          }),
-        );
-
-        if self.scope_depth > 0 {
-          self.locals.push(Local {
-            name,
-            depth: self.scope_depth,
-          });
-        } else {
-          self.emit_opcode(identifier, OpCode::DefineGlobal);
-          self.emit_constant_string(identifier, name);
-        }
-      }
     }
   }
 
@@ -405,6 +362,37 @@ impl Compiler {
 
         self.emit_opcode(token, OpCode::Call);
         self.emit_value(token, arguments.len() as u8);
+      }
+
+      Expression::Function {
+        token,
+        parameters,
+        body,
+        ..
+      } => {
+        if parameters.len() > u8::MAX as usize {
+          self.error(token, Error::TooManyParameters);
+        };
+
+        self.new_chunk();
+        for parameter in &parameters {
+          self.locals.push(Local {
+            name: parameter.value.clone(),
+            depth: self.scope_depth,
+          });
+        }
+        self.compile_statement(*body);
+        self.emit_opcode(token, OpCode::Null);
+        self.emit_opcode(token, OpCode::Return);
+        let chunk = self.finish_chunk();
+
+        self.emit_constant(
+          token,
+          Value::from(Function {
+            chunk,
+            arity: parameters.len() as u8,
+          }),
+        );
       }
     }
   }

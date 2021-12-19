@@ -171,10 +171,9 @@ let e = '0' != 0
 
 bang_test!(function_equal_to_itself_but_not_identical_definition
 "
-fun a()
-  return 7
+let a = () => 7
 
-fun b()
+let b = () -> number
   return 7
 
 let c = a == a

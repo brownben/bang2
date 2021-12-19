@@ -8,10 +8,10 @@ pub enum Error {
   MissingVariableName,
   MissingEndOfFile,
   InvalidAssignmentTarget,
-  MissingBracketBeforeParameters,
   MissingBracketBeforeCondition,
   MissingBracketAfterCondition,
   ExpectedNewLine,
+  ExpectedStartOfBlock,
   ExpectedEndOfBlock,
   ExpectedBracket,
   ExpectedExpression,
@@ -21,6 +21,7 @@ pub enum Error {
   TooBigJump,
   MissingColonBeforeType,
   MissingTypeName,
+  MissingFunctionArrow,
 }
 
 #[derive(Debug)]
@@ -77,16 +78,16 @@ pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic 
       message: "Expected Closing Bracket ')' After Condition".to_string(),
       note: None,
     },
-    Error::MissingBracketBeforeParameters => Diagnostic {
-      message: "Expected Bracket '(' Before Parameters".to_string(),
-      note: None,
-    },
     Error::ExpectedNewLine => Diagnostic {
       message: "Expected New Line After Expression".to_string(),
       note: None,
     },
     Error::ExpectedEndOfBlock => Diagnostic {
       message: "Expected End of Block".to_string(),
+      note: None,
+    },
+    Error::ExpectedStartOfBlock => Diagnostic {
+      message: "Expected Start of Block".to_string(),
       note: None,
     },
     Error::MissingEndOfFile => Diagnostic {
@@ -123,6 +124,10 @@ pub fn get_message(source: &[char], error: &Error, token: &Token) -> Diagnostic 
     },
     Error::MissingTypeName => Diagnostic {
       message: "Expected Type Name".to_string(),
+      note: None,
+    },
+    Error::MissingFunctionArrow => Diagnostic {
+      message: "Missing Arrow After Parameters".to_string(),
       note: None,
     },
   }

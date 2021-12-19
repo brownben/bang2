@@ -18,3 +18,16 @@ while (false)
 "
   x == 0.0
 );
+
+bang_test!(arithmetic
+"
+let result = 0
+let i = 0
+while(i < 100)
+    result += 11
+    result *= 10
+    result -= (result / 100) * 99
+    i += 1
+"
+  i == 100.0
+);

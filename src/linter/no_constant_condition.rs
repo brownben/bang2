@@ -34,6 +34,7 @@ fn has_variable_access(expression: &Expression) -> bool {
       arguments,
       ..
     } => has_variable_access(expression) || arguments.iter().any(has_variable_access),
+    Expression::Function { .. } => false,
   }
 }
 

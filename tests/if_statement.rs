@@ -125,7 +125,7 @@ let a
 if (print)
     a = true
 
-fun identity(x: number) -> number
+let identity = (x: number) -> number
   return x
 
 let b
