@@ -9,6 +9,7 @@ pub struct Scanner {
   start: usize,
   current: usize,
   line: LineNumber,
+  column: usize,
 
   last_token_type: TokenType,
   indentation: u8,
@@ -22,6 +23,7 @@ impl Scanner {
 
   fn advance(&mut self) -> char {
     self.current += 1;
+    self.column += 1;
     self.chars[(self.current as usize) - 1]
   }
 
@@ -149,6 +151,7 @@ impl Scanner {
       start: 0,
       current: 0,
       line: 1,
+      column: 1,
       last_token_type: TokenType::Blank,
       indentation: 0,
       block_change_remaining: 0,
@@ -188,6 +191,7 @@ fn make_token(scanner: &Scanner, token_type: TokenType) -> Token {
     error_value: None,
     start: scanner.start,
     end: scanner.current,
+    column: scanner.column,
   }
 }
 
@@ -198,6 +202,7 @@ fn error_token(scanner: &Scanner, error: Error) -> Token {
     error_value: Some(error),
     start: scanner.start,
     end: scanner.current,
+    column: scanner.column,
   }
 }
 
@@ -208,6 +213,7 @@ fn skip_whitespace(scanner: &mut Scanner, skip_newlines: bool) {
       Some('\n') if skip_newlines => {
         scanner.advance();
         scanner.line += 1;
+        scanner.column = 1;
       }
       //  Ignore whitespace
       Some(' ' | '\t' | '\r') => {
@@ -222,6 +228,7 @@ fn skip_whitespace(scanner: &mut Scanner, skip_newlines: bool) {
           if scanner.peek_equals('\n') {
             scanner.advance();
             scanner.line += 1;
+            scanner.column = 1;
           }
         }
         _ => break,
@@ -257,6 +264,7 @@ fn newline_token(scanner: &mut Scanner) -> Token {
 
   // Link newline with the content before it
   scanner.line += 1;
+  scanner.column = 1;
 
   token
 }
@@ -265,6 +273,7 @@ fn string_token(scanner: &mut Scanner, quote: char) -> Token {
   while !scanner.peek_equals(quote) && !scanner.at_end() {
     if scanner.peek_equals('\n') && quote == '`' {
       scanner.line += 1;
+      scanner.column = 1;
     } else if scanner.peek_equals('\n') {
       return error_token(scanner, Error::UnterminatedString);
     }

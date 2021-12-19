@@ -71,6 +71,7 @@ pub enum TokenType {
 pub struct Token {
   pub token_type: TokenType,
   pub line: LineNumber,
+  pub column: usize,
 
   pub start: usize,
   pub end: usize,
