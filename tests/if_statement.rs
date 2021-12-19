@@ -118,3 +118,20 @@ if (true)
   a == true
   b == true
 );
+
+bang_test!(function_is_truthy
+"
+let a
+if (print)
+    a = true
+
+fun identity(x: number) -> number
+  return x
+
+let b
+if (identity)
+  b = true
+"
+  a == true
+  b == true
+);

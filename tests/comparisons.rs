@@ -181,11 +181,15 @@ let c = a == a
 let d = a == b
 let e = a() == a()
 let f = a() == b()
+let g = print == print
+let h = print == type
 "
   c == true
   d == false
   e == true
   f == true
+  g == true
+  h == false
 );
 
 bang_test!(built_strings
@@ -195,4 +199,17 @@ let b = 'hell' + 'o' == 'he' + 'llo'
 "
   a == true
   b == true
+);
+
+bang_test!(unterminated_string
+"
+'hello"
+  CompileError
+);
+
+bang_test!(unterminated_string_2
+"
+`hello
+"
+  CompileError
 );

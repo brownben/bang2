@@ -101,8 +101,6 @@ impl LineInfo {
     }
     if length == 0 {
       0
-    } else if line == length {
-      self.lines[length - 1].0
     } else {
       self.lines[line].0
     }

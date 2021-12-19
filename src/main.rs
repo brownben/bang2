@@ -8,6 +8,7 @@ mod parser;
 mod print;
 mod scanner;
 mod token;
+mod typechecker;
 mod value;
 mod vm;
 
@@ -118,40 +119,39 @@ fn main() {
     )
     .get_matches();
 
-  match app.subcommand() {
-    (command @ ("lint" | "run" | "tokens" | "ast" | "bytecode"), Some(subcommand)) => {
-      let filename = subcommand.value_of("file").unwrap();
-      let source = read_file(filename);
+  if let (command @ ("lint" | "run" | "tokens" | "ast" | "bytecode"), Some(subcommand)) =
+    app.subcommand()
+  {
+    let filename = subcommand.value_of("file").unwrap();
+    let source = read_file(filename);
 
-      match command {
-        "run" => match compile(&source) {
-          Ok(chunk) => match vm::run(chunk) {
-            Ok(_) => {}
-            Err(error) => print::runtime_error(filename, &source, &error),
-          },
-          Err(details) => print::compile_error(filename, &source, &details),
+    match command {
+      "run" => match compile(&source) {
+        Ok(chunk) => match vm::run(chunk) {
+          Ok(_) => {}
+          Err(error) => print::runtime_error(filename, &source, &error),
         },
-        "lint" => match parser::parse(&source) {
-          Ok(ast) => linter::lint(&ast)
-            .iter()
-            .for_each(|warning| print::lint_warning(filename, &source, warning)),
-          Err(details) => print::compile_error(filename, &source, &details),
-        },
-        "tokens" => print::tokens(&source),
-        "ast" => match parser::parse(&source) {
-          Ok(ast) => print::ast(&ast),
-          Err(details) => print::compile_error(filename, &source, &details),
-        },
-        "bytecode" => match compile(&source) {
-          Ok(chunk) => print::chunk(&chunk, filename),
-          Err(details) => print::compile_error(filename, &source, &details),
-        },
-        _ => unreachable!(),
-      }
+        Err(details) => print::compile_error(filename, &source, &details),
+      },
+      "lint" => match parser::parse(&source) {
+        Ok(ast) => linter::lint(&ast)
+          .iter()
+          .for_each(|warning| print::lint_warning(filename, &source, warning)),
+        Err(details) => print::compile_error(filename, &source, &details),
+      },
+      "tokens" => print::tokens(&source),
+      "ast" => match parser::parse(&source) {
+        Ok(ast) => print::ast(&ast),
+        Err(details) => print::compile_error(filename, &source, &details),
+      },
+      "bytecode" => match compile(&source) {
+        Ok(chunk) => print::chunk(&chunk, filename),
+        Err(details) => print::compile_error(filename, &source, &details),
+      },
+      _ => unreachable!(),
     }
-    _ => {
-      println!("Bang! ({})\n", version);
-      repl()
-    }
+  } else {
+    println!("Bang! ({})\n", version);
+    repl();
   }
 }

@@ -58,6 +58,20 @@ let c = -4525
   c == -4525.0
 );
 
+bang_test!(cant_negate_strings
+"
+let a = -'hello'
+"
+  RuntimeError
+);
+
+bang_test!(have_to_negate_something
+"
+let a = -
+"
+  CompileError
+);
+
 bang_test!(assignment_operators
 "
 let a = 10

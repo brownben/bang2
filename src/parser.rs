@@ -328,9 +328,6 @@ fn block(parser: &mut Parser) -> StatementResult {
   }
 
   parser.consume(TokenType::BlockEnd, Error::ExpectedEndOfBlock)?;
-  if parser.current.unwrap().token_type == TokenType::EndOfLine {
-    parser.advance()?;
-  }
 
   Ok(Statement::Block { body: statements })
 }
@@ -514,7 +511,6 @@ fn binary(parser: &mut Parser, previous: Expression, _can_assign: bool) -> Expre
     TokenType::Slash => BinaryOperator::Slash,
     TokenType::BangEqual => BinaryOperator::BangEqual,
     TokenType::EqualEqual => BinaryOperator::EqualEqual,
-    TokenType::Equal => BinaryOperator::EqualEqual,
     TokenType::Greater => BinaryOperator::Greater,
     TokenType::GreaterEqual => BinaryOperator::GreaterEqual,
     TokenType::Less => BinaryOperator::Less,

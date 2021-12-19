@@ -46,7 +46,7 @@ fn print_expression(expression: &Expression, prefix: String, prefix_raw: String)
       print_expression(&*expression, prefix_raw.clone() + "╰─ ", prefix_raw + "   ");
     }
     Expression::Variable { variable_name, .. } => {
-      println!("{}Variable ({})", prefix, variable_name)
+      println!("{}Variable ({})", prefix, variable_name);
     }
     Expression::Call {
       expression,

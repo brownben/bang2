@@ -93,11 +93,7 @@ impl From<bool> for Value {
 
 impl From<f64> for Value {
   fn from(value: f64) -> Self {
-    if value.is_nan() {
-      Self::Null
-    } else {
-      Self::Number(value)
-    }
+    Self::Number(value)
   }
 }
 

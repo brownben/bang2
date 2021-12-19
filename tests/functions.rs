@@ -178,3 +178,20 @@ fun a(x0: number, x1: number, x2: number, x3: number, x4: number, x5: number, x6
 "
   CompileError
 );
+
+bang_test!(call_trailing_comma
+"
+let a = print(1,) == null
+"
+  a == true
+);
+
+bang_test!(blank_return_is_null
+"
+fun b()
+  return
+
+let a = b() == null
+"
+  a == true
+);

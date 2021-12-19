@@ -64,3 +64,35 @@ bang_test!(missing_variable_name
 "
   CompileError
 );
+
+bang_test!(unknown_global
+"
+let a = unknownGlobal
+"
+  RuntimeError
+);
+
+bang_test!(unknown_global_set
+"
+unknownGlobal = 8
+"
+  RuntimeError
+);
+
+bang_test!(cant_assign_to_expression
+"
+let a
+a + 1 = 8
+"
+  CompileError
+);
+
+bang_test!(assignment
+"
+let a
+  let b
+  b = 22
+  a = b
+"
+  a == 22.0
+);

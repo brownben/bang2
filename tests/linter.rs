@@ -75,7 +75,7 @@ fun y()
     return 10
   x()
   return
-  77
+  (77)
   null
 "
   "No Unreachable Code" [4 13]
@@ -104,7 +104,10 @@ if (true)
 else
   do_stuff()
 
+let a = 7
+if (-(a = 8))
+  do_stuff()
 "
-  "No Constant Conditions" [2]
+  "No Constant Conditions" [2 10]
   "No Unreachable Code" [4]
 );

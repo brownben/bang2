@@ -25,7 +25,7 @@ fn disassemble_chunk(chunk: &Chunk, name: &str) {
       last_line_number = line_number;
     }
 
-    position = disassemble_instruction(chunk, position)
+    position = disassemble_instruction(chunk, position);
   }
   println!("──────────╯");
 }
