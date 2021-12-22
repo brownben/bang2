@@ -8,7 +8,7 @@ mod parser;
 mod print;
 mod scanner;
 mod token;
-mod typechecker;
+// mod typechecker;
 mod value;
 mod vm;
 

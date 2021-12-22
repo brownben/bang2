@@ -317,10 +317,6 @@ impl VM {
 
       #[cfg(feature = "debug")]
       self.print_stack(ip);
-
-      if ip >= function.chunk.length() {
-        break Ok(());
-      }
     }
   }
 

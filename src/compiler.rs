@@ -301,7 +301,7 @@ impl Compiler {
             self.emit_opcode(token, OpCode::Not);
           }
           BinaryOperator::And | BinaryOperator::QuestionQuestion | BinaryOperator::Or => {
-            unreachable!()
+            unreachable!();
           }
         }
       }

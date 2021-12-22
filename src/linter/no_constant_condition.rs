@@ -22,10 +22,10 @@ impl Rule for NoConstantCondition {
 fn has_variable_access(expression: &Expression) -> bool {
   match expression {
     Expression::Variable { .. } => true,
-    Expression::Literal { .. } => false,
-    Expression::Assignment { expression, .. } => has_variable_access(expression),
-    Expression::Group { expression, .. } => has_variable_access(expression),
-    Expression::Unary { expression, .. } => has_variable_access(expression),
+    Expression::Function { .. } | Expression::Literal { .. } => false,
+    Expression::Assignment { expression, .. }
+    | Expression::Group { expression, .. }
+    | Expression::Unary { expression, .. } => has_variable_access(expression),
     Expression::Binary { left, right, .. } => {
       has_variable_access(left) || has_variable_access(right)
     }
@@ -34,7 +34,6 @@ fn has_variable_access(expression: &Expression) -> bool {
       arguments,
       ..
     } => has_variable_access(expression) || arguments.iter().any(has_variable_access),
-    Expression::Function { .. } => false,
   }
 }
 

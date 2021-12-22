@@ -127,14 +127,14 @@ pub enum Expression {
 impl Expression {
   pub fn has_side_effect(&self) -> bool {
     match self {
-      Expression::Variable { .. } => false,
-      Expression::Literal { .. } => false,
-      Expression::Assignment { .. } => true,
-      Expression::Group { expression, .. } => expression.has_side_effect(),
-      Expression::Unary { expression, .. } => expression.has_side_effect(),
+      Expression::Call { .. } | Expression::Assignment { .. } => true,
+      Expression::Function { .. } | Expression::Variable { .. } | Expression::Literal { .. } => {
+        false
+      }
+      Expression::Group { expression, .. } | Expression::Unary { expression, .. } => {
+        expression.has_side_effect()
+      }
       Expression::Binary { left, right, .. } => left.has_side_effect() || right.has_side_effect(),
-      Expression::Call { .. } => true,
-      Expression::Function { .. } => false,
     }
   }
 }
@@ -181,7 +181,7 @@ pub trait Visitor {
       Statement::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
       Statement::Declaration { expression, .. } => {
         if let Some(expression) = &*expression {
-          self.visit_expression(expression)
+          self.visit_expression(expression);
         }
       }
       Statement::Expression { expression, .. } => self.visit_expression(expression),
@@ -194,28 +194,27 @@ pub trait Visitor {
         self.visit_expression(condition);
         self.visit_statement(then);
         if let Some(otherwise) = &*otherwise {
-          self.visit_statement(otherwise.as_ref())
+          self.visit_statement(otherwise.as_ref());
         }
       }
       Statement::Return { expression, .. } => {
         if let Some(expression) = expression {
-          self.visit_expression(expression)
+          self.visit_expression(expression);
         }
       }
       Statement::While {
         condition, body, ..
       } => {
         self.visit_expression(condition);
-        self.visit_statement(body)
+        self.visit_statement(body);
       }
     }
 
-    self.exit_statement(statement)
+    self.exit_statement(statement);
   }
 
   fn visit_expression(&mut self, expression: &Expression) {
     match expression {
-      Expression::Assignment { expression, .. } => self.visit_expression(expression),
       Expression::Binary { left, right, .. } => {
         self.visit_expression(left);
         self.visit_expression(right);
@@ -229,13 +228,13 @@ pub trait Visitor {
         arguments.iter().for_each(|arg| self.visit_expression(arg));
       }
       Expression::Function { body, .. } => self.visit_statement(body),
-      Expression::Group { expression, .. } => self.visit_expression(expression),
-      Expression::Literal { .. } => {}
-      Expression::Unary { expression, .. } => self.visit_expression(expression),
-      Expression::Variable { .. } => {}
+      Expression::Assignment { expression, .. }
+      | Expression::Group { expression, .. }
+      | Expression::Unary { expression, .. } => self.visit_expression(expression),
+      Expression::Literal { .. } | Expression::Variable { .. } => {}
     }
 
-    self.exit_expression(expression)
+    self.exit_expression(expression);
   }
 
   fn exit_expression(&mut self, _expression: &Expression) {}

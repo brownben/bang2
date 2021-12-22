@@ -8,11 +8,11 @@ pub fn tokens(source: &str) {
   println!("     ╭─[Tokens]");
   loop {
     let token = scanner.get_token();
-    if token.line != line {
+    if token.line == line {
+      print!("     │ ");
+    } else {
       print!("{:>4} │ ", token.line);
       line = token.line;
-    } else {
-      print!("     │ ");
     }
     println!(
       "{:?} ({})",
