@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+ahash = "0.7.6"
 ansi_term = "0.12"
 clap = "2.34.0"
 num-traits = "0.2"
@@ -14,3 +15,6 @@ rustyline = "9.0.0"
 
 [features]
 debug = []
+
+[profile.release]
+lto = true

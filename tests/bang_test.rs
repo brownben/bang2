@@ -1,7 +1,7 @@
 pub use bang;
 pub use bang::{Chunk, CompileError, Value};
 
-pub use std::collections::HashMap;
+use ahash::AHashMap as HashMap;
 pub use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]

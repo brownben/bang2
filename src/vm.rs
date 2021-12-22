@@ -3,7 +3,7 @@ use crate::chunk::{Chunk, OpCode};
 use crate::error::RuntimeError;
 use crate::value::{Function, Value};
 
-use std::collections::HashMap;
+use ahash::AHashMap as HashMap;
 use std::rc::Rc;
 
 macro_rules! runtime_error {
