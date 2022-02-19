@@ -1,0 +1,4 @@
+# profiler = true
+
+# [build]
+# rustflags = ["-Zinstrument-coverage"]

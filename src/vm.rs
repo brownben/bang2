@@ -1,24 +1,25 @@
-use crate::builtin;
-use crate::chunk::{Chunk, OpCode};
-use crate::error::RuntimeError;
-use crate::value::{Function, Value};
-
-use ahash::AHashMap as HashMap;
-use std::rc::Rc;
+use crate::{
+  builtins,
+  chunk::{Chunk, OpCode},
+  diagnostic::Diagnostic,
+  value::{Function, Value},
+};
+use std::{collections::HashMap, rc::Rc};
 
 macro_rules! runtime_error {
   ($vm:expr, $message:expr, $chunk:expr, $ip:expr) => {{
     $vm.stack.clear();
 
-    let mut line_numbers = vec![$chunk.get_line_number($ip)];
+    let mut lines = vec![$chunk.get_line_number($ip)];
 
     for frame in $vm.frames.iter().rev() {
-      line_numbers.push(frame.function.chunk.get_line_number(frame.ip));
+      lines.push(frame.function.chunk.get_line_number(frame.ip));
     }
 
-    Err(RuntimeError {
-      message: $message.to_string(),
-      line_numbers,
+    Err(Diagnostic {
+      title: $message.to_string(),
+      message: "".to_string(),
+      lines,
     })
   }};
 }
@@ -29,7 +30,7 @@ macro_rules! numeric_expression {
   };
 
   ($vm:expr, $token:tt, $type:tt, $chunk:expr, $ip:expr) => {
-    let (right, left) = ($vm.stack.pop().unwrap(),$vm.stack.pop().unwrap());
+    let (right, left) = ($vm.pop(), $vm.pop());
 
     match (left, right) {
       (Value::Number(left), Value::Number(right)) => {
@@ -48,18 +49,20 @@ struct CallFrame {
   offset: usize,
 }
 
+pub type VMGlobals = HashMap<Rc<str>, Value>;
+
 pub struct VM {
   stack: Vec<Value>,
-  pub globals: HashMap<Rc<str>, Value>,
   frames: Vec<CallFrame>,
+  globals: VMGlobals,
 }
 
 impl VM {
   pub fn new() -> Self {
     Self {
       stack: Vec::new(),
-      globals: HashMap::new(),
       frames: Vec::new(),
+      globals: HashMap::new(),
     }
   }
 
@@ -79,8 +82,12 @@ impl VM {
     self.stack.last().unwrap()
   }
 
-  pub fn run(&mut self, function: Rc<Function>) -> Result<(), RuntimeError> {
-    let mut function = function;
+  fn pop(&mut self) -> Value {
+    self.stack.pop().unwrap()
+  }
+
+  pub fn run(&mut self, chunk: Chunk) -> Result<(), Diagnostic> {
+    let mut function = Function::script(chunk);
     let mut ip: usize = 0;
     let mut offset: usize = 0;
 
@@ -88,32 +95,32 @@ impl VM {
       let instruction = function.chunk.get(ip);
 
       match instruction {
-        Some(OpCode::Constant) => {
+        OpCode::Constant => {
           let constant_location = function.chunk.get_value(ip + 1);
           let constant = function.chunk.get_constant(constant_location as usize);
           self.stack.push(constant);
           ip += 2;
         }
-        Some(OpCode::ConstantLong) => {
+        OpCode::ConstantLong => {
           let constant_location = function.chunk.get_long_value(ip + 1) as u16;
           let constant = function.chunk.get_constant(constant_location as usize);
           self.stack.push(constant);
           ip += 3;
         }
-        Some(OpCode::Null) => {
+        OpCode::Null => {
           self.stack.push(Value::Null);
           ip += 1;
         }
-        Some(OpCode::True) => {
+        OpCode::True => {
           self.stack.push(Value::Boolean(true));
           ip += 1;
         }
-        Some(OpCode::False) => {
+        OpCode::False => {
           self.stack.push(Value::Boolean(false));
           ip += 1;
         }
-        Some(OpCode::Add) => {
-          let (right, left) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
+        OpCode::Add => {
+          let (right, left) = (self.pop(), self.pop());
 
           match (left, right) {
             (Value::Number(left), Value::Number(right)) => {
@@ -134,20 +141,20 @@ impl VM {
 
           ip += 1;
         }
-        Some(OpCode::Subtract) => {
+        OpCode::Subtract => {
           numeric_expression!(self, -, function.chunk, ip);
           ip += 1;
         }
-        Some(OpCode::Multiply) => {
+        OpCode::Multiply => {
           numeric_expression!(self, *, function.chunk, ip);
           ip += 1;
         }
-        Some(OpCode::Divide) => {
+        OpCode::Divide => {
           numeric_expression!(self, /, function.chunk, ip);
           ip += 1;
         }
-        Some(OpCode::Negate) => {
-          let value = self.stack.pop().unwrap();
+        OpCode::Negate => {
+          let value = self.pop();
           if let Value::Number(n) = value {
             self.stack.push(Value::Number(-n));
           } else {
@@ -156,83 +163,87 @@ impl VM {
 
           ip += 1;
         }
-        Some(OpCode::Not) => {
-          let value = self.stack.pop().unwrap();
+        OpCode::Not => {
+          let value = self.pop();
           self.stack.push(Value::Boolean(value.is_falsy()));
           ip += 1;
         }
 
-        Some(OpCode::Equal) => {
-          let (right, left) = (self.stack.pop().unwrap(), self.stack.pop().unwrap());
-          self.stack.push(Value::Boolean(left.equals(&right)));
+        OpCode::Equal => {
+          let (right, left) = (self.pop(), self.pop());
+          self.stack.push(Value::Boolean(left == right));
           ip += 1;
         }
-        Some(OpCode::Less) => {
+        OpCode::Less => {
           numeric_expression!(self, <, Boolean, function.chunk, ip);
           ip += 1;
         }
-        Some(OpCode::Greater) => {
+        OpCode::Greater => {
           numeric_expression!(self, >, Boolean, function.chunk, ip);
           ip += 1;
         }
 
-        Some(OpCode::Pop) => {
+        OpCode::Pop => {
           self.stack.pop();
           ip += 1;
         }
 
-        Some(OpCode::DefineGlobal) => {
+        OpCode::DefineGlobal => {
           let name_location = function.chunk.get_value(ip + 1);
           let name = function.chunk.get_constant(name_location as usize);
 
-          let value = self.stack.pop().unwrap();
-          self.globals.insert(name.get_string_value(), value);
+          let value = self.pop();
+          self.globals.insert(name.as_str(), value);
 
           ip += 2;
         }
-        Some(OpCode::GetGlobal) => {
+        OpCode::GetGlobal => {
           let name_location = function.chunk.get_value(ip + 1);
           let name = function.chunk.get_constant(name_location as usize);
 
-          let value = self.globals.get(&name.get_string_value());
+          let value = self.globals.get(&name.as_str());
 
           if let Some(value) = value {
             self.stack.push(value.clone());
           } else {
-            let message = format!("Undefined variable '{}'", name.get_string_value());
-            break runtime_error!(self, &message, function.chunk, ip);
+            break runtime_error!(
+              self,
+              format!("Undefined variable '{}'", name.as_str()),
+              function.chunk,
+              ip
+            );
           }
 
           ip += 2;
         }
-        Some(OpCode::SetGlobal) => {
+        OpCode::SetGlobal => {
           let name_location = function.chunk.get_value(ip + 1);
           let name = function.chunk.get_constant(name_location as usize);
           let value = self.peek().clone();
 
           if let std::collections::hash_map::Entry::Occupied(mut entry) =
-            self.globals.entry(name.get_string_value())
+            self.globals.entry(name.as_str())
           {
             entry.insert(value);
           } else {
-            let message = format!("Undefined variable '{}'", name.get_string_value());
-            break runtime_error!(self, &message, function.chunk, ip);
+            let message = &format!("Undefined variable '{}'", name.as_str());
+            break runtime_error!(self, message, function.chunk, ip);
           }
 
           ip += 2;
         }
-        Some(OpCode::GetLocal) => {
+        OpCode::GetLocal => {
           let slot = function.chunk.get_value(ip + 1);
           self.stack.push(self.stack[offset + slot as usize].clone());
           ip += 2;
         }
-        Some(OpCode::SetLocal) => {
+        OpCode::SetLocal => {
           let slot = function.chunk.get_value(ip + 1);
           self.stack[offset + slot as usize] = self.peek().clone();
           ip += 2;
         }
 
-        Some(OpCode::JumpIfFalse) => {
+        OpCode::JumpIfFalse => {
           let offset = function.chunk.get_long_value(ip + 1);
           if self.peek().is_falsy() {
             ip += offset as usize + 1;
@@ -240,23 +251,23 @@ impl VM {
             ip += 3;
           }
         }
-        Some(OpCode::JumpIfNull) => {
+        OpCode::JumpIfNull => {
           let offset = function.chunk.get_long_value(ip + 1);
           ip += match self.peek() {
             Value::Null => offset as usize + 1,
             _ => 3,
           };
         }
-        Some(OpCode::Jump) => {
+        OpCode::Jump => {
           let offset = function.chunk.get_long_value(ip + 1);
           ip += offset as usize + 1;
         }
-        Some(OpCode::Loop) => {
+        OpCode::Loop => {
           let offset = function.chunk.get_long_value(ip + 1);
           ip -= offset as usize - 1;
         }
 
-        Some(OpCode::Return) => {
+        OpCode::Return => {
           let result = self.stack.pop();
 
           if self.frames.is_empty() {
@@ -271,7 +282,7 @@ impl VM {
           ip = frame.ip;
           offset = frame.offset;
         }
-        Some(OpCode::Call) => {
+        OpCode::Call => {
           let arg_count = function.chunk.get_value(ip + 1);
           let pos = self.stack.len() - arg_count as usize - 1;
           let callee = self.stack[pos].clone();
@@ -279,7 +290,7 @@ impl VM {
           match callee {
             Value::Function(func) => {
               if arg_count != func.arity {
-                let message = format!("Expected {} arguments but got {}.", func.arity, arg_count);
+                let message = &format!("Expected {} arguments but got {}.", func.arity, arg_count);
                 break runtime_error!(self, message, function.chunk, ip);
               }
 
@@ -291,7 +302,7 @@ impl VM {
             }
             Value::NativeFunction(func) => {
               if arg_count != func.arity {
-                let message = format!("Expected {} arguments but got {}.", func.arity, arg_count);
+                let message = &format!("Expected {} arguments but got {}.", func.arity, arg_count);
                 break runtime_error!(self, message, function.chunk, ip);
               }
 
@@ -310,7 +321,7 @@ impl VM {
             }
           }
         }
-        None => {
+        OpCode::Unknown => {
           break runtime_error!(self, "Unknown OpCode", function.chunk, ip);
         }
       }
@@ -318,6 +329,10 @@ impl VM {
       #[cfg(feature = "debug")]
       self.print_stack(ip);
     }
+  }
+
+  pub fn define_global(&mut self, name: &str, value: Value) {
+    self.globals.insert(Rc::from(name.to_string()), value);
   }
 
   #[cfg(feature = "debug")]
@@ -330,11 +345,11 @@ impl VM {
   }
 }
 
-pub fn run(chunk: Chunk) -> Result<HashMap<Rc<str>, Value>, RuntimeError> {
+pub fn run(chunk: Chunk) -> Result<VMGlobals, Diagnostic> {
   let mut vm = VM::new();
-  builtin::define_globals(&mut vm);
+  builtins::define_globals(&mut vm);
 
-  vm.run(Function::script(chunk))?;
+  vm.run(chunk)?;
 
   Ok(vm.globals)
 }

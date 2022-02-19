@@ -1,8 +1,5 @@
 pub use bang;
-pub use bang::{Chunk, CompileError, Value};
-
-use ahash::AHashMap as HashMap;
-pub use std::rc::Rc;
+pub use std::{collections::HashMap, rc::Rc};
 
 #[derive(Debug, PartialEq)]
 pub enum RunResult {
@@ -11,26 +8,22 @@ pub enum RunResult {
   CompileError,
 }
 
-pub fn compile(source: &str) -> Result<Chunk, CompileError> {
-  let ast = bang::parse(source)?;
-  bang::compile(ast)
+fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
+  let tokens = bang::tokenize(source);
+  let ast = bang::parse(&tokens)?;
+  bang::compile(&ast)
 }
 
-pub fn run(source: &str) -> (RunResult, HashMap<Rc<str>, Value>) {
-  let mut result = RunResult::Success;
-  let mut globals = HashMap::new();
-
-  match compile(source) {
-    Ok(chunk) => match bang::run(chunk) {
-      Ok(vars) => globals = vars,
-      Err(_) => result = RunResult::RuntimeError,
-    },
-    Err(_) => {
-      result = RunResult::CompileError;
-    }
+pub fn run(source: &str) -> (RunResult, HashMap<Rc<str>, bang::Value>) {
+  let chunk = match compile(source) {
+    Ok(chunk) => chunk,
+    Err(_) => return (RunResult::CompileError, HashMap::new()),
   };
 
-  (result, globals)
+  match bang::run(chunk) {
+    Ok(vars) => (RunResult::Success, vars),
+    Err(_) => (RunResult::RuntimeError, HashMap::new()),
+  }
 }
 
 #[macro_export]
@@ -44,14 +37,8 @@ macro_rules! bang_test {
       $(
         {
           let variable = globals.get(stringify!($var)).unwrap();
-          let expected = Value::from($expected);
-          assert!(
-            variable.equals(&expected),
-            "Expected Variable {} to equal {} but recieved {}",
-            stringify!($var),
-            expected,
-            variable
-          );
+          let expected = bang::Value::from($expected);
+          assert!(variable == &expected);
         };
       )*
     }

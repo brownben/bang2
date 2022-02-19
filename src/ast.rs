@@ -1,191 +1,113 @@
-use crate::token::Token;
+use crate::tokens::Token;
 
-use std::rc::Rc;
+type TokenRef<'source> = &'source Token<'source>;
 
-#[derive(Debug, Clone)]
-pub enum LiteralValue {
-  String(Rc<str>),
-  Number(f64),
-  True,
-  False,
-  Null,
-}
-
-impl std::fmt::Display for LiteralValue {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    match self {
-      Self::True => write!(f, "true"),
-      Self::False => write!(f, "false"),
-      Self::Null => write!(f, "null"),
-      Self::Number(value) => write!(f, "{}", value),
-      Self::String(value) => write!(f, "{}", value),
-    }
-  }
-}
-
-#[derive(Debug, Clone)]
-pub enum BinaryOperator {
-  Plus,
-  Minus,
-  Star,
-  Slash,
-  BangEqual,
-  EqualEqual,
-  Greater,
-  GreaterEqual,
-  Less,
-  LessEqual,
-  And,
-  Or,
-  QuestionQuestion,
-}
-
-impl std::fmt::Display for BinaryOperator {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    match self {
-      BinaryOperator::Plus => write!(f, "+"),
-      BinaryOperator::Minus => write!(f, "-"),
-      BinaryOperator::Star => write!(f, "*"),
-      BinaryOperator::Slash => write!(f, "/"),
-      BinaryOperator::BangEqual => write!(f, "!="),
-      BinaryOperator::EqualEqual => write!(f, "=="),
-      BinaryOperator::Greater => write!(f, ">"),
-      BinaryOperator::GreaterEqual => write!(f, ">="),
-      BinaryOperator::Less => write!(f, "<"),
-      BinaryOperator::LessEqual => write!(f, "<="),
-      BinaryOperator::And => write!(f, "and"),
-      BinaryOperator::Or => write!(f, "or"),
-      BinaryOperator::QuestionQuestion => write!(f, "??"),
-    }
-  }
-}
-
-#[derive(Debug, Clone)]
-pub enum UnaryOperator {
-  Minus,
-  Bang,
-}
-
-impl std::fmt::Display for UnaryOperator {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    match self {
-      UnaryOperator::Minus => write!(f, "-"),
-      UnaryOperator::Bang => write!(f, "!"),
-    }
-  }
-}
-
-#[derive(Debug, Clone)]
-pub struct Parameter {
-  pub identifier: Token,
-  pub value: String,
-  pub type_: String,
-}
-
-#[derive(Debug, Clone)]
-pub enum Expression {
-  Literal {
-    value: LiteralValue,
-    token: Token,
-  },
-  Group {
-    expression: Box<Expression>,
-  },
-  Unary {
-    token: Token,
-    operator: UnaryOperator,
-    expression: Box<Expression>,
+#[derive(Debug)]
+pub enum Expr<'source> {
+  Assignment {
+    identifier: TokenRef<'source>,
+    expression: Box<Expr<'source>>,
   },
   Binary {
-    token: Token,
-    left: Box<Expression>,
-    operator: BinaryOperator,
-    right: Box<Expression>,
-  },
-  Assignment {
-    identifier: Token,
-    variable_name: String,
-    expression: Box<Expression>,
-  },
-  Variable {
-    variable_name: String,
-    identifier: Token,
+    operator: TokenRef<'source>,
+    left: Box<Expr<'source>>,
+    right: Box<Expr<'source>>,
   },
   Call {
-    expression: Box<Expression>,
-    token: Token,
-    arguments: Vec<Expression>,
+    token: TokenRef<'source>,
+    expression: Box<Expr<'source>>,
+    arguments: Vec<Expr<'source>>,
   },
   Function {
-    token: Token,
-    parameters: Vec<Parameter>,
-    body: Box<Statement>,
-    return_type: Option<String>,
+    token: TokenRef<'source>,
+    parameters: Vec<TokenRef<'source>>,
+    body: Box<Stmt<'source>>,
+  },
+  Group {
+    expression: Box<Expr<'source>>,
+  },
+  Literal {
+    token: TokenRef<'source>,
+    value: &'source str,
+  },
+  Unary {
+    operator: TokenRef<'source>,
+    expression: Box<Expr<'source>>,
+  },
+  Variable {
+    token: TokenRef<'source>,
   },
 }
-
-impl Expression {
+impl<'s> Expr<'s> {
   pub fn has_side_effect(&self) -> bool {
     match self {
-      Expression::Call { .. } | Expression::Assignment { .. } => true,
-      Expression::Function { .. } | Expression::Variable { .. } | Expression::Literal { .. } => {
-        false
-      }
-      Expression::Group { expression, .. } | Expression::Unary { expression, .. } => {
+      Expr::Call { .. } | Expr::Assignment { .. } => true,
+      Expr::Function { .. } | Expr::Variable { .. } | Expr::Literal { .. } => false,
+      Expr::Group { expression, .. } | Expr::Unary { expression, .. } => {
         expression.has_side_effect()
       }
-      Expression::Binary { left, right, .. } => left.has_side_effect() || right.has_side_effect(),
+      Expr::Binary { left, right, .. } => left.has_side_effect() || right.has_side_effect(),
+    }
+  }
+
+  pub fn is_constant(&self) -> bool {
+    match self {
+      Expr::Call { .. } | Expr::Variable { .. } => false,
+      Expr::Function { .. } | Expr::Literal { .. } => true,
+      Expr::Group { expression, .. }
+      | Expr::Unary { expression, .. }
+      | Expr::Assignment { expression, .. } => expression.is_constant(),
+      Expr::Binary { left, right, .. } => left.is_constant() && right.is_constant(),
     }
   }
 }
 
-#[derive(Debug, Clone)]
-pub enum Statement {
-  Declaration {
-    token: Token,
-    identifier: Token,
-    variable_name: String,
-    expression: Option<Expression>,
-  },
-  If {
-    if_token: Token,
-    else_token: Option<Token>,
-    condition: Expression,
-    then: Box<Statement>,
-    otherwise: Option<Box<Statement>>,
-  },
-  While {
-    token: Token,
-    condition: Expression,
-    body: Box<Statement>,
-  },
+#[derive(Debug)]
+pub enum Stmt<'source> {
   Block {
-    body: Vec<Statement>,
+    body: Vec<Stmt<'source>>,
+  },
+  Declaration {
+    token: TokenRef<'source>,
+    identifier: TokenRef<'source>,
+    expression: Option<Expr<'source>>,
   },
   Expression {
-    expression: Expression,
+    expression: Expr<'source>,
+  },
+  If {
+    if_token: TokenRef<'source>,
+    else_token: Option<TokenRef<'source>>,
+    condition: Expr<'source>,
+    then: Box<Stmt<'source>>,
+    otherwise: Option<Box<Stmt<'source>>>,
   },
   Return {
-    token: Token,
-    expression: Option<Expression>,
+    token: TokenRef<'source>,
+    expression: Option<Expr<'source>>,
+  },
+  While {
+    token: TokenRef<'source>,
+    condition: Expr<'source>,
+    body: Box<Stmt<'source>>,
   },
 }
 
 pub trait Visitor {
-  fn visit(&mut self, statements: &[Statement]) {
+  fn visit(&mut self, statements: &[Stmt]) {
     statements.iter().for_each(|s| self.visit_statement(s));
   }
 
-  fn visit_statement(&mut self, statement: &Statement) {
+  fn visit_statement(&mut self, statement: &Stmt) {
     match statement {
-      Statement::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
-      Statement::Declaration { expression, .. } => {
+      Stmt::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
+      Stmt::Declaration { expression, .. } => {
         if let Some(expression) = &*expression {
           self.visit_expression(expression);
         }
       }
-      Statement::Expression { expression, .. } => self.visit_expression(expression),
-      Statement::If {
+      Stmt::Expression { expression, .. } => self.visit_expression(expression),
+      Stmt::If {
         condition,
         then,
         otherwise,
@@ -197,12 +119,12 @@ pub trait Visitor {
           self.visit_statement(otherwise.as_ref());
         }
       }
-      Statement::Return { expression, .. } => {
+      Stmt::Return { expression, .. } => {
         if let Some(expression) = expression {
           self.visit_expression(expression);
         }
       }
-      Statement::While {
+      Stmt::While {
         condition, body, ..
       } => {
         self.visit_expression(condition);
@@ -213,13 +135,16 @@ pub trait Visitor {
     self.exit_statement(statement);
   }
 
-  fn visit_expression(&mut self, expression: &Expression) {
+  fn visit_expression(&mut self, expression: &Expr) {
     match expression {
-      Expression::Binary { left, right, .. } => {
+      Expr::Assignment { expression, .. }
+      | Expr::Group { expression, .. }
+      | Expr::Unary { expression, .. } => self.visit_expression(expression),
+      Expr::Binary { left, right, .. } => {
         self.visit_expression(left);
         self.visit_expression(right);
       }
-      Expression::Call {
+      Expr::Call {
         expression,
         arguments,
         ..
@@ -227,16 +152,13 @@ pub trait Visitor {
         self.visit_expression(expression);
         arguments.iter().for_each(|arg| self.visit_expression(arg));
       }
-      Expression::Function { body, .. } => self.visit_statement(body),
-      Expression::Assignment { expression, .. }
-      | Expression::Group { expression, .. }
-      | Expression::Unary { expression, .. } => self.visit_expression(expression),
-      Expression::Literal { .. } | Expression::Variable { .. } => {}
+      Expr::Function { body, .. } => self.visit_statement(body),
+      Expr::Literal { .. } | Expr::Variable { .. } => {}
     }
 
     self.exit_expression(expression);
   }
 
-  fn exit_expression(&mut self, _expression: &Expression) {}
-  fn exit_statement(&mut self, _statement: &Statement) {}
+  fn exit_expression(&mut self, _expression: &Expr) {}
+  fn exit_statement(&mut self, _statement: &Stmt) {}
 }

@@ -96,3 +96,14 @@ let a
 "
   a == 22.0
 );
+
+bang_test!(multiple_nested
+"
+let a
+  let b
+    b = 22
+  a = b
+"
+  a == 22.0
+
+);

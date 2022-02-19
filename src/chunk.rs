@@ -1,10 +1,5 @@
-use crate::token::LineNumber;
-use crate::value::Value;
+use crate::{tokens::LineNumber, value::Value};
 
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
-
-#[derive(FromPrimitive)]
 pub enum OpCode {
   Constant,
   ConstantLong,
@@ -32,22 +27,51 @@ pub enum OpCode {
   SetLocal,
   Return,
   Call,
+  Unknown,
 }
-
-fn get_op_code(code: u8) -> Option<OpCode> {
-  FromPrimitive::from_u8(code)
+impl From<u8> for OpCode {
+  fn from(code: u8) -> Self {
+    match code {
+      0 => OpCode::Constant,
+      1 => OpCode::ConstantLong,
+      2 => OpCode::Null,
+      3 => OpCode::True,
+      4 => OpCode::False,
+      5 => OpCode::Add,
+      6 => OpCode::Subtract,
+      7 => OpCode::Multiply,
+      8 => OpCode::Divide,
+      9 => OpCode::Negate,
+      10 => OpCode::Not,
+      11 => OpCode::Equal,
+      12 => OpCode::Greater,
+      13 => OpCode::Less,
+      14 => OpCode::Pop,
+      15 => OpCode::DefineGlobal,
+      16 => OpCode::GetGlobal,
+      17 => OpCode::SetGlobal,
+      18 => OpCode::Jump,
+      19 => OpCode::JumpIfFalse,
+      20 => OpCode::JumpIfNull,
+      21 => OpCode::Loop,
+      22 => OpCode::GetLocal,
+      23 => OpCode::SetLocal,
+      24 => OpCode::Return,
+      25 => OpCode::Call,
+      _ => OpCode::Unknown,
+    }
+  }
 }
 
 type TokensOnLine = u16;
 type Line = (LineNumber, TokensOnLine);
 
-#[derive(Debug, Clone)]
-struct LineInfoCreator {
+struct LineInfoBuilder {
   lines: Vec<Line>,
   last: LineNumber,
   repeated: TokensOnLine,
 }
-impl LineInfoCreator {
+impl LineInfoBuilder {
   fn new() -> Self {
     Self {
       lines: Vec::new(),
@@ -79,7 +103,7 @@ impl LineInfoCreator {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct LineInfo {
   lines: Vec<Line>,
 }
@@ -107,18 +131,17 @@ impl LineInfo {
   }
 }
 
-#[derive(Debug, Clone)]
-pub struct ChunkCreator {
+pub struct ChunkBuilder {
   code: Vec<u8>,
   constants: Vec<Value>,
-  lines: LineInfoCreator,
+  lines: LineInfoBuilder,
 }
-impl ChunkCreator {
+impl ChunkBuilder {
   pub fn new() -> Self {
     Self {
       code: Vec::new(),
       constants: Vec::new(),
-      lines: LineInfoCreator::new(),
+      lines: LineInfoBuilder::new(),
     }
   }
 
@@ -137,8 +160,8 @@ impl ChunkCreator {
 
   pub fn write_long_value(&mut self, code: u16, line: LineNumber) {
     self.code.push((code >> 8) as u8);
-    self.code.push(code as u8);
     self.lines.add(line);
+    self.code.push(code as u8);
     self.lines.add(line);
   }
 
@@ -146,14 +169,14 @@ impl ChunkCreator {
     self
       .constants
       .iter()
-      .position(|x| value.equals(x))
+      .position(|x| value == *x)
       .unwrap_or_else(|| {
         self.constants.push(value);
         self.constants.len() - 1
       })
   }
 
-  pub fn add_constant_string(&mut self, string: String) -> usize {
+  pub fn add_constant_string(&mut self, string: &str) -> usize {
     let value = Value::from(string);
     self.add_constant(value)
   }
@@ -175,19 +198,15 @@ impl ChunkCreator {
   }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Chunk {
-  code: Vec<u8>,
+  pub code: Vec<u8>,
   pub constants: Vec<Value>,
   lines: LineInfo,
 }
 impl Chunk {
-  pub fn length(&self) -> usize {
-    self.code.len()
-  }
-
-  pub fn get(&self, position: usize) -> Option<OpCode> {
-    get_op_code(self.code[position])
+  pub fn get(&self, position: usize) -> OpCode {
+    OpCode::from(self.code[position])
   }
 
   pub fn get_value(&self, position: usize) -> u8 {

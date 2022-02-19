@@ -1,13 +1,11 @@
+use std::{fmt::Display, rc::Rc};
+
 use crate::chunk::Chunk;
 
-use std::rc::Rc;
-
-#[derive(Debug)]
 pub struct Function {
   pub arity: u8,
   pub chunk: Chunk,
 }
-
 impl Function {
   pub fn script(chunk: Chunk) -> Rc<Self> {
     Rc::new(Self { arity: 0, chunk })
@@ -19,7 +17,6 @@ pub struct NativeFunction {
   pub arity: u8,
   pub func: fn(args: &[Value]) -> Value,
 }
-
 impl NativeFunction {
   pub fn create(name: &str, arity: u8, func: fn(args: &[Value]) -> Value) -> Value {
     Value::from(Self {
@@ -30,16 +27,7 @@ impl NativeFunction {
   }
 }
 
-impl std::fmt::Debug for NativeFunction {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    f.debug_struct("NativeFunction")
-      .field("name", &self.name)
-      .field("arity", &self.arity)
-      .finish()
-  }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum Value {
   Null,
   Boolean(bool),
@@ -50,7 +38,7 @@ pub enum Value {
 }
 
 impl Value {
-  pub fn get_string_value(&self) -> Rc<str> {
+  pub fn as_str(&self) -> Rc<str> {
     match self {
       Value::String(string) => string.clone(),
       _ => Rc::from(""),
@@ -61,21 +49,42 @@ impl Value {
     match self {
       Value::Boolean(value) => !value,
       Value::Null => true,
-      Value::Number(value) => (*value - 0.0).abs() < f64::EPSILON,
+      Value::Number(value) => (value - 0.0).abs() < f64::EPSILON,
       Value::String(value) => value.is_empty(),
       Value::Function(_) | Value::NativeFunction(_) => false,
     }
   }
 
-  pub fn equals(&self, other: &Self) -> bool {
+  pub fn parse_number(string: &str) -> Value {
+    let value: f64 = string.replace('_', "").parse().unwrap();
+
+    Value::from(value)
+  }
+}
+
+impl PartialEq for Value {
+  fn eq(&self, other: &Self) -> bool {
     match (self, other) {
-      (Value::Boolean(value), Value::Boolean(other)) => *value == *other,
+      (Value::Boolean(value), Value::Boolean(other)) => value == other,
       (Value::Null, Value::Null) => true,
-      (Value::Number(value), Value::Number(other)) => (*value - *other).abs() < f64::EPSILON,
+      (Value::Number(value), Value::Number(other)) => (value - other).abs() < f64::EPSILON,
       (Value::String(value), Value::String(other)) => value.eq(other),
       (Value::Function(value), Value::Function(other)) => Rc::ptr_eq(value, other),
       (Value::NativeFunction(value), Value::NativeFunction(other)) => Rc::ptr_eq(value, other),
       _ => false,
+    }
+  }
+}
+
+impl Display for Value {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      Value::Null => write!(f, "null"),
+      Value::Boolean(value) => write!(f, "{}", value),
+      Value::Number(value) => write!(f, "{}", value),
+      Value::String(value) => write!(f, "'{}'", value),
+      Value::Function(_) => write!(f, "<function>"),
+      Value::NativeFunction(value) => write!(f, "<function {}>", value.name),
     }
   }
 }
@@ -85,52 +94,28 @@ impl From<bool> for Value {
     Self::Boolean(value)
   }
 }
-
 impl From<f64> for Value {
   fn from(value: f64) -> Self {
     Self::Number(value)
   }
 }
-
 impl From<String> for Value {
   fn from(value: String) -> Self {
     Self::String(Rc::from(value))
   }
 }
-
 impl From<&str> for Value {
   fn from(value: &str) -> Self {
     Self::String(Rc::from(String::from(value)))
   }
 }
-
-impl From<Rc<str>> for Value {
-  fn from(value: Rc<str>) -> Self {
-    Self::String(value)
-  }
-}
-
 impl From<Function> for Value {
   fn from(value: Function) -> Self {
     Self::Function(Rc::from(value))
   }
 }
-
 impl From<NativeFunction> for Value {
   fn from(value: NativeFunction) -> Self {
     Self::NativeFunction(Rc::from(value))
-  }
-}
-
-impl std::fmt::Display for Value {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    match self {
-      Value::Boolean(value) => write!(f, "{}", value),
-      Value::Null => write!(f, "null"),
-      Value::Number(value) => write!(f, "{}", value),
-      Value::String(value) => write!(f, "'{}'", value),
-      Value::Function(_) => write!(f, "<function>"),
-      Value::NativeFunction(value) => write!(f, "<function {}>", value.name),
-    }
   }
 }

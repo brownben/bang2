@@ -1,30 +1,68 @@
 use crate::{
-  ast::{BinaryOperator, Expression, LiteralValue, Statement, UnaryOperator},
-  chunk::{Chunk, ChunkCreator, OpCode},
-  error::{CompileError, Error},
-  token::Token,
+  ast::{Expr, Stmt},
+  chunk::{Chunk, ChunkBuilder, OpCode},
+  diagnostic::Diagnostic,
+  tokens::{Token, TokenType},
   value::{Function, Value},
 };
 
-#[derive(Debug)]
-struct Local {
-  name: String,
+enum Error {
+  TooBigJump,
+  TooManyConstants,
+  TooManyArguments,
+  TooManyParameters,
+  VariableAlreadyExists,
+}
+impl Error {
+  fn get_title(&self) -> &'static str {
+    match self {
+      Self::TooBigJump => "Too Big Jump",
+      Self::TooManyConstants => "Too Many Constants",
+      Self::TooManyArguments => "Too Many Arguments",
+      Self::TooManyParameters => "Too Many Parameters",
+      Self::VariableAlreadyExists => "Variable Already Exists",
+    }
+  }
+
+  fn get_message(&self, token: &Token) -> String {
+    match self {
+      Self::TooBigJump | Self::TooManyConstants => {
+        "This is likely an error with the language".to_string()
+      }
+      Self::TooManyArguments | Self::TooManyParameters => {
+        "There is a limit of 255 arguments for a function".to_string()
+      }
+      Self::VariableAlreadyExists => format!("Variable '{}' has been defined already", token.value),
+    }
+  }
+
+  fn get_diagnostic(&self, token: &Token) -> Diagnostic {
+    Diagnostic {
+      title: self.get_title().to_string(),
+      message: self.get_message(token),
+      lines: vec![token.line],
+    }
+  }
+}
+
+struct Local<'s> {
+  name: &'s str,
   depth: u8,
 }
 
-struct Compiler {
-  chunk: ChunkCreator,
-  chunk_stack: Vec<ChunkCreator>,
+struct Compiler<'s> {
+  chunk: ChunkBuilder,
+  chunk_stack: Vec<ChunkBuilder>,
 
-  locals: Vec<Local>,
+  locals: Vec<Local<'s>>,
   scope_depth: u8,
 
-  error: Option<CompileError>,
+  error: Option<Diagnostic>,
 }
 
 // Emit Bytecode
-impl Compiler {
-  fn emit_opcode(&mut self, token: Token, code: OpCode) {
+impl<'s> Compiler<'s> {
+  fn emit_opcode(&mut self, token: &'s Token<'s>, code: OpCode) {
     self.chunk.write_opcode(code, token.line);
   }
 
@@ -32,45 +70,45 @@ impl Compiler {
     self.chunk.write_opcode(code, 0);
   }
 
-  fn emit_value(&mut self, token: Token, value: u8) {
+  fn emit_value(&mut self, token: &'s Token<'s>, value: u8) {
     self.chunk.write_value(value, token.line);
   }
 
-  fn emit_long_value(&mut self, token: Token, value: u16) {
+  fn emit_long_value(&mut self, token: &'s Token<'s>, value: u16) {
     self.chunk.write_long_value(value, token.line);
   }
 
-  fn emit_constant(&mut self, token: Token, value: Value) {
+  fn emit_constant(&mut self, token: &'s Token<'s>, value: Value) {
     let constant_position = self.chunk.add_constant(value);
 
-    if constant_position <= u8::max_value() as usize {
+    if let Ok(constant_position) = u8::try_from(constant_position) {
       self.emit_opcode(token, OpCode::Constant);
-      self.emit_value(token, constant_position as u8);
-    } else if constant_position <= u16::max_value() as usize {
+      self.emit_value(token, constant_position);
+    } else if let Ok(constant_position) = u16::try_from(constant_position) {
       self.emit_opcode(token, OpCode::ConstantLong);
-      self.emit_long_value(token, constant_position as u16);
+      self.emit_long_value(token, constant_position);
     } else {
       self.error(token, Error::TooManyConstants);
     }
   }
 
-  fn emit_constant_string(&mut self, token: Token, value: String) {
+  fn emit_constant_string(&mut self, token: &'s Token<'s>, value: &'s str) {
     let constant_position = self.chunk.add_constant_string(value);
 
-    if constant_position <= u8::max_value() as usize {
-      self.emit_value(token, constant_position as u8);
+    if let Ok(constant_position) = u8::try_from(constant_position) {
+      self.emit_value(token, constant_position);
     } else {
       self.error(token, Error::TooManyConstants);
     }
   }
 
-  fn emit_jump(&mut self, token: Token, instruction: OpCode) -> usize {
+  fn emit_jump(&mut self, token: &'s Token<'s>, instruction: OpCode) -> usize {
     self.emit_opcode(token, instruction);
     self.emit_long_value(token, u16::MAX);
     self.chunk.length() - 2
   }
 
-  fn patch_jump(&mut self, token: Token, offset: usize) {
+  fn patch_jump(&mut self, token: &'s Token<'s>, offset: usize) {
     let jump = self.chunk.length() - offset;
 
     if jump > u16::MAX as usize {
@@ -85,10 +123,10 @@ impl Compiler {
   }
 }
 
-impl Compiler {
+impl<'s> Compiler<'s> {
   fn new() -> Self {
     Self {
-      chunk: ChunkCreator::new(),
+      chunk: ChunkBuilder::new(),
       chunk_stack: Vec::new(),
       locals: Vec::new(),
       scope_depth: 0,
@@ -114,7 +152,7 @@ impl Compiler {
   }
 
   fn new_chunk(&mut self) {
-    let chunk = std::mem::replace(&mut self.chunk, ChunkCreator::new());
+    let chunk = std::mem::replace(&mut self.chunk, ChunkBuilder::new());
     self.chunk_stack.push(chunk);
     self.begin_scope();
   }
@@ -125,18 +163,18 @@ impl Compiler {
     chunk.finalize()
   }
 
-  fn error(&mut self, token: Token, error: Error) {
-    self.error = Some(CompileError { error, token });
+  fn error(&mut self, token: &'s Token<'s>, error: Error) {
+    self.error = Some(error.get_diagnostic(token));
   }
 
-  fn compile_statement(&mut self, statement: Statement) {
+  fn compile_statement(&mut self, statement: &'s Stmt) {
     match statement {
-      Statement::Declaration {
-        variable_name,
+      Stmt::Declaration {
         expression,
         identifier,
         ..
       } => {
+        let variable_name = identifier.value;
         if let Some(expression) = expression {
           self.compile_expression(expression);
         } else {
@@ -161,7 +199,7 @@ impl Compiler {
           self.emit_constant_string(identifier, variable_name);
         }
       }
-      Statement::If {
+      Stmt::If {
         if_token,
         else_token,
         condition,
@@ -173,21 +211,21 @@ impl Compiler {
 
         let then_jump = self.emit_jump(if_token, OpCode::JumpIfFalse);
         self.emit_opcode(if_token, OpCode::Pop);
-        self.compile_statement(*then);
+        self.compile_statement(then);
 
         if let Some(otherwise) = otherwise {
           let else_token = else_token.unwrap();
           let else_jump = self.emit_jump(else_token, OpCode::Jump);
           self.patch_jump(if_token, then_jump);
           self.emit_opcode(else_token, OpCode::Pop);
-          self.compile_statement(*otherwise);
+          self.compile_statement(otherwise);
           self.patch_jump(else_token, else_jump);
         } else {
           self.patch_jump(if_token, then_jump);
           self.emit_opcode(if_token, OpCode::Pop);
         }
       }
-      Statement::While {
+      Stmt::While {
         token,
         condition,
         body,
@@ -199,7 +237,7 @@ impl Compiler {
         let exit_jump = self.emit_jump(token, OpCode::JumpIfFalse);
         self.emit_opcode(token, OpCode::Pop);
 
-        self.compile_statement(*body);
+        self.compile_statement(body);
         self.emit_opcode(token, OpCode::Loop);
 
         let offset = self.length() - loop_start;
@@ -212,7 +250,7 @@ impl Compiler {
         self.patch_jump(token, exit_jump);
         self.emit_opcode(token, OpCode::Pop);
       }
-      Statement::Return {
+      Stmt::Return {
         token, expression, ..
       } => {
         if let Some(expression) = expression {
@@ -222,14 +260,14 @@ impl Compiler {
         }
         self.emit_opcode(token, OpCode::Return);
       }
-      Statement::Block { body, .. } => {
+      Stmt::Block { body, .. } => {
         self.begin_scope();
         for statement in body {
           self.compile_statement(statement);
         }
         self.end_scope();
       }
-      Statement::Expression { expression, .. } => {
+      Stmt::Expression { expression, .. } => {
         if expression.has_side_effect() {
           self.compile_expression(expression);
           self.emit_opcode_blank(OpCode::Pop);
@@ -238,85 +276,81 @@ impl Compiler {
     }
   }
 
-  fn compile_expression(&mut self, expression: Expression) {
+  fn compile_expression(&mut self, expression: &'s Expr) {
     match expression {
-      Expression::Literal { token, value, .. } => match value {
-        LiteralValue::True => self.emit_opcode(token, OpCode::True),
-        LiteralValue::False => self.emit_opcode(token, OpCode::False),
-        LiteralValue::Null => self.emit_opcode(token, OpCode::Null),
-        LiteralValue::Number(number) => self.emit_constant(token, Value::from(number)),
-        LiteralValue::String(string) => self.emit_constant(token, Value::from(string)),
+      Expr::Literal { token, value } => match token.ttype {
+        TokenType::True => self.emit_opcode(token, OpCode::True),
+        TokenType::False => self.emit_opcode(token, OpCode::False),
+        TokenType::Null => self.emit_opcode(token, OpCode::Null),
+        TokenType::Number => self.emit_constant(token, Value::parse_number(token.value)),
+        TokenType::String => self.emit_constant(token, Value::from(*value)),
+        _ => unreachable!(),
       },
-      Expression::Group { expression, .. } => {
-        self.compile_expression(*expression);
+      Expr::Group { expression } => {
+        self.compile_expression(expression);
       }
-      Expression::Unary {
+      Expr::Unary {
         expression,
         operator,
-        token,
-        ..
       } => {
-        self.compile_expression(*expression);
+        self.compile_expression(expression);
 
-        match operator {
-          UnaryOperator::Minus => self.emit_opcode(token, OpCode::Negate),
-          UnaryOperator::Bang => self.emit_opcode(token, OpCode::Not),
+        match operator.ttype {
+          TokenType::Minus => self.emit_opcode(operator, OpCode::Negate),
+          TokenType::Bang => self.emit_opcode(operator, OpCode::Not),
+          _ => unreachable!(),
         }
       }
-      Expression::Binary {
+      Expr::Binary {
         left,
         right,
         operator,
-        token,
         ..
       } => {
-        match operator {
-          BinaryOperator::QuestionQuestion => return self.nullish(token, *left, *right),
-          BinaryOperator::And => return self.and(token, *left, *right),
-          BinaryOperator::Or => return self.or(token, *left, *right),
+        match operator.ttype {
+          TokenType::QuestionQuestion => return self.nullish(operator, left, right),
+          TokenType::And => return self.and(operator, left, right),
+          TokenType::Or => return self.or(operator, left, right),
           _ => {}
         }
 
-        self.compile_expression(*left);
-        self.compile_expression(*right);
+        self.compile_expression(left);
+        self.compile_expression(right);
 
-        match operator {
-          BinaryOperator::Plus => self.emit_opcode(token, OpCode::Add),
-          BinaryOperator::Minus => self.emit_opcode(token, OpCode::Subtract),
-          BinaryOperator::Star => self.emit_opcode(token, OpCode::Multiply),
-          BinaryOperator::Slash => self.emit_opcode(token, OpCode::Divide),
-          BinaryOperator::EqualEqual => self.emit_opcode(token, OpCode::Equal),
-          BinaryOperator::Greater => self.emit_opcode(token, OpCode::Greater),
-          BinaryOperator::Less => self.emit_opcode(token, OpCode::Less),
-          BinaryOperator::BangEqual => {
-            self.emit_opcode(token, OpCode::Equal);
-            self.emit_opcode(token, OpCode::Not);
+        match operator.ttype {
+          TokenType::Plus | TokenType::PlusEqual => self.emit_opcode(operator, OpCode::Add),
+          TokenType::Minus | TokenType::MinusEqual => self.emit_opcode(operator, OpCode::Subtract),
+          TokenType::Star | TokenType::StarEqual => self.emit_opcode(operator, OpCode::Multiply),
+          TokenType::Slash | TokenType::SlashEqual => self.emit_opcode(operator, OpCode::Divide),
+          TokenType::EqualEqual => self.emit_opcode(operator, OpCode::Equal),
+          TokenType::Greater => self.emit_opcode(operator, OpCode::Greater),
+          TokenType::Less => self.emit_opcode(operator, OpCode::Less),
+          TokenType::BangEqual => {
+            self.emit_opcode(operator, OpCode::Equal);
+            self.emit_opcode(operator, OpCode::Not);
           }
-          BinaryOperator::GreaterEqual => {
-            self.emit_opcode(token, OpCode::Less);
-            self.emit_opcode(token, OpCode::Not);
+          TokenType::GreaterEqual => {
+            self.emit_opcode(operator, OpCode::Less);
+            self.emit_opcode(operator, OpCode::Not);
           }
-          BinaryOperator::LessEqual => {
-            self.emit_opcode(token, OpCode::Greater);
-            self.emit_opcode(token, OpCode::Not);
+          TokenType::LessEqual => {
+            self.emit_opcode(operator, OpCode::Greater);
+            self.emit_opcode(operator, OpCode::Not);
           }
-          BinaryOperator::And | BinaryOperator::QuestionQuestion | BinaryOperator::Or => {
-            unreachable!();
-          }
+          _ => unreachable!(),
         }
       }
-      Expression::Assignment {
-        variable_name,
+      Expr::Assignment {
         identifier,
         expression,
-        ..
       } => {
+        let variable_name = identifier.value;
         let local_index = self
           .locals
           .iter()
           .rposition(|local| local.name == variable_name);
 
-        self.compile_expression(*expression);
+        self.compile_expression(expression);
 
         if let Some(index) = local_index {
           self.emit_opcode(identifier, OpCode::SetLocal);
@@ -326,37 +360,34 @@ impl Compiler {
           self.emit_constant_string(identifier, variable_name);
         }
       }
-      Expression::Variable {
-        identifier,
-        variable_name,
-        ..
-      } => {
+      Expr::Variable { token } => {
+        let variable_name = token.value;
         let local_index = self
           .locals
           .iter()
           .rposition(|local| local.name == variable_name);
 
         if let Some(index) = local_index {
-          self.emit_opcode(identifier, OpCode::GetLocal);
-          self.emit_value(identifier, index as u8);
+          self.emit_opcode(token, OpCode::GetLocal);
+          self.emit_value(token, index as u8);
         } else {
-          self.emit_opcode(identifier, OpCode::GetGlobal);
-          self.emit_constant_string(identifier, variable_name);
+          self.emit_opcode(token, OpCode::GetGlobal);
+          self.emit_constant_string(token, variable_name);
         }
       }
-      Expression::Call {
+      Expr::Call {
         token,
         expression,
         arguments,
         ..
       } => {
-        self.compile_expression(*expression);
+        self.compile_expression(expression);
 
         if arguments.len() > 255 {
           self.error(token, Error::TooManyArguments);
         }
 
-        for argument in arguments.clone() {
+        for argument in arguments {
           self.compile_expression(argument);
         }
 
@@ -364,7 +395,7 @@ impl Compiler {
         self.emit_value(token, arguments.len() as u8);
       }
 
-      Expression::Function {
+      Expr::Function {
         token,
         parameters,
         body,
@@ -375,13 +406,13 @@ impl Compiler {
         };
 
         self.new_chunk();
-        for parameter in &parameters {
+        for parameter in parameters {
           self.locals.push(Local {
-            name: parameter.value.clone(),
+            name: parameter.value,
             depth: self.scope_depth,
           });
         }
-        self.compile_statement(*body);
+        self.compile_statement(body);
         self.emit_opcode(token, OpCode::Null);
         self.emit_opcode(token, OpCode::Return);
         let chunk = self.finish_chunk();
@@ -397,7 +428,7 @@ impl Compiler {
     }
   }
 
-  fn and(&mut self, operator: Token, left: Expression, right: Expression) {
+  fn and(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
     let jump = self.emit_jump(operator, OpCode::JumpIfFalse);
     self.emit_opcode(operator, OpCode::Pop);
@@ -405,7 +436,7 @@ impl Compiler {
     self.patch_jump(operator, jump);
   }
 
-  fn or(&mut self, operator: Token, left: Expression, right: Expression) {
+  fn or(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
     let else_jump = self.emit_jump(operator, OpCode::JumpIfFalse);
     let end_jump = self.emit_jump(operator, OpCode::Jump);
@@ -417,7 +448,7 @@ impl Compiler {
     self.patch_jump(operator, end_jump);
   }
 
-  fn nullish(&mut self, operator: Token, left: Expression, right: Expression) {
+  fn nullish(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
     let else_jump = self.emit_jump(operator, OpCode::JumpIfNull);
     let end_jump = self.emit_jump(operator, OpCode::Jump);
@@ -430,7 +461,7 @@ impl Compiler {
   }
 }
 
-pub fn compile(ast: Vec<Statement>) -> Result<Chunk, CompileError> {
+pub fn compile(ast: &[Stmt]) -> Result<Chunk, Diagnostic> {
   let mut compiler = Compiler::new();
 
   for statement in ast {
