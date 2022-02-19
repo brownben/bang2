@@ -1,15 +1,10 @@
 use crate::{
-  ast::{BinaryOperator, Expression, LiteralValue, Parameter, Statement, UnaryOperator},
-  error::{CompileError, Error},
-  scanner::Scanner,
-  token::{Token, TokenType},
+  ast::{Expr, Stmt},
+  diagnostic::Diagnostic,
+  tokens::{Token, TokenType},
 };
 
-use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
-use std::rc::Rc;
-
-#[derive(Debug, FromPrimitive, PartialOrd, PartialEq, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialOrd, PartialEq)]
 enum Precedence {
   None = 1,
   Assignment, // =
@@ -25,599 +20,883 @@ enum Precedence {
   Primary,
 }
 
-fn get_precedence(number: u8) -> Precedence {
-  match FromPrimitive::from_u8(number) {
-    Some(precedence) => precedence,
-    _ => Precedence::None,
+impl Precedence {
+  fn next(self) -> Self {
+    match self {
+      Self::None => Self::Assignment,
+      Self::Assignment => Self::Or,
+      Self::Or => Self::And,
+      Self::And => Self::Nullish,
+      Self::Nullish => Self::Equality,
+      Self::Equality => Self::Comparison,
+      Self::Comparison => Self::Term,
+      Self::Term => Self::Factor,
+      Self::Factor => Self::Unary,
+      Self::Unary => Self::Call,
+      Self::Call | Self::Primary => Self::Primary,
+    }
   }
-}
 
-type ExpressionResult = Result<Expression, CompileError>;
-type StatementResult = Result<Statement, CompileError>;
-
-type ParsePrefixFn = fn(parser: &mut Parser, can_assign: bool) -> ExpressionResult;
-type ParseInfixFn =
-  fn(parser: &mut Parser, previous: Expression, can_assign: bool) -> ExpressionResult;
-
-struct ParseRule {
-  pub prefix: Option<ParsePrefixFn>,
-  pub infix: Option<ParseInfixFn>,
-  pub precedence: Precedence,
-}
-
-fn get_rule(token_type: TokenType) -> ParseRule {
-  match token_type {
-    TokenType::LeftParen => ParseRule {
-      prefix: Some(grouping),
-      infix: Some(call),
-      precedence: Precedence::Call,
-    },
-
-    TokenType::Plus => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Term,
-    },
-    TokenType::Minus => ParseRule {
-      prefix: Some(unary),
-      infix: Some(binary),
-      precedence: Precedence::Term,
-    },
-    TokenType::Star | TokenType::Slash => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Factor,
-    },
-
-    TokenType::Bang => ParseRule {
-      prefix: Some(unary),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::BangEqual | TokenType::EqualEqual => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Equality,
-    },
-    TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => {
-      ParseRule {
-        prefix: None,
-        infix: Some(binary),
-        precedence: Precedence::Comparison,
+  fn from(token_type: TokenType) -> Self {
+    match token_type {
+      TokenType::And => Self::And,
+      TokenType::Or => Self::Or,
+      TokenType::QuestionQuestion => Self::Nullish,
+      TokenType::LeftParen => Self::Call,
+      TokenType::Plus | TokenType::Minus => Self::Term,
+      TokenType::Star | TokenType::Slash => Self::Factor,
+      TokenType::BangEqual | TokenType::EqualEqual => Self::Equality,
+      TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => {
+        Self::Comparison
       }
+      _ => Self::None,
     }
-
-    TokenType::Identifier => ParseRule {
-      prefix: Some(variable),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::String => ParseRule {
-      prefix: Some(string),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::Number => ParseRule {
-      prefix: Some(number),
-      infix: None,
-      precedence: Precedence::None,
-    },
-    TokenType::True | TokenType::False | TokenType::Null => ParseRule {
-      prefix: Some(literal),
-      infix: None,
-      precedence: Precedence::None,
-    },
-
-    TokenType::And => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::And,
-    },
-    TokenType::Or => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Or,
-    },
-    TokenType::QuestionQuestion => ParseRule {
-      prefix: None,
-      infix: Some(binary),
-      precedence: Precedence::Nullish,
-    },
-
-    _ => ParseRule {
-      prefix: None,
-      infix: None,
-      precedence: Precedence::None,
-    },
   }
 }
 
-struct Parser {
-  scanner: Scanner,
-  backlog: Vec<Token>,
+enum Error {
+  ExpectedOpeningBracket,
+  ExpectedClosingBracket,
+  ExpectedExpression,
+  ExpectedFunctionArrow,
+  ExpectedNewLine,
+  ExpectedIdentifier,
+  InvalidAssignmentTarget,
+  UnexpectedCharacter,
+  UnterminatedString,
+  EmptyStatement,
+}
+impl Error {
+  fn get_title(&self) -> &'static str {
+    match self {
+      Self::ExpectedOpeningBracket => "Expected '('",
+      Self::ExpectedClosingBracket => "Expected ')'",
+      Self::ExpectedExpression => "Expected Expression",
+      Self::ExpectedFunctionArrow => "Expected Funtion Arrow (-> / =>)",
+      Self::ExpectedNewLine => "Expected New Line",
+      Self::ExpectedIdentifier => "Expected Identifier",
+      Self::InvalidAssignmentTarget => "Invalid Assignment Target",
+      Self::UnexpectedCharacter => "Unexpected Character",
+      Self::UnterminatedString => "Unterminated String",
+      Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
+    }
+  }
 
-  current: Option<Token>,
-  previous: Option<Token>,
+  fn get_message(&self, token: &Token) -> String {
+    match self {
+      Self::ExpectedOpeningBracket
+      | Self::ExpectedClosingBracket
+      | Self::ExpectedExpression
+      | Self::ExpectedFunctionArrow
+      | Self::ExpectedNewLine
+      | Self::ExpectedIdentifier => format!("but recieved '{}'", token.value),
+      Self::UnexpectedCharacter => format!("Unknown character '{}'", token.value),
+      Self::UnterminatedString => {
+        format!("Missing closing quote {}", &token.value[0..1])
+      }
+      Self::InvalidAssignmentTarget => "Can't assign to an expression, only a variable".to_string(),
+      Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
+    }
+  }
+
+  fn get_diagnostic(&self, token: &Token) -> Diagnostic {
+    Diagnostic {
+      title: self.get_title().to_string(),
+      message: self.get_message(token),
+      lines: vec![token.line],
+    }
+  }
 }
 
-impl Parser {
-  fn new(source: &str) -> Self {
+type ExpressionResult<'source> = Result<Expr<'source>, Error>;
+type StatementResult<'source> = Result<Stmt<'source>, Error>;
+
+struct Parser<'source> {
+  tokens: &'source [Token<'source>],
+  position: usize,
+}
+
+impl<'source> Parser<'source> {
+  fn new(tokens: &'source [Token<'source>]) -> Self {
     Self {
-      scanner: Scanner::new(source),
-      backlog: Vec::new(),
-
-      current: None,
-      previous: None,
+      tokens,
+      position: 0,
     }
   }
 
-  fn error(&mut self, token: Token, error: Error) -> CompileError {
-    CompileError { error, token }
+  fn at_end(&self) -> bool {
+    self.position >= self.tokens.len()
   }
 
-  fn advance(&mut self) -> Result<(), CompileError> {
-    self.previous = self.current.take();
-    let token = if self.backlog.is_empty() {
-      self.scanner.get_token()
-    } else {
-      self.backlog.remove(0)
-    };
+  fn next(&mut self) -> &'source Token<'source> {
+    self.position += 1;
+    let token = self.current();
 
-    if token.token_type == TokenType::Error {
-      Err(self.error(token, token.error_value.unwrap()))
+    if matches!(token.ttype, TokenType::Whitespace | TokenType::Comment) {
+      self.next()
     } else {
-      self.current = Some(token);
-      Ok(())
-    }
-  }
-
-  fn matches(&mut self, token_type: TokenType) -> bool {
-    if self.current.is_some() && self.current.unwrap().token_type == token_type {
-      let result = self.advance();
-      matches!(result, Ok(()))
-    } else {
-      false
-    }
-  }
-
-  fn get_token_or_backlog(&mut self, initial: usize, count: usize) -> Token {
-    if count < initial {
-      self.backlog[count]
-    } else {
-      let token = self.scanner.get_token();
-      self.backlog.push(token);
       token
     }
   }
 
-  fn is_function_bracket(&mut self) -> bool {
-    let initial_depth = self.backlog.len();
+  fn back(&mut self) -> &'source Token<'source> {
+    self.position -= 1;
+    let token = self.current();
 
-    let mut token = self.current.unwrap();
+    if matches!(token.ttype, TokenType::Whitespace | TokenType::Comment) {
+      self.back()
+    } else {
+      token
+    }
+  }
+
+  fn get(&self, position: usize) -> &'source Token<'source> {
+    self.tokens.get(position).unwrap_or(&Token {
+      ttype: TokenType::EndOfFile,
+      value: "",
+      line: 0,
+      column: 0,
+      start: 0,
+      end: 0,
+    })
+  }
+
+  fn current(&self) -> &'source Token<'source> {
+    self.get(self.position)
+  }
+
+  fn current_advance(&mut self) -> &'source Token<'source> {
+    let token = self.get(self.position);
+    self.next();
+    token
+  }
+
+  fn consume(
+    &mut self,
+    token_type: TokenType,
+    message: Error,
+  ) -> Result<&'source Token<'source>, Error> {
+    let current = self.current();
+    if current.ttype == token_type {
+      self.next();
+      Ok(current)
+    } else {
+      Err(message)
+    }
+  }
+
+  fn consume_next(
+    &mut self,
+    token_type: TokenType,
+    message: Error,
+  ) -> Result<&'source Token<'source>, Error> {
+    self.next();
+    self.consume(token_type, message)
+  }
+
+  fn expect_newline(&mut self) -> Result<(), Error> {
+    if self.matches(TokenType::EndOfLine) {
+      return Ok(());
+    }
+
+    let current = self.next();
+    if current.ttype == TokenType::EndOfLine || current.ttype == TokenType::EndOfFile {
+      self.next();
+      Ok(())
+    } else {
+      Err(Error::ExpectedNewLine)
+    }
+  }
+
+  fn matches(&mut self, token_type: TokenType) -> bool {
+    let matches = self.current().ttype == token_type;
+    if matches {
+      self.next();
+    }
+    matches
+  }
+
+  fn is_function_bracket(&self) -> bool {
+    let mut position = self.position + 1;
+    let mut token = self.get(position);
     let mut depth = 0;
-    let mut count = 0;
 
     loop {
-      if depth == 0 && token.token_type == TokenType::RightParen {
+      if depth == 0 && token.ttype == TokenType::RightParen {
+        position += 1;
         break;
-      } else if token.token_type == TokenType::EndOfFile {
+      } else if token.ttype == TokenType::EndOfFile {
         return false;
-      } else if token.token_type == TokenType::RightParen {
+      } else if token.ttype == TokenType::RightParen {
         depth += 1;
-      } else if token.token_type == TokenType::LeftParen {
+      } else if token.ttype == TokenType::LeftParen {
         depth -= 1;
       }
 
-      token = self.get_token_or_backlog(initial_depth, count);
-      count += 1;
+      position += 1;
+      token = self.get(position);
     }
 
-    token = self.get_token_or_backlog(initial_depth, count);
-    token.token_type == TokenType::FatRightArrow || token.token_type == TokenType::RightArrow
+    while self.get(position).ttype == TokenType::Whitespace {
+      position += 1;
+    }
+
+    token = self.get(position);
+    token.ttype == TokenType::FatRightArrow || token.ttype == TokenType::RightArrow
   }
 
-  fn consume(&mut self, token_type: TokenType, message: Error) -> Result<(), CompileError> {
-    let current = self.current.unwrap();
-    if current.token_type == token_type {
-      self.advance()
-    } else {
-      Err(self.error(current, message))
-    }
-  }
-
-  fn parse(&mut self, precedence: Precedence) -> ExpressionResult {
-    self.advance()?;
-
-    let token = self.previous.unwrap();
-    let prefix_rule = get_rule(token.token_type).prefix;
-    if prefix_rule.is_none() {
-      return Err(self.error(token, Error::ExpectedExpression));
-    }
+  fn parse_expression(&mut self, precedence: Precedence) -> ExpressionResult<'source> {
+    self.matches(TokenType::EndOfLine);
+    let token = self.current();
 
     let can_assign = precedence <= Precedence::Assignment;
-    let mut previous = prefix_rule.unwrap()(self, can_assign)?;
+    let prefix = self.prefix_rule(token.ttype, can_assign)?;
+    let mut previous = vec![prefix];
 
-    while precedence <= get_rule(self.current.unwrap().token_type).precedence {
-      self.advance()?;
+    while precedence <= Precedence::from(self.next().ttype) {
+      let token = self.current();
 
-      if let Some(infix_rule) = get_rule(self.previous.unwrap().token_type).infix {
-        previous = infix_rule(self, previous, can_assign)?;
+      if let Some(value) = self.infix_rule(token.ttype, previous.pop().unwrap())? {
+        previous.push(value);
       }
     }
+    self.back();
 
     if can_assign && self.matches(TokenType::Equal) {
-      Err(self.error(token, Error::InvalidAssignmentTarget))
+      Err(Error::InvalidAssignmentTarget)
     } else {
-      Ok(previous)
+      Ok(previous.pop().unwrap())
+    }
+  }
+
+  fn prefix_rule(&mut self, token_type: TokenType, can_assign: bool) -> ExpressionResult<'source> {
+    match token_type {
+      TokenType::LeftParen => self.grouping(),
+      TokenType::Minus | TokenType::Bang => self.unary(),
+      TokenType::Identifier => self.variable(can_assign),
+      TokenType::Number
+      | TokenType::String
+      | TokenType::True
+      | TokenType::False
+      | TokenType::Null => self.literal(),
+      TokenType::Unknown => Err(Error::UnexpectedCharacter),
+      _ => Err(Error::ExpectedExpression),
+    }
+  }
+
+  fn infix_rule(
+    &mut self,
+    token_type: TokenType,
+    previous: Expr<'source>,
+  ) -> Result<Option<Expr<'source>>, Error> {
+    match token_type {
+      TokenType::LeftParen => Ok(Some(self.call(previous)?)),
+      TokenType::Plus
+      | TokenType::Minus
+      | TokenType::Star
+      | TokenType::Slash
+      | TokenType::BangEqual
+      | TokenType::EqualEqual
+      | TokenType::Greater
+      | TokenType::GreaterEqual
+      | TokenType::Less
+      | TokenType::LessEqual
+      | TokenType::And
+      | TokenType::Or
+      | TokenType::QuestionQuestion => Ok(Some(self.binary(previous)?)),
+      _ => Ok(None),
     }
   }
 }
 
-pub fn parse(source: &str) -> Result<Vec<Statement>, CompileError> {
-  let mut parser = Parser::new(source);
-
-  parser.advance()?;
-
-  let mut statements = Vec::new();
-  while !parser.matches(TokenType::EndOfFile) {
-    statements.push(statement(&mut parser)?);
+// Statements
+impl<'source> Parser<'source> {
+  fn block_depth(whitespace: &str) -> i32 {
+    let mut depth = 0;
+    for c in whitespace.chars() {
+      match c {
+        ' ' => depth += 1,
+        '\t' => depth += 2,
+        _ => {}
+      }
+    }
+    depth /= 2;
+    depth
   }
 
-  parser.consume(TokenType::EndOfFile, Error::MissingEndOfFile)?;
+  fn statement(&mut self) -> StatementResult<'source> {
+    while matches!(self.current().ttype, TokenType::EndOfLine) {
+      self.next();
+    }
+
+    let last = if self.position >= 1 {
+      self.position - 1
+    } else {
+      0
+    };
+    let mut last_token = self.get(last);
+
+    let depth = Parser::block_depth(last_token.value);
+
+    if last_token.ttype != TokenType::Whitespace || depth == 0 {
+      return self.stmt();
+    }
+
+    let mut statements = Vec::new();
+
+    while last_token.ttype == TokenType::Whitespace
+      && Parser::block_depth(last_token.value) >= depth
+      && self.current().ttype != TokenType::EndOfFile
+    {
+      if Parser::block_depth(last_token.value) > depth {
+        statements.push(self.statement()?);
+        last_token = self.get(self.position - 1);
+      } else {
+        statements.push(self.stmt()?);
+        last_token = self.get(self.position - 1);
+      }
+    }
+
+    Ok(Stmt::Block { body: statements })
+  }
+
+  fn stmt(&mut self) -> StatementResult<'source> {
+    let token = self.current();
+
+    match token.ttype {
+      TokenType::Let => self.var_declaration(),
+      TokenType::If => self.if_statement(),
+      TokenType::Return => self.return_statement(),
+      TokenType::While => self.while_statement(),
+      TokenType::EndOfFile => Err(Error::EmptyStatement),
+      _ => self.expression_statement(),
+    }
+  }
+
+  fn var_declaration(&mut self) -> StatementResult<'source> {
+    let token = self.current();
+    let identifier = self.consume_next(TokenType::Identifier, Error::ExpectedIdentifier)?;
+    let expression = if self.matches(TokenType::Equal) {
+      Some(self.expression()?)
+    } else {
+      self.back();
+      None
+    };
+    self.expect_newline()?;
+
+    Ok(Stmt::Declaration {
+      token,
+      identifier,
+      expression,
+    })
+  }
+
+  fn return_statement(&mut self) -> StatementResult<'source> {
+    let token = self.current_advance();
+    let expression = if self.matches(TokenType::EndOfLine) {
+      None
+    } else {
+      let exp = Some(self.expression()?);
+      self.expect_newline()?;
+      exp
+    };
+
+    Ok(Stmt::Return { token, expression })
+  }
+
+  fn if_statement(&mut self) -> StatementResult<'source> {
+    let if_token = self.current();
+    self.consume_next(TokenType::LeftParen, Error::ExpectedOpeningBracket)?;
+    let condition = self.expression()?;
+    self.consume_next(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+
+    self.matches(TokenType::EndOfLine);
+    let body = self.statement()?;
+
+    let (else_token, otherwise) = if self.current().ttype == TokenType::Else {
+      let else_token = self.current_advance();
+      self.matches(TokenType::EndOfLine);
+
+      (Some(else_token), Some(Box::new(self.statement()?)))
+    } else {
+      (None, None)
+    };
+
+    Ok(Stmt::If {
+      if_token,
+      else_token,
+      condition,
+      then: Box::new(body),
+      otherwise,
+    })
+  }
+
+  fn while_statement(&mut self) -> StatementResult<'source> {
+    let token = self.current();
+    self.consume_next(TokenType::LeftParen, Error::ExpectedOpeningBracket)?;
+    let condition = self.expression()?;
+    self.consume_next(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+    self.matches(TokenType::EndOfLine);
+    let body = Box::new(self.statement()?);
+
+    Ok(Stmt::While {
+      token,
+      condition,
+      body,
+    })
+  }
+
+  fn expression_statement(&mut self) -> StatementResult<'source> {
+    let expression = self.expression()?;
+    self.expect_newline()?;
+
+    Ok(Stmt::Expression { expression })
+  }
+}
+
+// Expressions
+impl<'source> Parser<'source> {
+  fn expression(&mut self) -> ExpressionResult<'source> {
+    self.parse_expression(Precedence::Assignment)
+  }
+
+  fn function(&mut self) -> ExpressionResult<'source> {
+    let token = self.current_advance();
+
+    let mut parameters = Vec::new();
+    loop {
+      if self.matches(TokenType::RightParen) {
+        break;
+      }
+
+      let parameter = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+      parameters.push(parameter);
+
+      if !self.matches(TokenType::Comma) {
+        self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+        break;
+      }
+    }
+
+    let body = if self.matches(TokenType::FatRightArrow) {
+      Ok(Stmt::Return {
+        token: self.current(),
+        expression: Some(self.expression()?),
+      })
+    } else if self.matches(TokenType::RightArrow) {
+      self.matches(TokenType::EndOfLine);
+      let statement = self.statement()?;
+      self.back();
+      Ok(statement)
+    } else {
+      Err(Error::ExpectedFunctionArrow)
+    }?;
+
+    Ok(Expr::Function {
+      token,
+      body: Box::new(body),
+      parameters,
+    })
+  }
+
+  fn grouping(&mut self) -> ExpressionResult<'source> {
+    if self.is_function_bracket() {
+      return self.function();
+    }
+
+    self.next(); // Skip first bracket
+    let expression = self.expression()?;
+    self.consume_next(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+    self.back();
+
+    Ok(Expr::Group {
+      expression: Box::new(expression),
+    })
+  }
+
+  fn unary(&mut self) -> ExpressionResult<'source> {
+    let token = self.current_advance();
+    let expression = self.parse_expression(Precedence::Unary)?;
+
+    Ok(Expr::Unary {
+      operator: token,
+      expression: Box::new(expression),
+    })
+  }
+
+  fn literal(&mut self) -> ExpressionResult<'source> {
+    let token = self.current();
+    let string = token.value;
+
+    let value = if token.ttype != TokenType::String {
+      Ok(string)
+    } else if string[0..1] == string[string.len() - 1..string.len()] {
+      Ok(&string[1..string.len() - 1])
+    } else {
+      Err(Error::UnterminatedString)
+    }?;
+
+    Ok(Expr::Literal { token, value })
+  }
+
+  fn variable(&mut self, can_assign: bool) -> ExpressionResult<'source> {
+    let identifier = self.current();
+    let is_additional_operator = matches!(
+      self.next().ttype,
+      TokenType::PlusEqual | TokenType::MinusEqual | TokenType::StarEqual | TokenType::SlashEqual
+    );
+
+    if (true, true) == (can_assign, is_additional_operator) {
+      let operator = self.current_advance();
+
+      Ok(Expr::Assignment {
+        identifier,
+        expression: Box::new(Expr::Binary {
+          operator,
+          left: Box::new(Expr::Variable { token: identifier }),
+          right: Box::new(self.expression()?),
+        }),
+      })
+    } else if self.matches(TokenType::Equal) && can_assign {
+      Ok(Expr::Assignment {
+        identifier,
+        expression: Box::new(self.expression()?),
+      })
+    } else {
+      self.back();
+      Ok(Expr::Variable { token: identifier })
+    }
+  }
+
+  fn call(&mut self, previous: Expr<'source>) -> ExpressionResult<'source> {
+    let token = self.current_advance();
+
+    let mut arguments = Vec::new();
+    loop {
+      if self.matches(TokenType::RightParen) {
+        break;
+      }
+
+      arguments.push(self.expression()?);
+      self.next();
+
+      if !self.matches(TokenType::Comma) {
+        self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+        break;
+      }
+    }
+    self.back();
+
+    Ok(Expr::Call {
+      expression: Box::new(previous),
+      token,
+      arguments,
+    })
+  }
+
+  fn binary(&mut self, previous: Expr<'source>) -> ExpressionResult<'source> {
+    let operator = self.current_advance();
+    let precedence = Precedence::from(operator.ttype);
+    let right = self.parse_expression(precedence.next())?;
+
+    Ok(Expr::Binary {
+      operator,
+      left: Box::new(previous),
+      right: Box::new(right),
+    })
+  }
+}
+
+pub fn parse<'s>(tokens: &'s [Token<'s>]) -> Result<Vec<Stmt<'s>>, Diagnostic> {
+  let mut parser = Parser::new(tokens);
+  let mut statements = Vec::new();
+
+  while !parser.at_end() {
+    match parser.statement() {
+      Ok(stmt) => statements.push(stmt),
+      Err(Error::EmptyStatement) => {}
+      Err(err) => return Err(err.get_diagnostic(parser.current())),
+    }
+  }
 
   Ok(statements)
 }
 
-fn statement(parser: &mut Parser) -> StatementResult {
-  if parser.matches(TokenType::Let) {
-    var_declaration(parser)
-  } else if parser.matches(TokenType::Return) {
-    return_statement(parser)
-  } else if parser.matches(TokenType::BlockStart) {
-    block(parser)
-  } else if parser.matches(TokenType::While) {
-    while_statement(parser)
-  } else if parser.matches(TokenType::If) {
-    if_statement(parser)
-  } else {
-    expression_statement(parser)
-  }
-}
+#[cfg(test)]
+mod tests {
+  use super::*;
+  use crate::tokens::tokenize;
 
-fn var_declaration(parser: &mut Parser) -> StatementResult {
-  let token = parser.current.unwrap();
-  parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
-  let identifier = parser.previous.unwrap();
-  let variable_name = identifier.get_value(&parser.scanner.chars);
-
-  let expression = if parser.matches(TokenType::Equal) {
-    Some(expression(parser)?)
-  } else {
-    None
-  };
-  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine)?;
-
-  Ok(Statement::Declaration {
-    token,
-    identifier,
-    variable_name,
-    expression,
-  })
-}
-
-fn block(parser: &mut Parser) -> StatementResult {
-  let mut statements = Vec::new();
-  while parser.current.unwrap().token_type != TokenType::BlockEnd {
-    statements.push(statement(parser)?);
-  }
-  parser.consume(TokenType::BlockEnd, Error::ExpectedEndOfBlock)?;
-
-  Ok(Statement::Block { body: statements })
-}
-
-fn return_statement(parser: &mut Parser) -> StatementResult {
-  let token = parser.current.unwrap();
-
-  let expression = if parser.matches(TokenType::EndOfLine) {
-    None
-  } else {
-    let exp = Some(expression(parser)?);
-    parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine)?;
-    exp
-  };
-
-  Ok(Statement::Return { token, expression })
-}
-
-fn if_statement(parser: &mut Parser) -> StatementResult {
-  let if_token = parser.current.unwrap();
-  parser.consume(TokenType::LeftParen, Error::MissingBracketBeforeCondition)?;
-  let condition = expression(parser)?;
-  parser.consume(TokenType::RightParen, Error::MissingBracketAfterCondition)?;
-
-  parser.matches(TokenType::EndOfLine);
-  let body = statement(parser)?;
-
-  let mut else_token = None;
-  let otherwise = if parser.matches(TokenType::Else) {
-    else_token = parser.previous;
-    Some(Box::new(statement(parser)?))
-  } else {
-    None
-  };
-
-  Ok(Statement::If {
-    if_token,
-    else_token,
-    condition,
-    then: Box::new(body),
-    otherwise,
-  })
-}
-
-fn while_statement(parser: &mut Parser) -> StatementResult {
-  let token = parser.current.unwrap();
-
-  parser.consume(TokenType::LeftParen, Error::MissingBracketBeforeCondition)?;
-  let condition = expression(parser)?;
-  parser.consume(TokenType::RightParen, Error::MissingBracketAfterCondition)?;
-
-  parser.matches(TokenType::EndOfLine);
-  let body = Box::new(statement(parser)?);
-
-  Ok(Statement::While {
-    token,
-    condition,
-    body,
-  })
-}
-
-fn expression_statement(parser: &mut Parser) -> StatementResult {
-  let expression = expression(parser)?;
-  parser.consume(TokenType::EndOfLine, Error::ExpectedNewLine)?;
-
-  Ok(Statement::Expression { expression })
-}
-
-fn expression(parser: &mut Parser) -> ExpressionResult {
-  parser.parse(Precedence::Assignment)
-}
-
-fn variable(parser: &mut Parser, can_assign: bool) -> ExpressionResult {
-  let identifier = parser.previous.unwrap();
-  let name = identifier.get_value(&parser.scanner.chars);
-
-  let additional_operator = match parser.current.unwrap().token_type {
-    TokenType::PlusEqual | TokenType::MinusEqual | TokenType::StarEqual | TokenType::SlashEqual => {
-      parser.current
+  fn assert_literal(expr: &Expr<'_>, value: &str, literal_type: TokenType) {
+    match expr {
+      Expr::Literal { token, .. } => {
+        assert_eq!(token.value, value);
+        assert_eq!(token.ttype, literal_type);
+      }
+      _ => panic!("Expected literal"),
     }
-    _ => None,
-  };
+  }
 
-  if let (true, Some(token)) = (can_assign, additional_operator) {
-    parser.advance()?;
-    let expression = expression(parser)?;
-    let operator = match token.token_type {
-      TokenType::PlusEqual => BinaryOperator::Plus,
-      TokenType::MinusEqual => BinaryOperator::Minus,
-      TokenType::StarEqual => BinaryOperator::Star,
-      TokenType::SlashEqual => BinaryOperator::Slash,
-      _ => unreachable!(),
-    };
+  fn assert_variable(expr: &Expr<'_>, name: &str) {
+    match expr {
+      Expr::Variable { token } => {
+        assert_eq!(token.value, name);
+        assert_eq!(token.ttype, TokenType::Identifier);
+      }
+      _ => panic!("Expected literal"),
+    }
+  }
 
-    Ok(Expression::Assignment {
-      identifier,
-      variable_name: name.clone(),
-      expression: Box::new(Expression::Binary {
-        token,
-        left: Box::new(Expression::Variable {
-          identifier,
-          variable_name: name,
-        }),
+  #[test]
+  fn should_error_on_unknown_character() {
+    let tokens = tokenize("&");
+    let result = super::parse(&tokens);
+
+    assert!(result.is_err());
+    assert_eq!(result.unwrap_err().message, "Unknown character '&'");
+  }
+
+  #[test]
+  fn should_parse_group() {
+    let tokens = tokenize("('hello world')\n");
+    let statements = super::parse(&tokens).unwrap();
+
+    if let Stmt::Expression {
+      expression: Expr::Group { expression },
+    } = &statements[0]
+    {
+      assert_literal(&**expression, "'hello world'", TokenType::String);
+    } else {
+      panic!("Expected group expression statement");
+    }
+  }
+
+  #[test]
+  fn should_parse_unary() {
+    let tokens = tokenize("!false\n");
+    let statements = super::parse(&tokens).unwrap();
+
+    if let Stmt::Expression {
+      expression: Expr::Unary {
         operator,
-        right: Box::new(expression),
-      }),
-    })
-  } else if parser.matches(TokenType::Equal) && can_assign {
-    let expression = expression(parser)?;
-    Ok(Expression::Assignment {
-      identifier,
-      variable_name: name,
-      expression: Box::new(expression),
-    })
-  } else {
-    Ok(Expression::Variable {
-      identifier,
-      variable_name: name,
-    })
-  }
-}
-
-fn grouping(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
-  if parser.is_function_bracket() {
-    return function(parser);
-  }
-
-  let expression = expression(parser)?;
-  parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
-
-  Ok(Expression::Group {
-    expression: Box::new(expression),
-  })
-}
-
-fn function(parser: &mut Parser) -> ExpressionResult {
-  let token = parser.current.unwrap();
-
-  let mut parameters = Vec::new();
-  if token.token_type != TokenType::RightParen {
-    loop {
-      if parser.current.unwrap().token_type == TokenType::RightParen {
-        break;
-      }
-
-      parser.consume(TokenType::Identifier, Error::MissingVariableName)?;
-      let token = parser.previous.unwrap();
-      parser.consume(TokenType::Colon, Error::MissingColonBeforeType)?;
-      parser.consume(TokenType::Identifier, Error::MissingTypeName)?;
-      let type_token = parser.previous.unwrap();
-
-      parameters.push(Parameter {
-        identifier: token,
-        value: token.get_value(&parser.scanner.chars),
-        type_: type_token.get_value(&parser.scanner.chars),
-      });
-
-      if !parser.matches(TokenType::Comma) {
-        break;
-      }
-    }
-  }
-  parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
-
-  let (return_type, body) = if parser.matches(TokenType::RightArrow) {
-    parser.consume(TokenType::Identifier, Error::MissingTypeName)?;
-    let return_type = parser.previous.unwrap().get_value(&parser.scanner.chars);
-    parser.matches(TokenType::EndOfLine);
-
-    parser.consume(TokenType::BlockStart, Error::ExpectedStartOfBlock)?;
-
-    let mut statements = Vec::new();
-    while parser.current.unwrap().token_type != TokenType::BlockEnd {
-      statements.push(statement(parser)?);
-    }
-
-    // Make sure that the expression always ends with a end of line
-    if let Some(mut current) = parser.current {
-      current.token_type = TokenType::EndOfLine;
-      parser.current = Some(current);
-    }
-
-    (Some(return_type), Statement::Block { body: statements })
-  } else {
-    parser.consume(TokenType::FatRightArrow, Error::MissingFunctionArrow)?;
-    (
-      None,
-      Statement::Return {
-        token: parser.current.unwrap(),
-        expression: Some(expression(parser)?),
+        expression,
       },
-    )
-  };
-
-  Ok(Expression::Function {
-    token,
-    body: Box::new(body),
-    parameters,
-    return_type,
-  })
-}
-
-fn unary(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
-  let token = parser.previous.unwrap();
-  let operator = match token.token_type {
-    TokenType::Minus => UnaryOperator::Minus,
-    TokenType::Bang => UnaryOperator::Bang,
-    _ => unreachable!(),
-  };
-  let expression = parser.parse(Precedence::Unary)?;
-
-  Ok(Expression::Unary {
-    token,
-    operator,
-    expression: Box::new(expression),
-  })
-}
-
-fn call(parser: &mut Parser, previous: Expression, _can_assign: bool) -> ExpressionResult {
-  let token = parser.previous.unwrap();
-  let mut arguments = Vec::new();
-
-  if parser.current.unwrap().token_type != TokenType::RightParen {
-    loop {
-      if parser.current.unwrap().token_type == TokenType::RightParen {
-        break;
-      }
-
-      arguments.push(expression(parser)?);
-
-      if !parser.matches(TokenType::Comma) {
-        break;
-      }
+    } = &statements[0]
+    {
+      assert_literal(&**expression, "false", TokenType::False);
+      assert_eq!(operator.ttype, TokenType::Bang);
+    } else {
+      panic!("Expected unary expression statement");
     }
   }
 
-  parser.consume(TokenType::RightParen, Error::ExpectedBracket)?;
+  #[test]
+  fn should_parse_binary() {
+    let tokens = tokenize("10 + 5\n");
+    let statements = super::parse(&tokens).unwrap();
 
-  Ok(Expression::Call {
-    expression: Box::new(previous),
-    token,
-    arguments,
-  })
-}
+    if let Stmt::Expression {
+      expression: Expr::Binary {
+        operator,
+        left,
+        right,
+      },
+    } = &statements[0]
+    {
+      assert_literal(&**left, "10", TokenType::Number);
+      assert_literal(&**right, "5", TokenType::Number);
+      assert_eq!(operator.ttype, TokenType::Plus);
+    } else {
+      panic!("Expected binary expression statement");
+    }
+  }
 
-fn binary(parser: &mut Parser, previous: Expression, _can_assign: bool) -> ExpressionResult {
-  let token = parser.previous.unwrap();
-  let operator = match token.token_type {
-    TokenType::Plus => BinaryOperator::Plus,
-    TokenType::Minus => BinaryOperator::Minus,
-    TokenType::Star => BinaryOperator::Star,
-    TokenType::Slash => BinaryOperator::Slash,
-    TokenType::BangEqual => BinaryOperator::BangEqual,
-    TokenType::EqualEqual => BinaryOperator::EqualEqual,
-    TokenType::Greater => BinaryOperator::Greater,
-    TokenType::GreaterEqual => BinaryOperator::GreaterEqual,
-    TokenType::Less => BinaryOperator::Less,
-    TokenType::LessEqual => BinaryOperator::LessEqual,
-    TokenType::And => BinaryOperator::And,
-    TokenType::Or => BinaryOperator::Or,
-    TokenType::QuestionQuestion => BinaryOperator::QuestionQuestion,
-    _ => unreachable!(),
-  };
-  let rule = get_rule(token.token_type);
-  let right = parser.parse(get_precedence((rule.precedence as u8) + 1))?;
+  #[test]
+  fn should_parse_call() {
+    let tokens = tokenize("function(7, null)\n");
+    let statements = super::parse(&tokens).unwrap();
 
-  Ok(Expression::Binary {
-    token,
-    left: Box::new(previous),
-    operator,
-    right: Box::new(right),
-  })
-}
+    if let Stmt::Expression {
+      expression: Expr::Call {
+        expression,
+        arguments,
+        ..
+      },
+    } = &statements[0]
+    {
+      assert_literal(&arguments[0], "7", TokenType::Number);
+      assert_literal(&arguments[1], "null", TokenType::Null);
+      assert_variable(expression, "function");
+    } else {
+      panic!("Expected binary expression statement");
+    }
+  }
 
-fn string(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
-  let token = parser.previous.unwrap();
-  let token_value = token.get_value(&parser.scanner.chars);
-  let value = token_value[1..token_value.len() - 1].to_string();
+  #[test]
+  fn should_parse_function() {
+    let tokens = tokenize("() => null\n");
+    let statements = super::parse(&tokens).unwrap();
 
-  Ok(Expression::Literal {
-    token,
-    value: LiteralValue::String(Rc::from(value)),
-  })
-}
+    if let Stmt::Expression {
+      expression:
+        Expr::Function {
+          parameters,
+          body:
+            box Stmt::Return {
+              expression: Some(expression),
+              ..
+            },
+          ..
+        },
+      ..
+    } = &statements[0]
+    {
+      assert_eq!(parameters.len(), 0);
+      assert_literal(expression, "null", TokenType::Null);
+    } else {
+      panic!("Expected return statement");
+    }
+  }
 
-fn number(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
-  let token = parser.previous.unwrap();
-  let value: f64 = token
-    .get_value(&parser.scanner.chars)
-    .replace('_', "")
-    .parse()
-    .unwrap();
+  #[test]
+  fn should_parse_variable_declaration_with_initalizer() {
+    let tokens = tokenize("let a = null\n");
+    let statements = super::parse(&tokens).unwrap();
 
-  Ok(Expression::Literal {
-    token,
-    value: LiteralValue::Number(value),
-  })
-}
+    if let Stmt::Declaration {
+      identifier,
+      expression: Some(Expr::Literal { token, .. }),
+      ..
+    } = &statements[0]
+    {
+      assert_eq!(identifier.value, "a");
+      assert_eq!(token.value, "null");
+      assert_eq!(token.ttype, TokenType::Null);
+    } else {
+      panic!("Expected declaration statement");
+    }
+  }
 
-fn literal(parser: &mut Parser, _can_assign: bool) -> ExpressionResult {
-  let token = parser.previous.unwrap();
+  #[test]
+  fn should_parse_variable_declaration_without_initalizer() {
+    let tokens = tokenize("let b\n");
+    let statements = super::parse(&tokens).unwrap();
 
-  let value = match token.token_type {
-    TokenType::True => LiteralValue::True,
-    TokenType::False => LiteralValue::False,
-    _ => LiteralValue::Null,
-  };
+    if let Stmt::Declaration {
+      identifier,
+      expression: None,
+      ..
+    } = &statements[0]
+    {
+      assert_eq!(identifier.value, "b");
+    } else {
+      panic!("Expected declaration statement");
+    }
+  }
 
-  Ok(Expression::Literal { value, token })
+  #[test]
+  fn should_parse_return_with_value() {
+    let tokens = tokenize("return value\n");
+    let statements = super::parse(&tokens).unwrap();
+
+    if let Stmt::Return {
+      expression: Some(expression),
+      ..
+    } = &statements[0]
+    {
+      assert_variable(expression, "value");
+    } else {
+      panic!("Expected return statement");
+    }
+  }
+
+  #[test]
+  fn should_parse_return_without_value() {
+    let tokens = tokenize("return\n");
+    let statements = super::parse(&tokens).unwrap();
+
+    if let Stmt::Return {
+      expression: None,
+      token,
+    } = &statements[0]
+    {
+      assert_eq!(token.value, "return");
+    } else {
+      panic!("Expected return statement");
+    }
+  }
+
+  #[test]
+  fn should_parse_while() {
+    let tokens = tokenize("while(7) doStuff\n");
+    let statements = super::parse(&tokens).unwrap();
+
+    if let Stmt::While {
+      condition: Expr::Literal {
+        token: condition, ..
+      },
+      body: box Stmt::Expression { expression },
+      ..
+    } = &statements[0]
+    {
+      assert_eq!(condition.value, "7");
+      assert_variable(expression, "doStuff");
+    } else {
+      panic!("Expected while statement");
+    }
+  }
+
+  #[test]
+  fn should_parse_if_else() {
+    let tokens = tokenize("if (true) doStuff\n");
+    let statements = super::parse(&tokens).unwrap();
+
+    if let Stmt::If {
+      condition,
+      then: box Stmt::Expression { expression },
+      otherwise,
+      ..
+    } = &statements[0]
+    {
+      assert_literal(condition, "true", TokenType::True);
+      assert_variable(expression, "doStuff");
+      assert!(otherwise.is_none());
+    } else {
+      panic!("Expected if statement");
+    }
+  }
+
+  #[test]
+  fn should_parse_if_without_else() {
+    let tokens = tokenize("if (true)\n\tdoStuff\nelse\n\tdoOtherStuff\n");
+    let statements = super::parse(&tokens).unwrap();
+
+    if let Stmt::If {
+      condition,
+      then: box Stmt::Block { body: then_body },
+      otherwise: Some(box Stmt::Block { body: else_body }),
+      ..
+    } = &statements[0]
+    {
+      assert_literal(condition, "true", TokenType::True);
+      assert_eq!(then_body.len(), 1);
+      assert_eq!(else_body.len(), 1);
+    } else {
+      panic!("Expected if statement");
+    }
+  }
+
+  #[test]
+  fn should_parse_block() {
+    let tokens = tokenize("a\n\tdoStuff\n\totherStuff\n\tmoreStuff\n");
+    let statements = super::parse(&tokens).unwrap();
+
+    assert_eq!(statements.len(), 2);
+
+    if let Stmt::Block { body } = &statements[1] {
+      assert_eq!(body.len(), 3);
+    } else {
+      panic!("Expected block statement");
+    }
+  }
 }

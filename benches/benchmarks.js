@@ -41,14 +41,14 @@ function arithmetic() {
   }
 }
 
-performance.mark('A')
-fib_recursive(25)
-performance.measure('Fib Recursive', 'A')
+performance.mark('C')
+arithmetic()
+performance.measure('Arithmetic', 'C')
 
 performance.mark('B')
 fib_iterative(25)
 performance.measure('Fib Iterative', 'B')
 
-performance.mark('C')
-arithmetic()
-performance.measure('Arithmetic', 'C')
+performance.mark('A')
+fib_recursive(25)
+performance.measure('Fib Recursive', 'A')

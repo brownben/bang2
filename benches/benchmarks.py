@@ -32,13 +32,13 @@ def arithmetic():
         i += 1
 
 
-result = timeit.timeit(lambda: fib_recursive(25), number=10)
-print(f"Recursive Fibonacci: {result}s")
+result = timeit.timeit(lambda: arithmetic(), number=100)
+print(f"Arithmetic: {result * 1000000000}ns")
+
+result = timeit.timeit(lambda: fib_recursive(25), number=100)
+print(f"Recursive Fibonacci: {result * 1000000000}ns")
 
 
-result = timeit.timeit(lambda: fib_iterative(25), number=10)
-print(f"Iterative Fibonacci: {result}s")
+result = timeit.timeit(lambda: fib_iterative(25), number=100)
+print(f"Iterative Fibonacci: {result * 1000000000}ns")
 
-
-result = timeit.timeit(lambda: arithmetic(), number=10)
-print(f"Arithmetic: {result}s")

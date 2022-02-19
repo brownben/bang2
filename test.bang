@@ -1,5 +1,7 @@
-// TODO: should be null
-let b() -> nu
-  return
+let fibonacci_recursive = (n: number) -> number
+  if n < 2
+    return n
+  else
+    return fibonacci_recursive(n - 1) + fibonacci_recursive(n - 2)
 
-let a = b() == null
+fib_recursive(25)

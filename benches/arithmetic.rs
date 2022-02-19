@@ -1,7 +1,6 @@
 #![feature(test)]
 
 mod bang_benchmark;
-use bang_benchmark::*;
 
 bang_benchmark!(
   arithmetic,
