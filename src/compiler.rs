@@ -399,6 +399,7 @@ impl<'s> Compiler<'s> {
         token,
         parameters,
         body,
+        name,
         ..
       } => {
         if parameters.len() > u8::MAX as usize {
@@ -420,8 +421,9 @@ impl<'s> Compiler<'s> {
         self.emit_constant(
           token,
           Value::from(Function {
-            chunk,
+            name: name.unwrap_or("").to_string(),
             arity: parameters.len() as u8,
+            chunk,
           }),
         );
       }

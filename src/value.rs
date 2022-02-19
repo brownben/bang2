@@ -3,12 +3,17 @@ use std::{fmt::Display, rc::Rc};
 use crate::chunk::Chunk;
 
 pub struct Function {
+  pub name: String,
   pub arity: u8,
   pub chunk: Chunk,
 }
 impl Function {
   pub fn script(chunk: Chunk) -> Rc<Self> {
-    Rc::new(Self { arity: 0, chunk })
+    Rc::new(Self {
+      arity: 0,
+      chunk,
+      name: String::new(),
+    })
   }
 }
 
@@ -83,7 +88,7 @@ impl Display for Value {
       Value::Boolean(value) => write!(f, "{}", value),
       Value::Number(value) => write!(f, "{}", value),
       Value::String(value) => write!(f, "'{}'", value),
-      Value::Function(_) => write!(f, "<function>"),
+      Value::Function(value) => write!(f, "<function {}>", value.name),
       Value::NativeFunction(value) => write!(f, "<function {}>", value.name),
     }
   }

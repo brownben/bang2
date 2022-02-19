@@ -22,6 +22,7 @@ pub enum Expr<'source> {
     token: TokenRef<'source>,
     parameters: Vec<TokenRef<'source>>,
     body: Box<Stmt<'source>>,
+    name: Option<&'source str>,
   },
   Group {
     expression: Box<Expr<'source>>,

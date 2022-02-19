@@ -376,13 +376,28 @@ impl<'source> Parser<'source> {
   fn var_declaration(&mut self) -> StatementResult<'source> {
     let token = self.current();
     let identifier = self.consume_next(TokenType::Identifier, Error::ExpectedIdentifier)?;
-    let expression = if self.matches(TokenType::Equal) {
+    let mut expression = if self.matches(TokenType::Equal) {
       Some(self.expression()?)
     } else {
       self.back();
       None
     };
     self.expect_newline()?;
+
+    if let Some(Expr::Function {
+      token,
+      parameters,
+      body,
+      ..
+    }) = expression
+    {
+      expression = Some(Expr::Function {
+        token,
+        parameters,
+        body,
+        name: Some(identifier.value),
+      })
+    }
 
     Ok(Stmt::Declaration {
       token,
@@ -496,6 +511,7 @@ impl<'source> Parser<'source> {
       token,
       body: Box::new(body),
       parameters,
+      name: None,
     })
   }
 
