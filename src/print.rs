@@ -107,10 +107,17 @@ mod ast {
         }
       }
       Expr::Function {
-        body, parameters, ..
+        body,
+        parameters,
+        name,
+        ..
       } => {
         let params: Vec<String> = parameters.iter().map(|p| p.value.to_string()).collect();
-        println!("{}Function ({})", prefix, params.join(", "));
+        if let Some(name) = name {
+          println!("{}Function {}({})", prefix, name, params.join(", "));
+        } else {
+          println!("{}Function ({})", prefix, params.join(", "));
+        }
         print_statement(&*body, prefix_start, prefix_blank);
       }
     }
