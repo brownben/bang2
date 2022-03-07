@@ -87,9 +87,9 @@ struct Tokeniser<'source> {
 }
 
 impl<'source> Tokeniser<'source> {
-  pub fn new(source: &'source [u8]) -> Tokeniser<'source> {
+  pub fn new(source: &'source str) -> Tokeniser<'source> {
     Tokeniser {
-      source,
+      source: source.as_bytes(),
 
       line: 1,
       column: 0,
@@ -292,8 +292,8 @@ impl<'source> Tokeniser<'source> {
 }
 
 pub fn tokenize(source: &str) -> Vec<Token> {
-  let mut tokeniser = Tokeniser::new(source.as_bytes());
-  let mut tokens = Vec::new();
+  let mut tokeniser = Tokeniser::new(source);
+  let mut tokens = Vec::with_capacity(source.len() / 5);
 
   while tokeniser.tokens_left() {
     tokens.push(tokeniser.next_token());
