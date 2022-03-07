@@ -60,8 +60,8 @@ pub struct VM {
 impl VM {
   pub fn new() -> Self {
     Self {
-      stack: Vec::new(),
-      frames: Vec::new(),
+      stack: Vec::with_capacity(32),
+      frames: Vec::with_capacity(16),
       globals: HashMap::new(),
     }
   }
