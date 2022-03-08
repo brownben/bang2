@@ -175,11 +175,47 @@ impl VM {
           ip += 1;
         }
         OpCode::Less => {
-          numeric_expression!(self, <, Boolean, function.chunk, ip);
+          let (right, left) = (self.pop(), self.pop());
+
+          match (left, right) {
+            (Value::Number(left), Value::Number(right)) => {
+              self.stack.push(Value::Boolean(left < right));
+            }
+            (Value::String(left), Value::String(right)) => {
+              self.stack.push(Value::Boolean(left < right));
+            }
+            _ => {
+              break runtime_error!(
+                self,
+                "Operands must be two numbers or two strings.",
+                function.chunk,
+                ip
+              );
+            }
+          }
+
           ip += 1;
         }
         OpCode::Greater => {
-          numeric_expression!(self, >, Boolean, function.chunk, ip);
+          let (right, left) = (self.pop(), self.pop());
+
+          match (left, right) {
+            (Value::Number(left), Value::Number(right)) => {
+              self.stack.push(Value::Boolean(left > right));
+            }
+            (Value::String(left), Value::String(right)) => {
+              self.stack.push(Value::Boolean(left > right));
+            }
+            _ => {
+              break runtime_error!(
+                self,
+                "Operands must be two numbers or two strings.",
+                function.chunk,
+                ip
+              );
+            }
+          }
+
           ip += 1;
         }
 
