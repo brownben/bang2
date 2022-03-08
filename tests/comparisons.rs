@@ -27,6 +27,32 @@ let d = 10 > -10
   d == true
 );
 
+bang_test!(less_than_strings
+"
+let a = 'b' < 'c'
+let b = 'b' < 'b'
+let c = 'H' < 'h'
+let d = 'hello' < 'Hello'
+"
+  a == true
+  b == false
+  c == true
+  d == false
+);
+
+bang_test!(greater_than_strings
+"
+let a = 'b' > 'c'
+let b = 'b' > 'b'
+let c = 'H' > 'h'
+let d = 'hello' > 'Hello'
+"
+  a == false
+  b == false
+  c == false
+  d == true
+);
+
 bang_test!(less_than_or_equal_to_numbers
 "
 let a = 3 <= 4
