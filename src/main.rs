@@ -1,16 +1,4 @@
-#![feature(box_patterns)]
-
-mod ast;
-mod builtins;
-mod chunk;
-mod compiler;
-mod diagnostic;
-mod linter;
-mod parser;
-mod print;
-mod tokens;
-mod value;
-mod vm;
+use bang::print;
 
 use clap::{Arg, Command};
 use rustyline::error::ReadlineError;
@@ -26,23 +14,22 @@ fn read_file(filename: &str) -> String {
   }
 }
 
-fn compile(source: &str) -> Result<chunk::Chunk, diagnostic::Diagnostic> {
-  let tokens = tokens::tokenize(source);
-  let ast = parser::parse(&tokens)?;
+fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
+  let tokens = bang::tokenize(source);
+  let ast = bang::parse(&tokens)?;
 
-  compiler::compile(&ast)
+  bang::compile(&ast)
 }
 
-fn interpret(source: &str) -> Result<HashMap<Rc<str>, value::Value>, diagnostic::Diagnostic> {
+fn interpret(source: &str) -> Result<HashMap<Rc<str>, bang::Value>, bang::Diagnostic> {
   let chunk = compile(source)?;
 
-  vm::run(chunk)
+  bang::run(chunk)
 }
 
 fn repl() {
   let mut rl = Editor::<()>::new();
-  let mut vm = vm::VM::new();
-  builtins::define_globals(&mut vm);
+  let mut vm = bang::VM::new();
 
   loop {
     let readline = rl.readline("> ");
@@ -127,23 +114,23 @@ fn main() {
   {
     let filename = subcommand.value_of("file").unwrap();
     let source = read_file(filename);
-    let tokens = tokens::tokenize(&source);
+    let tokens = bang::tokenize(&source);
 
     match command {
       "run" => match interpret(&source) {
         Ok(_) => {}
         Err(details) => print::error(filename, &source, details),
       },
-      "lint" => match parser::parse(&tokens) {
+      "lint" => match bang::parse(&tokens) {
         Ok(ast) => {
-          for lint in linter::lint(&ast) {
+          for lint in bang::lint(&ast) {
             print::warning(filename, &source, lint);
           }
         }
         Err(details) => print::error(filename, &source, details),
       },
       "tokens" => print::tokens(&tokens),
-      "ast" => match parser::parse(&tokens) {
+      "ast" => match bang::parse(&tokens) {
         Ok(ast) => print::ast(&ast),
         Err(details) => print::error(filename, &source, details),
       },
@@ -154,7 +141,7 @@ fn main() {
       _ => unreachable!(),
     }
   } else {
-    println!("Bang! ({})\n", version);
+    println!("Bang! ({})", version);
     repl();
   }
 }
