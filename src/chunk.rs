@@ -186,7 +186,7 @@ impl ChunkBuilder {
     self.code[offset + 1] = value as u8;
   }
 
-  pub fn finalize(&mut self) -> Chunk {
+  pub fn finalize(&mut self, name: String) -> Chunk {
     self.code.shrink_to_fit();
     self.constants.shrink_to_fit();
 
@@ -194,12 +194,14 @@ impl ChunkBuilder {
       code: self.code.clone(),
       constants: self.constants.clone(),
       lines: self.lines.finalize(),
+      name,
     }
   }
 }
 
 #[derive(Clone)]
 pub struct Chunk {
+  pub name: String,
   pub code: Vec<u8>,
   pub constants: Vec<Value>,
   lines: LineInfo,

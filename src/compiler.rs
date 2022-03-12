@@ -157,10 +157,10 @@ impl<'s> Compiler<'s> {
     self.begin_scope();
   }
 
-  fn finish_chunk(&mut self) -> Chunk {
+  fn finish_chunk(&mut self, name: String) -> Chunk {
     let mut chunk = std::mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
     self.end_scope();
-    chunk.finalize()
+    chunk.finalize(name)
   }
 
   fn error(&mut self, token: &'s Token<'s>, error: Error) {
@@ -416,7 +416,7 @@ impl<'s> Compiler<'s> {
         self.compile_statement(body);
         self.emit_opcode(token, OpCode::Null);
         self.emit_opcode(token, OpCode::Return);
-        let chunk = self.finish_chunk();
+        let chunk = self.finish_chunk(name.unwrap_or("").to_string());
 
         self.emit_constant(
           token,
@@ -480,7 +480,7 @@ pub fn compile(ast: &[Stmt]) -> Result<Chunk, Diagnostic> {
 
   compiler.emit_opcode_blank(OpCode::Return);
 
-  let chunk = compiler.chunk.finalize();
+  let chunk = compiler.chunk.finalize("<script>".to_string());
 
   Ok(chunk)
 }

@@ -199,17 +199,17 @@ mod chunk {
     value::Value,
   };
 
-  pub fn print(chunk: &Chunk, name: &str) {
-    disassemble_chunk(chunk, name);
+  pub fn print(chunk: &Chunk) {
+    disassemble_chunk(chunk);
     for constant in &chunk.constants {
       if let Value::Function(function) = constant {
-        print(&function.chunk, "function");
+        print(&function.chunk);
       }
     }
   }
 
-  fn disassemble_chunk(chunk: &Chunk, name: &str) {
-    println!("          ╭─[Bytecode:{}]", name);
+  fn disassemble_chunk(chunk: &Chunk) {
+    println!("          ╭─[Bytecode:{}]", chunk.name);
 
     let mut position: usize = 0;
     let mut last_line_number = 0;
