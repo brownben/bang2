@@ -7,7 +7,7 @@ use crate::{
 use std::{collections::HashMap, rc::Rc};
 
 macro_rules! runtime_error {
-  ($vm:expr, $message:expr, $chunk:expr, $ip:expr) => {{
+  (($vm:expr, $chunk:expr, $ip:expr), $($message:tt)+) => {{
     $vm.stack.clear();
 
     let mut lines = vec![$chunk.get_line_number($ip)];
@@ -17,7 +17,7 @@ macro_rules! runtime_error {
     }
 
     Err(Diagnostic {
-      title: $message.to_string(),
+      title: format!($($message)+),
       message: "".to_string(),
       lines,
     })
@@ -37,7 +37,7 @@ macro_rules! numeric_expression {
         $vm.stack.push(Value::$type(left $token right));
       }
       _ => {
-        break runtime_error!($vm, "Both operands must be numbers.", $chunk, $ip);
+        break runtime_error!(($vm, $chunk, $ip), "Both operands must be numbers.");
       }
     }
   };
@@ -59,11 +59,15 @@ pub struct VM {
 
 impl VM {
   pub fn new() -> Self {
-    Self {
+    let mut vm = Self {
       stack: Vec::with_capacity(32),
       frames: Vec::with_capacity(16),
       globals: HashMap::new(),
-    }
+    };
+
+    builtins::define_globals(&mut vm);
+
+    vm
   }
 
   fn store_frame(&mut self, function: Rc<Function>, ip: usize, offset: usize) {
@@ -131,10 +135,8 @@ impl VM {
             }
             _ => {
               break runtime_error!(
-                self,
+                (self, function.chunk, ip),
                 "Operands must be two numbers or two strings.",
-                function.chunk,
-                ip
               );
             }
           }
@@ -158,7 +160,11 @@ impl VM {
           if let Value::Number(n) = value {
             self.stack.push(Value::Number(-n));
           } else {
-            break runtime_error!(self, "Operand must be a number.", function.chunk, ip);
+            break runtime_error!(
+              (self, function.chunk, ip),
+              "Operand must be a number but recieved {}.",
+              value.get_type()
+            );
           }
 
           ip += 1;
@@ -186,10 +192,8 @@ impl VM {
             }
             _ => {
               break runtime_error!(
-                self,
+                (self, function.chunk, ip),
                 "Operands must be two numbers or two strings.",
-                function.chunk,
-                ip
               );
             }
           }
@@ -208,10 +212,8 @@ impl VM {
             }
             _ => {
               break runtime_error!(
-                self,
+                (self, function.chunk, ip),
                 "Operands must be two numbers or two strings.",
-                function.chunk,
-                ip
               );
             }
           }
@@ -243,10 +245,9 @@ impl VM {
             self.stack.push(value.clone());
           } else {
             break runtime_error!(
-              self,
-              format!("Undefined variable '{}'", name.as_str()),
-              function.chunk,
-              ip
+              (self, function.chunk, ip),
+              "Undefined variable '{}'",
+              name.as_str(),
             );
           }
 
@@ -262,8 +263,11 @@ impl VM {
           {
             entry.insert(value);
           } else {
-            let message = &format!("Undefined variable '{}'", name.as_str());
-            break runtime_error!(self, message, function.chunk, ip);
+            break runtime_error!(
+              (self, function.chunk, ip),
+              "Undefined variable '{}'",
+              name.as_str()
+            );
           }
 
           ip += 2;
@@ -326,8 +330,12 @@ impl VM {
           match callee {
             Value::Function(func) => {
               if arg_count != func.arity {
-                let message = &format!("Expected {} arguments but got {}.", func.arity, arg_count);
-                break runtime_error!(self, message, function.chunk, ip);
+                break runtime_error!(
+                  (self, function.chunk, ip),
+                  "Expected {} arguments but got {}.",
+                  func.arity,
+                  arg_count
+                );
               }
 
               self.store_frame(function.clone(), ip + 2, offset);
@@ -338,8 +346,12 @@ impl VM {
             }
             Value::NativeFunction(func) => {
               if arg_count != func.arity {
-                let message = &format!("Expected {} arguments but got {}.", func.arity, arg_count);
-                break runtime_error!(self, message, function.chunk, ip);
+                break runtime_error!(
+                  (self, function.chunk, ip),
+                  "Expected {} arguments but got {}.",
+                  func.arity,
+                  arg_count
+                );
               }
 
               let start_of_args = self.stack.len() - arg_count as usize;
@@ -353,12 +365,12 @@ impl VM {
               ip += 2;
             }
             _ => {
-              break runtime_error!(self, "Can only call functions.", function.chunk, ip);
+              break runtime_error!((self, function.chunk, ip), "Can only call functions.",);
             }
           }
         }
         OpCode::Unknown => {
-          break runtime_error!(self, "Unknown OpCode", function.chunk, ip);
+          break runtime_error!((self, function.chunk, ip), "Unknown OpCode");
         }
       }
 
@@ -383,7 +395,6 @@ impl VM {
 
 pub fn run(chunk: Chunk) -> Result<VMGlobals, Diagnostic> {
   let mut vm = VM::new();
-  builtins::define_globals(&mut vm);
 
   vm.run(chunk)?;
 
