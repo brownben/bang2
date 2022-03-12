@@ -1,5 +1,6 @@
+use ahash::AHashMap as HashMap;
 pub use bang;
-pub use std::{collections::HashMap, rc::Rc};
+pub use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]
 pub enum RunResult {
