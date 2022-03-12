@@ -135,7 +135,7 @@ fn main() {
         Err(details) => print::error(filename, &source, details),
       },
       "bytecode" => match compile(&source) {
-        Ok(chunk) => print::chunk(&chunk, filename),
+        Ok(chunk) => print::chunk(&chunk),
         Err(details) => print::error(filename, &source, details),
       },
       _ => unreachable!(),
