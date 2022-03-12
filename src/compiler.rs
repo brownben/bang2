@@ -70,52 +70,46 @@ impl<'s> Compiler<'s> {
     self.chunk.write_opcode(code, 0);
   }
 
-  fn emit_value(&mut self, token: &'s Token<'s>, value: u8) {
-    self.chunk.write_value(value, token.line);
-  }
-
-  fn emit_long_value(&mut self, token: &'s Token<'s>, value: u16) {
-    self.chunk.write_long_value(value, token.line);
-  }
-
   fn emit_constant(&mut self, token: &'s Token<'s>, value: Value) {
     let constant_position = self.chunk.add_constant(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
-      self.emit_opcode(token, OpCode::Constant);
-      self.emit_value(token, constant_position);
+      self.emit_opcode(token, OpCode::Constant(constant_position));
     } else if let Ok(constant_position) = u16::try_from(constant_position) {
-      self.emit_opcode(token, OpCode::ConstantLong);
-      self.emit_long_value(token, constant_position);
+      self.emit_opcode(token, OpCode::ConstantLong(constant_position));
     } else {
       self.error(token, Error::TooManyConstants);
     }
   }
 
-  fn emit_constant_string(&mut self, token: &'s Token<'s>, value: &'s str) {
+  fn emit_constant_string(&mut self, token: &'s Token<'s>, value: &'s str) -> u8 {
     let constant_position = self.chunk.add_constant_string(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
-      self.emit_value(token, constant_position);
+      constant_position
     } else {
       self.error(token, Error::TooManyConstants);
+      0
     }
   }
 
-  fn emit_jump(&mut self, token: &'s Token<'s>, instruction: OpCode) -> usize {
-    self.emit_opcode(token, instruction);
-    self.emit_long_value(token, u16::MAX);
-    self.chunk.length() - 2
+  fn emit_space(&mut self, token: &'s Token<'s>) -> usize {
+    self.emit_opcode(token, OpCode::Unknown);
+    self.chunk.length() - 1
   }
 
-  fn patch_jump(&mut self, token: &'s Token<'s>, offset: usize) {
-    let jump = self.chunk.length() - offset;
+  fn get_jump(&mut self, token: &'s Token<'s>, instruction_location: usize) -> u16 {
+    let jump = self.chunk.length() - instruction_location;
 
     if jump > u16::MAX as usize {
       self.error(token, Error::TooBigJump);
     }
 
-    self.chunk.set_long_value(offset, jump as u16);
+    jump as u16
+  }
+
+  fn patch_instruction(&mut self, instruction_location: usize, code: OpCode) {
+    self.chunk.patch_opcode(instruction_location, code)
   }
 
   fn length(&self) -> usize {
@@ -195,8 +189,8 @@ impl<'s> Compiler<'s> {
             });
           }
         } else {
-          self.emit_opcode(identifier, OpCode::DefineGlobal);
-          self.emit_constant_string(identifier, variable_name);
+          let name = self.emit_constant_string(identifier, variable_name);
+          self.emit_opcode(identifier, OpCode::DefineGlobal(name));
         }
       }
       Stmt::If {
@@ -209,19 +203,24 @@ impl<'s> Compiler<'s> {
       } => {
         self.compile_expression(condition);
 
-        let then_jump = self.emit_jump(if_token, OpCode::JumpIfFalse);
+        let then_jump_instruction = self.emit_space(if_token);
         self.emit_opcode(if_token, OpCode::Pop);
         self.compile_statement(then);
 
         if let Some(otherwise) = otherwise {
           let else_token = else_token.unwrap();
-          let else_jump = self.emit_jump(else_token, OpCode::Jump);
-          self.patch_jump(if_token, then_jump);
+          let else_jump_instruction = self.emit_space(else_token);
+
+          let jump = self.get_jump(if_token, then_jump_instruction);
+          self.patch_instruction(then_jump_instruction, OpCode::JumpIfFalse(jump));
           self.emit_opcode(else_token, OpCode::Pop);
+
           self.compile_statement(otherwise);
-          self.patch_jump(else_token, else_jump);
+          let jump = self.get_jump(else_token, else_jump_instruction);
+          self.patch_instruction(else_jump_instruction, OpCode::Jump(jump));
         } else {
-          self.patch_jump(if_token, then_jump);
+          let jump = self.get_jump(if_token, then_jump_instruction);
+          self.patch_instruction(then_jump_instruction, OpCode::JumpIfFalse(jump));
           self.emit_opcode(if_token, OpCode::Pop);
         }
       }
@@ -234,20 +233,20 @@ impl<'s> Compiler<'s> {
         let loop_start = self.length();
         self.compile_expression(condition);
 
-        let exit_jump = self.emit_jump(token, OpCode::JumpIfFalse);
+        let exit_jump = self.emit_space(token);
         self.emit_opcode(token, OpCode::Pop);
 
         self.compile_statement(body);
-        self.emit_opcode(token, OpCode::Loop);
 
         let offset = self.length() - loop_start;
         if offset > u16::MAX as usize {
           self.error(token, Error::TooBigJump);
         } else {
-          self.emit_long_value(token, offset as u16);
+          self.emit_opcode(token, OpCode::Loop(offset as u16));
         }
 
-        self.patch_jump(token, exit_jump);
+        let jump = self.get_jump(token, exit_jump);
+        self.patch_instruction(exit_jump, OpCode::JumpIfFalse(jump));
         self.emit_opcode(token, OpCode::Pop);
       }
       Stmt::Return {
@@ -353,11 +352,10 @@ impl<'s> Compiler<'s> {
         self.compile_expression(expression);
 
         if let Some(index) = local_index {
-          self.emit_opcode(identifier, OpCode::SetLocal);
-          self.emit_value(identifier, index as u8);
+          self.emit_opcode(identifier, OpCode::SetLocal(index as u8));
         } else {
-          self.emit_opcode(identifier, OpCode::SetGlobal);
-          self.emit_constant_string(identifier, variable_name);
+          let name = self.emit_constant_string(identifier, variable_name);
+          self.emit_opcode(identifier, OpCode::SetGlobal(name));
         }
       }
       Expr::Variable { token } => {
@@ -368,11 +366,10 @@ impl<'s> Compiler<'s> {
           .rposition(|local| local.name == variable_name);
 
         if let Some(index) = local_index {
-          self.emit_opcode(token, OpCode::GetLocal);
-          self.emit_value(token, index as u8);
+          self.emit_opcode(token, OpCode::GetLocal(index as u8));
         } else {
-          self.emit_opcode(token, OpCode::GetGlobal);
-          self.emit_constant_string(token, variable_name);
+          let name = self.emit_constant_string(token, variable_name);
+          self.emit_opcode(token, OpCode::GetGlobal(name));
         }
       }
       Expr::Call {
@@ -391,8 +388,7 @@ impl<'s> Compiler<'s> {
           self.compile_expression(argument);
         }
 
-        self.emit_opcode(token, OpCode::Call);
-        self.emit_value(token, arguments.len() as u8);
+        self.emit_opcode(token, OpCode::Call(arguments.len() as u8));
       }
 
       Expr::Function {
@@ -432,34 +428,39 @@ impl<'s> Compiler<'s> {
 
   fn and(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
-    let jump = self.emit_jump(operator, OpCode::JumpIfFalse);
+    let jump_instruction = self.emit_space(operator);
     self.emit_opcode(operator, OpCode::Pop);
     self.compile_expression(right);
-    self.patch_jump(operator, jump);
+    let jump = self.get_jump(operator, jump_instruction);
+    self.patch_instruction(jump_instruction, OpCode::JumpIfFalse(jump));
   }
 
   fn or(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
-    let else_jump = self.emit_jump(operator, OpCode::JumpIfFalse);
-    let end_jump = self.emit_jump(operator, OpCode::Jump);
+    let else_jump = self.emit_space(operator);
+    let end_jump = self.emit_space(operator);
 
-    self.patch_jump(operator, else_jump);
+    let jump = self.get_jump(operator, else_jump);
+    self.patch_instruction(else_jump, OpCode::JumpIfFalse(jump));
     self.emit_opcode(operator, OpCode::Pop);
 
     self.compile_expression(right);
-    self.patch_jump(operator, end_jump);
+    let jump = self.get_jump(operator, end_jump);
+    self.patch_instruction(end_jump, OpCode::Jump(jump));
   }
 
   fn nullish(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
-    let else_jump = self.emit_jump(operator, OpCode::JumpIfNull);
-    let end_jump = self.emit_jump(operator, OpCode::Jump);
+    let else_jump = self.emit_space(operator);
+    let end_jump = self.emit_space(operator);
 
-    self.patch_jump(operator, else_jump);
+    let jump = self.get_jump(operator, else_jump);
+    self.patch_instruction(else_jump, OpCode::JumpIfNull(jump));
     self.emit_opcode(operator, OpCode::Pop);
 
     self.compile_expression(right);
-    self.patch_jump(operator, end_jump);
+    let jump = self.get_jump(operator, end_jump);
+    self.patch_instruction(end_jump, OpCode::Jump(jump));
   }
 }
 

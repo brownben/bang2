@@ -223,79 +223,68 @@ mod chunk {
         last_line_number = line_number;
       }
 
-      position = disassemble_instruction(chunk, position);
+      disassemble_instruction(chunk, position);
+      position += 1;
     }
     println!("──────────╯");
   }
 
-  fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
+  fn disassemble_instruction(chunk: &Chunk, position: usize) {
     let instruction = chunk.get(position);
 
     match instruction {
-      OpCode::Constant => constant_instruction("Constant", chunk, position),
-      OpCode::ConstantLong => constant_long_instruction("Constant Long", chunk, position),
-      OpCode::Null => simple_instruction("Null", position),
-      OpCode::True => simple_instruction("True", position),
-      OpCode::False => simple_instruction("False", position),
-      OpCode::Add => simple_instruction("Add", position),
-      OpCode::Subtract => simple_instruction("Subtract", position),
-      OpCode::Multiply => simple_instruction("Multiply", position),
-      OpCode::Divide => simple_instruction("Divide", position),
-      OpCode::Negate => simple_instruction("Negate", position),
-      OpCode::Not => simple_instruction("Not", position),
-      OpCode::Equal => simple_instruction("Equal", position),
-      OpCode::Greater => simple_instruction("Greater", position),
-      OpCode::Less => simple_instruction("Less", position),
-      OpCode::Pop => simple_instruction("Pop", position),
-      OpCode::Return => simple_instruction("Return", position),
-      OpCode::DefineGlobal => constant_instruction("Define Global", chunk, position),
-      OpCode::GetGlobal => constant_instruction("Get Global", chunk, position),
-      OpCode::SetGlobal => constant_instruction("Set Global", chunk, position),
-      OpCode::Jump => jump_instruction("Jump", 1, chunk, position),
-      OpCode::JumpIfFalse => jump_instruction("Jump If False", 1, chunk, position),
-      OpCode::JumpIfNull => jump_instruction("Jump If Null", 1, chunk, position),
-      OpCode::Loop => jump_instruction("Loop", -1, chunk, position),
-      OpCode::GetLocal => byte_instruction("Get Local", chunk, position),
-      OpCode::SetLocal => byte_instruction("Set Local", chunk, position),
-      OpCode::Call => byte_instruction("Call", chunk, position),
-      OpCode::Unknown => simple_instruction("Unknown OpCode", position),
+      OpCode::Constant(location) => constant_instruction("Constant", chunk, location),
+      OpCode::ConstantLong(loc) => constant_long_instruction("Constant Long", chunk, loc),
+      OpCode::Null => simple_instruction("Null"),
+      OpCode::True => simple_instruction("True"),
+      OpCode::False => simple_instruction("False"),
+      OpCode::Add => simple_instruction("Add"),
+      OpCode::Subtract => simple_instruction("Subtract"),
+      OpCode::Multiply => simple_instruction("Multiply"),
+      OpCode::Divide => simple_instruction("Divide"),
+      OpCode::Negate => simple_instruction("Negate"),
+      OpCode::Not => simple_instruction("Not"),
+      OpCode::Equal => simple_instruction("Equal"),
+      OpCode::Greater => simple_instruction("Greater"),
+      OpCode::Less => simple_instruction("Less"),
+      OpCode::Pop => simple_instruction("Pop"),
+      OpCode::Return => simple_instruction("Return"),
+      OpCode::DefineGlobal(loc) => constant_instruction("Define Global", chunk, loc),
+      OpCode::GetGlobal(loc) => constant_instruction("Get Global", chunk, loc),
+      OpCode::SetGlobal(loc) => constant_instruction("Set Global", chunk, loc),
+      OpCode::Jump(distance) => jump_instruction("Jump", 1, distance),
+      OpCode::JumpIfFalse(distance) => jump_instruction("Jump If False", 1, distance),
+      OpCode::JumpIfNull(distance) => jump_instruction("Jump If Null", 1, distance),
+      OpCode::Loop(distance) => jump_instruction("Loop", -1, distance),
+      OpCode::GetLocal(location) => byte_instruction("Get Local", location),
+      OpCode::SetLocal(location) => byte_instruction("Set Local", location),
+      OpCode::Call(arity) => byte_instruction("Call", arity),
+      OpCode::Unknown => simple_instruction("Unknown OpCode"),
     }
   }
 
-  fn simple_instruction(name: &str, position: usize) -> usize {
+  fn simple_instruction(name: &str) {
     println!("{}", name);
-    position + 1
   }
 
-  fn constant_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
-    let constant_location = chunk.get_value(position + 1);
+  fn constant_instruction(name: &str, chunk: &Chunk, constant_location: u8) {
     let constant = chunk.get_constant(constant_location as usize);
 
     println!("{} {} ({})", name, constant, constant_location);
-
-    position + 2
   }
 
-  fn constant_long_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
-    let constant_location = chunk.get_long_value(position + 1);
+  fn constant_long_instruction(name: &str, chunk: &Chunk, constant_location: u16) {
     let constant = chunk.get_constant(constant_location as usize);
 
     println!("{} '{}' ({})", name, constant, constant_location);
-    position + 3
   }
 
-  fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
-    let value = chunk.get_value(position + 1);
-
+  fn byte_instruction(name: &str, value: u8) {
     println!("{} {}", name, value);
-    position + 2
   }
 
-  fn jump_instruction(name: &str, direction: i8, chunk: &Chunk, position: usize) -> usize {
-    let jump = chunk.get_long_value(position + 1);
-
+  fn jump_instruction(name: &str, direction: i8, jump: u16) {
     println!("{} {}", name, i32::from(jump) * i32::from(direction));
-    position + 3
   }
 }
 

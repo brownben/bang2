@@ -1,8 +1,9 @@
 use crate::{tokens::LineNumber, value::Value};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
-  Constant,
-  ConstantLong,
+  Constant(u8),
+  ConstantLong(u16),
   Null,
   True,
   False,
@@ -16,51 +17,18 @@ pub enum OpCode {
   Greater,
   Less,
   Pop,
-  DefineGlobal,
-  GetGlobal,
-  SetGlobal,
-  Jump,
-  JumpIfFalse,
-  JumpIfNull,
-  Loop,
-  GetLocal,
-  SetLocal,
+  DefineGlobal(u8),
+  GetGlobal(u8),
+  SetGlobal(u8),
+  Jump(u16),
+  JumpIfFalse(u16),
+  JumpIfNull(u16),
+  Loop(u16),
+  GetLocal(u8),
+  SetLocal(u8),
   Return,
-  Call,
+  Call(u8),
   Unknown,
-}
-impl From<u8> for OpCode {
-  fn from(code: u8) -> Self {
-    match code {
-      0 => OpCode::Constant,
-      1 => OpCode::ConstantLong,
-      2 => OpCode::Null,
-      3 => OpCode::True,
-      4 => OpCode::False,
-      5 => OpCode::Add,
-      6 => OpCode::Subtract,
-      7 => OpCode::Multiply,
-      8 => OpCode::Divide,
-      9 => OpCode::Negate,
-      10 => OpCode::Not,
-      11 => OpCode::Equal,
-      12 => OpCode::Greater,
-      13 => OpCode::Less,
-      14 => OpCode::Pop,
-      15 => OpCode::DefineGlobal,
-      16 => OpCode::GetGlobal,
-      17 => OpCode::SetGlobal,
-      18 => OpCode::Jump,
-      19 => OpCode::JumpIfFalse,
-      20 => OpCode::JumpIfNull,
-      21 => OpCode::Loop,
-      22 => OpCode::GetLocal,
-      23 => OpCode::SetLocal,
-      24 => OpCode::Return,
-      25 => OpCode::Call,
-      _ => OpCode::Unknown,
-    }
-  }
 }
 
 type TokensOnLine = u16;
@@ -132,7 +100,7 @@ impl LineInfo {
 }
 
 pub struct ChunkBuilder {
-  code: Vec<u8>,
+  code: Vec<OpCode>,
   constants: Vec<Value>,
   lines: LineInfoBuilder,
 }
@@ -150,19 +118,12 @@ impl ChunkBuilder {
   }
 
   pub fn write_opcode(&mut self, code: OpCode, line: LineNumber) {
-    self.write_value(code as u8, line);
-  }
-
-  pub fn write_value(&mut self, code: u8, line: LineNumber) {
     self.code.push(code);
     self.lines.add(line);
   }
 
-  pub fn write_long_value(&mut self, code: u16, line: LineNumber) {
-    self.code.push((code >> 8) as u8);
-    self.lines.add(line);
-    self.code.push(code as u8);
-    self.lines.add(line);
+  pub fn patch_opcode(&mut self, opcode_position: usize, code: OpCode) {
+    self.code[opcode_position] = code;
   }
 
   pub fn add_constant(&mut self, value: Value) -> usize {
@@ -181,11 +142,6 @@ impl ChunkBuilder {
     self.add_constant(value)
   }
 
-  pub fn set_long_value(&mut self, offset: usize, value: u16) {
-    self.code[offset] = (value >> 8) as u8;
-    self.code[offset + 1] = value as u8;
-  }
-
   pub fn finalize(&mut self, name: String) -> Chunk {
     self.code.shrink_to_fit();
     self.constants.shrink_to_fit();
@@ -202,24 +158,13 @@ impl ChunkBuilder {
 #[derive(Clone)]
 pub struct Chunk {
   pub name: String,
-  pub code: Vec<u8>,
+  pub code: Vec<OpCode>,
   pub constants: Vec<Value>,
   lines: LineInfo,
 }
 impl Chunk {
   pub fn get(&self, position: usize) -> OpCode {
-    OpCode::from(self.code[position])
-  }
-
-  pub fn get_value(&self, position: usize) -> u8 {
     self.code[position]
-  }
-
-  pub fn get_long_value(&self, position: usize) -> u16 {
-    let first_byte = u16::from(self.get_value(position));
-    let second_byte = u16::from(self.get_value(position + 1));
-
-    (first_byte << 8) + second_byte
   }
 
   pub fn get_constant(&self, pointer: usize) -> Value {

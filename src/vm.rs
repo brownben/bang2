@@ -100,17 +100,15 @@ impl VM {
       let instruction = function.chunk.get(ip);
 
       match instruction {
-        OpCode::Constant => {
-          let constant_location = function.chunk.get_value(ip + 1);
+        OpCode::Constant(constant_location) => {
           let constant = function.chunk.get_constant(constant_location as usize);
           self.stack.push(constant);
-          ip += 2;
+          ip += 1;
         }
-        OpCode::ConstantLong => {
-          let constant_location = function.chunk.get_long_value(ip + 1) as u16;
+        OpCode::ConstantLong(constant_location) => {
           let constant = function.chunk.get_constant(constant_location as usize);
           self.stack.push(constant);
-          ip += 3;
+          ip += 1;
         }
         OpCode::Null => {
           self.stack.push(Value::Null);
@@ -227,19 +225,16 @@ impl VM {
           ip += 1;
         }
 
-        OpCode::DefineGlobal => {
-          let name_location = function.chunk.get_value(ip + 1);
+        OpCode::DefineGlobal(name_location) => {
           let name = function.chunk.get_constant(name_location as usize);
-
           let value = self.pop();
+
           self.globals.insert(name.as_str(), value);
 
-          ip += 2;
+          ip += 1;
         }
-        OpCode::GetGlobal => {
-          let name_location = function.chunk.get_value(ip + 1);
+        OpCode::GetGlobal(name_location) => {
           let name = function.chunk.get_constant(name_location as usize);
-
           let value = self.globals.get(&name.as_str());
 
           if let Some(value) = value {
@@ -252,10 +247,9 @@ impl VM {
             );
           }
 
-          ip += 2;
+          ip += 1;
         }
-        OpCode::SetGlobal => {
-          let name_location = function.chunk.get_value(ip + 1);
+        OpCode::SetGlobal(name_location) => {
           let name = function.chunk.get_constant(name_location as usize);
           let value = self.peek().clone();
 
@@ -271,41 +265,35 @@ impl VM {
             );
           }
 
-          ip += 2;
+          ip += 1;
         }
-        OpCode::GetLocal => {
-          let slot = function.chunk.get_value(ip + 1);
+        OpCode::GetLocal(slot) => {
           self.stack.push(self.stack[offset + slot as usize].clone());
-          ip += 2;
+          ip += 1;
         }
-        OpCode::SetLocal => {
-          let slot = function.chunk.get_value(ip + 1);
+        OpCode::SetLocal(slot) => {
           self.stack[offset + slot as usize] = self.peek().clone();
-          ip += 2;
+          ip += 1;
         }
 
-        OpCode::JumpIfFalse => {
-          let offset = function.chunk.get_long_value(ip + 1);
+        OpCode::JumpIfFalse(offset) => {
           if self.peek().is_falsy() {
-            ip += offset as usize + 1;
+            ip += offset as usize;
           } else {
-            ip += 3;
+            ip += 1;
           }
         }
-        OpCode::JumpIfNull => {
-          let offset = function.chunk.get_long_value(ip + 1);
+        OpCode::JumpIfNull(offset) => {
           ip += match self.peek() {
-            Value::Null => offset as usize + 1,
-            _ => 3,
+            Value::Null => offset as usize,
+            _ => 1,
           };
         }
-        OpCode::Jump => {
-          let offset = function.chunk.get_long_value(ip + 1);
-          ip += offset as usize + 1;
+        OpCode::Jump(offset) => {
+          ip += offset as usize;
         }
-        OpCode::Loop => {
-          let offset = function.chunk.get_long_value(ip + 1);
-          ip -= offset as usize - 1;
+        OpCode::Loop(offset) => {
+          ip -= offset as usize;
         }
 
         OpCode::Return => {
@@ -323,8 +311,7 @@ impl VM {
           ip = frame.ip;
           offset = frame.offset;
         }
-        OpCode::Call => {
-          let arg_count = function.chunk.get_value(ip + 1);
+        OpCode::Call(arg_count) => {
           let pos = self.stack.len() - arg_count as usize - 1;
           let callee = self.stack[pos].clone();
 
@@ -339,7 +326,7 @@ impl VM {
                 );
               }
 
-              self.store_frame(function.clone(), ip + 2, offset);
+              self.store_frame(function.clone(), ip + 1, offset);
 
               offset = self.stack.len() - arg_count as usize;
               function = func;
@@ -363,7 +350,7 @@ impl VM {
               self.stack.pop();
               self.stack.push(result);
 
-              ip += 2;
+              ip += 1;
             }
             _ => {
               break runtime_error!((self, function.chunk, ip), "Can only call functions.",);
@@ -376,7 +363,7 @@ impl VM {
       }
 
       #[cfg(feature = "debug")]
-      self.print_stack(ip);
+      self.print_stack(ip, &function.chunk);
     }
   }
 
@@ -385,8 +372,8 @@ impl VM {
   }
 
   #[cfg(feature = "debug")]
-  fn print_stack(&self, ip: usize) {
-    print!("{:0>4} │ ", ip);
+  fn print_stack(&self, ip: usize, chunk: &Chunk) {
+    print!("{} {:0>4} │ ", chunk.name, ip);
     for item in &self.stack {
       print!("{}, ", item);
     }
