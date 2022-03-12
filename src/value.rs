@@ -45,18 +45,18 @@ pub enum Value {
 impl Value {
   pub fn as_str(&self) -> Rc<str> {
     match self {
-      Value::String(string) => string.clone(),
+      Self::String(string) => string.clone(),
       _ => Rc::from(""),
     }
   }
 
   pub fn is_falsy(&self) -> bool {
     match self {
-      Value::Boolean(value) => !value,
-      Value::Null => true,
-      Value::Number(value) => (value - 0.0).abs() < f64::EPSILON,
-      Value::String(value) => value.is_empty(),
-      Value::Function(_) | Value::NativeFunction(_) => false,
+      Self::Boolean(value) => !value,
+      Self::Null => true,
+      Self::Number(value) => (value - 0.0).abs() < f64::EPSILON,
+      Self::String(value) => value.is_empty(),
+      Self::Function(_) | Self::NativeFunction(_) => false,
     }
   }
 
@@ -80,12 +80,12 @@ impl Value {
 impl PartialEq for Value {
   fn eq(&self, other: &Self) -> bool {
     match (self, other) {
-      (Value::Boolean(value), Value::Boolean(other)) => value == other,
-      (Value::Null, Value::Null) => true,
-      (Value::Number(value), Value::Number(other)) => (value - other).abs() < f64::EPSILON,
-      (Value::String(value), Value::String(other)) => value.eq(other),
-      (Value::Function(value), Value::Function(other)) => Rc::ptr_eq(value, other),
-      (Value::NativeFunction(value), Value::NativeFunction(other)) => Rc::ptr_eq(value, other),
+      (Self::Boolean(value), Self::Boolean(other)) => value == other,
+      (Self::Null, Self::Null) => true,
+      (Self::Number(value), Self::Number(other)) => (value - other).abs() < f64::EPSILON,
+      (Self::String(value), Self::String(other)) => value.eq(other),
+      (Self::Function(value), Self::Function(other)) => Rc::ptr_eq(value, other),
+      (Self::NativeFunction(value), Self::NativeFunction(other)) => Rc::ptr_eq(value, other),
       _ => false,
     }
   }
@@ -94,12 +94,12 @@ impl PartialEq for Value {
 impl Display for Value {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
-      Value::Null => write!(f, "null"),
-      Value::Boolean(value) => write!(f, "{}", value),
-      Value::Number(value) => write!(f, "{}", value),
-      Value::String(value) => write!(f, "'{}'", value),
-      Value::Function(value) => write!(f, "<function {}>", value.name),
-      Value::NativeFunction(value) => write!(f, "<function {}>", value.name),
+      Self::Null => write!(f, "null"),
+      Self::Boolean(value) => write!(f, "{}", value),
+      Self::Number(value) => write!(f, "{}", value),
+      Self::String(value) => write!(f, "'{}'", value),
+      Self::Function(value) => write!(f, "<function {}>", value.name),
+      Self::NativeFunction(value) => write!(f, "<function {}>", value.name),
     }
   }
 }
