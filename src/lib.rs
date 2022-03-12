@@ -1,6 +1,6 @@
 #![feature(box_patterns)]
-
-use std::{collections::HashMap, rc::Rc};
+use ahash::AHashMap as HashMap;
+use std::rc::Rc;
 
 mod ast;
 mod builtins;

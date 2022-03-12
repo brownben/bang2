@@ -1,9 +1,10 @@
 use bang::print;
 
+use ahash::AHashMap as HashMap;
 use clap::{Arg, Command};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
-use std::{collections::HashMap, fs, rc::Rc};
+use std::{fs, rc::Rc};
 
 fn read_file(filename: &str) -> String {
   if let Ok(file) = fs::read_to_string(filename) {

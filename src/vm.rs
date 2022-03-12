@@ -4,7 +4,8 @@ use crate::{
   diagnostic::Diagnostic,
   value::{Function, Value},
 };
-use std::{collections::HashMap, rc::Rc};
+use ahash::AHashMap as HashMap;
+use std::rc::Rc;
 
 macro_rules! runtime_error {
   (($vm:expr, $chunk:expr, $ip:expr), $($message:tt)+) => {{
@@ -60,7 +61,7 @@ pub struct VM {
 impl VM {
   pub fn new() -> Self {
     let mut vm = Self {
-      stack: Vec::with_capacity(32),
+      stack: Vec::with_capacity(64),
       frames: Vec::with_capacity(16),
       globals: HashMap::new(),
     };
