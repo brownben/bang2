@@ -79,6 +79,34 @@ let d = 10 >= -10
   d == true
 );
 
+bang_test!(less_than_mixed_types
+"
+let a = 3 < ''
+"
+  RuntimeError
+);
+
+bang_test!(less_than_wrong_type
+"
+let a = 3 < null
+"
+  RuntimeError
+);
+
+bang_test!(greater_than_mixed_types
+"
+let a = 3 > ''
+"
+  RuntimeError
+);
+
+bang_test!(greater_than_wrong_type
+"
+let a = 3 > null
+"
+  RuntimeError
+);
+
 bang_test!(equality_number
 "
 let a = 3 == 4

@@ -74,6 +74,13 @@ test(3, 5, 8)
   RuntimeError
 );
 
+bang_test!(native_function_errors_when_too_many_arguments
+"
+print(3, 5, 8)
+"
+  RuntimeError
+);
+
 bang_test!(function_errors_when_too_few_arguments
 "
 let test = (a, b,) ->

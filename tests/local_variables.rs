@@ -87,6 +87,20 @@ a + 1 = 8
   CompileError
 );
 
+bang_test!(cant_assign_to_literal
+"
+7 = 8
+"
+  CompileError
+);
+
+bang_test!(hanging_equals
+"
+7 =
+"
+  CompileError
+);
+
 bang_test!(assignment
 "
 let a

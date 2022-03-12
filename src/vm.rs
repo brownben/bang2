@@ -26,16 +26,12 @@ macro_rules! runtime_error {
 }
 
 macro_rules! numeric_expression {
-  ($vm:expr, $token:tt, $chunk:expr, $ip:expr) => {
-    numeric_expression!($vm, $token, Number, $chunk, $ip)
-  };
-
-  ($vm:expr, $token:tt, $type:tt, $chunk:expr, $ip:expr) => {
+  ($vm:expr, $token:tt,  $chunk:expr, $ip:expr) => {
     let (right, left) = ($vm.pop(), $vm.pop());
 
     match (left, right) {
       (Value::Number(left), Value::Number(right)) => {
-        $vm.stack.push(Value::$type(left $token right));
+        $vm.stack.push(Value::Number(left $token right));
       }
       _ => {
         break runtime_error!(($vm, $chunk, $ip), "Both operands must be numbers.");
