@@ -60,6 +60,16 @@ impl Value {
     }
   }
 
+  pub fn get_type(&self) -> &'static str {
+    match self {
+      Self::Null => "null",
+      Self::String(_) => "string",
+      Self::Number(_) => "number",
+      Self::Boolean(_) => "boolean",
+      Self::Function(_) | Self::NativeFunction(_) => "function",
+    }
+  }
+
   pub fn parse_number(string: &str) -> Value {
     let value: f64 = string.replace('_', "").parse().unwrap();
 

@@ -8,13 +8,7 @@ pub fn define_globals(vm: &mut VM) {
     println!("{}", args[0]);
     Value::Null
   });
-  let type_ = NativeFunction::create("type", 1, |args| match args[0] {
-    Value::Null => Value::from("null"),
-    Value::Number(_) => Value::from("number"),
-    Value::String(_) => Value::from("string"),
-    Value::Boolean(_) => Value::from("boolean"),
-    Value::Function(_) | Value::NativeFunction(_) => Value::from("function"),
-  });
+  let type_ = NativeFunction::create("type", 1, |args| Value::from(args[0].get_type()));
 
   vm.define_global("print", print);
   vm.define_global("type", type_);
