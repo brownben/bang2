@@ -17,6 +17,10 @@ mod format {
   }
 }
 
+fn remove_carriage_returns(value: &str) -> String {
+  str::replace(value, "\r", "")
+}
+
 pub fn tokens(tokens: &[Token]) {
   let mut line = 0;
 
@@ -34,13 +38,14 @@ pub fn tokens(tokens: &[Token]) {
     } else {
       token.value
     };
-    println!("{:?} ({})", token.ttype, value);
+    println!("{:?} ({})", token.ttype, remove_carriage_returns(value));
   }
   println!("─────╯");
 }
 
 pub use ast::print as ast;
 mod ast {
+  use super::remove_carriage_returns;
   use crate::ast::{Expr, Stmt};
 
   pub fn print(ast: &[Stmt]) {
@@ -52,10 +57,10 @@ mod ast {
   }
 
   fn print_expression(expression: &Expr, prefix: &str, prefix_raw: &str) {
-    let prefix_list_start = &format!("{prefix_raw}│  ╰─ ");
-    let prefix_list = &format!("{prefix_raw}│     ");
     let prefix_start = &format!("{prefix_raw}╰─ ");
     let prefix_blank = &format!("{prefix_raw}   ");
+    let prefix_start_indent = &format!("{prefix_raw}   ╰─ ");
+    let prefix_blank_indent = &format!("{prefix_raw}      ");
     let prefix_list_inline_start = &format!("{prefix_raw}├─ ");
     let prefix_list_inline = &format!("{prefix_raw}│  ");
     let prefix_list_indent_start = &format!("{prefix_raw}   ├─ ");
@@ -98,12 +103,14 @@ mod ast {
         arguments,
         ..
       } => {
-        println!("{}Call", prefix);
-        println!("{}├─ Expression", prefix_raw);
-        print_expression(expression, prefix_list_start, prefix_list);
-        println!("{}╰─ Arguments", prefix_raw);
-        for arg in arguments {
-          print_expression(arg, prefix_list_indent_start, prefix_list_indent);
+        print_expression(&*expression, prefix, prefix_blank);
+        println!("{}Call", prefix_start);
+
+        if let Some((last, arguments)) = arguments.split_last() {
+          for arg in arguments {
+            print_expression(arg, prefix_list_indent_start, prefix_list_indent);
+          }
+          print_expression(last, prefix_start_indent, prefix_blank_indent);
         }
       }
       Expr::Function {
@@ -119,6 +126,14 @@ mod ast {
           println!("{}Function ({})", prefix, params.join(", "));
         }
         print_statement(&*body, prefix_start, prefix_blank);
+      }
+      Expr::Comment { expression, token } => {
+        print_expression(&*expression, prefix, prefix_raw);
+        println!(
+          "{}Comment ({})",
+          prefix_start,
+          remove_carriage_returns(token.value)
+        );
       }
     }
   }
@@ -187,6 +202,13 @@ mod ast {
       Stmt::Expression { expression, .. } => {
         println!("{}Expression", prefix);
         print_expression(expression, prefix_start, prefix_blank);
+      }
+      Stmt::Comment { token, .. } => {
+        println!(
+          "{}Comment ({})",
+          prefix,
+          remove_carriage_returns(token.value)
+        );
       }
     }
   }
@@ -324,7 +346,7 @@ pub fn error(filename: &str, source: &str, diagnostic: Diagnostic) {
     "{} {}\n{}\n",
     format::bold(&format::red("Error:")),
     format::bold(&diagnostic.title),
-    diagnostic.message
+    remove_carriage_returns(&diagnostic.message)
   );
 
   for line_number in diagnostic.lines {

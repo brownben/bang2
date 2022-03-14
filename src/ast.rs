@@ -38,15 +38,19 @@ pub enum Expr<'source> {
   Variable {
     token: TokenRef<'source>,
   },
+  Comment {
+    token: TokenRef<'source>,
+    expression: Box<Expr<'source>>,
+  },
 }
 impl<'s> Expr<'s> {
   pub fn has_side_effect(&self) -> bool {
     match self {
       Expr::Call { .. } | Expr::Assignment { .. } => true,
       Expr::Function { .. } | Expr::Variable { .. } | Expr::Literal { .. } => false,
-      Expr::Group { expression, .. } | Expr::Unary { expression, .. } => {
-        expression.has_side_effect()
-      }
+      Expr::Group { expression, .. }
+      | Expr::Unary { expression, .. }
+      | Expr::Comment { expression, .. } => expression.has_side_effect(),
       Expr::Binary { left, right, .. } => left.has_side_effect() || right.has_side_effect(),
     }
   }
@@ -57,7 +61,8 @@ impl<'s> Expr<'s> {
       Expr::Function { .. } | Expr::Literal { .. } => true,
       Expr::Group { expression, .. }
       | Expr::Unary { expression, .. }
-      | Expr::Assignment { expression, .. } => expression.is_constant(),
+      | Expr::Assignment { expression, .. }
+      | Expr::Comment { expression, .. } => expression.is_constant(),
       Expr::Binary { left, right, .. } => left.is_constant() && right.is_constant(),
     }
   }
@@ -91,6 +96,9 @@ pub enum Stmt<'source> {
     token: TokenRef<'source>,
     condition: Expr<'source>,
     body: Box<Stmt<'source>>,
+  },
+  Comment {
+    token: TokenRef<'source>,
   },
 }
 
@@ -131,6 +139,7 @@ pub trait Visitor {
         self.visit_expression(condition);
         self.visit_statement(body);
       }
+      Stmt::Comment { .. } => {}
     }
 
     self.exit_statement(statement);
@@ -155,6 +164,7 @@ pub trait Visitor {
       }
       Expr::Function { body, .. } => self.visit_statement(body),
       Expr::Literal { .. } | Expr::Variable { .. } => {}
+      Expr::Comment { expression, .. } => self.visit_expression(expression),
     }
 
     self.exit_expression(expression);

@@ -273,6 +273,7 @@ impl<'s> Compiler<'s> {
           self.emit_opcode_blank(OpCode::Pop);
         }
       }
+      Stmt::Comment { .. } => {}
     }
   }
 
@@ -427,6 +428,7 @@ impl<'s> Compiler<'s> {
           }),
         );
       }
+      Expr::Comment { expression, .. } => self.compile_expression(expression),
     }
   }
 

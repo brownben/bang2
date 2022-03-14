@@ -18,6 +18,7 @@ enum Precedence {
   Unary,      // ! -
   Call,       // . ()
   Primary,
+  Comment,
 }
 
 impl Precedence {
@@ -33,7 +34,7 @@ impl Precedence {
       Self::Term => Self::Factor,
       Self::Factor => Self::Unary,
       Self::Unary => Self::Call,
-      Self::Call | Self::Primary => Self::Primary,
+      Self::Call | Self::Primary | Self::Comment => Self::Primary,
     }
   }
 
@@ -49,6 +50,7 @@ impl Precedence {
       TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => {
         Self::Comparison
       }
+      TokenType::Comment => Self::Comment,
       _ => Self::None,
     }
   }
@@ -132,7 +134,7 @@ impl<'source> Parser<'source> {
     self.position += 1;
     let token = self.current();
 
-    if matches!(token.ttype, TokenType::Whitespace | TokenType::Comment) {
+    if token.ttype == TokenType::Whitespace {
       self.next()
     } else {
       token
@@ -143,7 +145,7 @@ impl<'source> Parser<'source> {
     self.position -= 1;
     let token = self.current();
 
-    if matches!(token.ttype, TokenType::Whitespace | TokenType::Comment) {
+    if token.ttype == TokenType::Whitespace {
       self.back()
     } else {
       token
@@ -291,6 +293,7 @@ impl<'source> Parser<'source> {
   ) -> Result<Option<Expr<'source>>, Error> {
     match token_type {
       TokenType::LeftParen => Ok(Some(self.call(previous)?)),
+      TokenType::Comment => Ok(Some(self.comment(previous))),
       TokenType::Plus
       | TokenType::Minus
       | TokenType::Star
@@ -325,7 +328,7 @@ impl<'source> Parser<'source> {
   }
 
   fn statement(&mut self) -> StatementResult<'source> {
-    while matches!(self.current().ttype, TokenType::EndOfLine) {
+    while self.current().ttype == TokenType::EndOfLine {
       self.next();
     }
 
@@ -369,6 +372,7 @@ impl<'source> Parser<'source> {
       TokenType::Return => self.return_statement(),
       TokenType::While => self.while_statement(),
       TokenType::EndOfFile => Err(Error::EmptyStatement),
+      TokenType::Comment => self.comment_statement(),
       _ => self.expression_statement(),
     }
   }
@@ -428,9 +432,11 @@ impl<'source> Parser<'source> {
     self.matches(TokenType::EndOfLine);
     let body = self.statement()?;
 
+    while self.matches(TokenType::EndOfLine) {}
+
     let (else_token, otherwise) = if self.current().ttype == TokenType::Else {
       let else_token = self.current_advance();
-      self.matches(TokenType::EndOfLine);
+      while self.matches(TokenType::EndOfLine) {}
 
       (Some(else_token), Some(Box::new(self.statement()?)))
     } else {
@@ -459,6 +465,13 @@ impl<'source> Parser<'source> {
       condition,
       body,
     })
+  }
+
+  fn comment_statement(&mut self) -> StatementResult<'source> {
+    let token = self.current_advance();
+    self.expect_newline()?;
+
+    Ok(Stmt::Comment { token })
   }
 
   fn expression_statement(&mut self) -> StatementResult<'source> {
@@ -610,6 +623,15 @@ impl<'source> Parser<'source> {
     })
   }
 
+  fn comment(&mut self, previous: Expr<'source>) -> Expr<'source> {
+    let token = self.current();
+
+    Expr::Comment {
+      expression: Box::new(previous),
+      token,
+    }
+  }
+
   fn binary(&mut self, previous: Expr<'source>) -> ExpressionResult<'source> {
     let operator = self.current_advance();
     let precedence = Precedence::from(operator.ttype);
@@ -631,7 +653,9 @@ pub fn parse<'s>(tokens: &'s [Token<'s>]) -> Result<Vec<Stmt<'s>>, Diagnostic> {
     match parser.statement() {
       Ok(stmt) => statements.push(stmt),
       Err(Error::EmptyStatement) => {}
-      Err(err) => return Err(err.get_diagnostic(parser.current())),
+      Err(err) => {
+        return Err(err.get_diagnostic(parser.current()));
+      }
     }
   }
 
