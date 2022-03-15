@@ -52,7 +52,6 @@ pub enum TokenType {
 
   // Keywords
   Else,
-  Fun,
   If,
   Let,
   Return,
@@ -261,11 +260,7 @@ impl<'source> Tokeniser<'source> {
     match self.source[self.position] {
       b'a' => self.check_keyword(length, "and", TokenType::And),
       b'e' => self.check_keyword(length, "else", TokenType::Else),
-      b'f' => match self.source[self.position + 1] {
-        b'a' => self.check_keyword(length, "false", TokenType::False),
-        b'u' => self.check_keyword(length, "fun", TokenType::Fun),
-        _ => TokenType::Identifier,
-      },
+      b'f' => self.check_keyword(length, "false", TokenType::False),
       b'i' => self.check_keyword(length, "if", TokenType::If),
       b'l' => self.check_keyword(length, "let", TokenType::Let),
       b'n' => self.check_keyword(length, "null", TokenType::Null),
@@ -420,19 +415,18 @@ mod tests {
 
   #[test]
   fn should_tokenize_keywords() {
-    let tokens = tokenize("and else false fun if let null or return true while");
-    assert_eq!(tokens.len(), 21);
+    let tokens = tokenize("and else false if let null or return true while");
+    assert_eq!(tokens.len(), 19);
     assert_eq!(tokens[0].ttype, TokenType::And);
     assert_eq!(tokens[2].ttype, TokenType::Else);
     assert_eq!(tokens[4].ttype, TokenType::False);
-    assert_eq!(tokens[6].ttype, TokenType::Fun);
-    assert_eq!(tokens[8].ttype, TokenType::If);
-    assert_eq!(tokens[10].ttype, TokenType::Let);
-    assert_eq!(tokens[12].ttype, TokenType::Null);
-    assert_eq!(tokens[14].ttype, TokenType::Or);
-    assert_eq!(tokens[16].ttype, TokenType::Return);
-    assert_eq!(tokens[18].ttype, TokenType::True);
-    assert_eq!(tokens[20].ttype, TokenType::While);
+    assert_eq!(tokens[6].ttype, TokenType::If);
+    assert_eq!(tokens[8].ttype, TokenType::Let);
+    assert_eq!(tokens[10].ttype, TokenType::Null);
+    assert_eq!(tokens[12].ttype, TokenType::Or);
+    assert_eq!(tokens[14].ttype, TokenType::Return);
+    assert_eq!(tokens[16].ttype, TokenType::True);
+    assert_eq!(tokens[18].ttype, TokenType::While);
   }
 
   #[test]
