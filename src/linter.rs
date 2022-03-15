@@ -70,20 +70,12 @@ lint_rule! {
   message: "It is clearer to have the variable first then the value to compare to";
   visitor: {
     fn exit_expression(&mut self, expression: &Expr) {
-      if let Expr::Binary {
-        left,
-        right,
-        operator,
-        ..
-      } = expression
+      if let Expr::Binary { left, right, operator, ..} = expression
+        && let TokenType::EqualEqual | TokenType::BangEqual = operator.ttype
+        && let Expr::Variable { .. } = right.as_ref()
+        && let Expr::Literal { .. } = left.as_ref()
       {
-        if let TokenType::EqualEqual | TokenType::BangEqual = operator.ttype {
-          if let Expr::Variable { .. } = right.as_ref() {
-            if let Expr::Literal { .. } = left.as_ref() {
-              self.issues.push(operator.line);
-            }
-          }
-        }
+        self.issues.push(operator.line);
       }
     }
   }
@@ -95,12 +87,11 @@ lint_rule! {
   message: "Negative zero is unnecessary as 0 == -0";
   visitor: {
     fn exit_expression(&mut self, expression: &Expr) {
-      if let Expr::Unary { expression, .. } = expression {
-        if let Expr::Literal { value, token, .. } = expression.as_ref() {
-          if Value::parse_number(value) == Value::from(0.0) {
-            self.issues.push(token.line);
-          }
-        }
+      if let Expr::Unary { expression, .. } = expression
+        && let Expr::Literal { value, token, .. } = expression.as_ref()
+        && Value::parse_number(value) == Value::from(0.0)
+      {
+        self.issues.push(token.line);
       }
     }
   }
@@ -118,10 +109,10 @@ lint_rule! {
         ..
       } = expression
       {
-        if let Expr::Variable { token, .. } = expression.as_ref() {
-          if identifier.value == token.value {
-            self.issues.push(identifier.line);
-          }
+        if let Expr::Variable { token, .. } = expression.as_ref()
+          && identifier.value == token.value
+        {
+          self.issues.push(identifier.line);
         }
       }
     }
