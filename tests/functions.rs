@@ -205,3 +205,36 @@ let a = b() == null
 "
   a == true
 );
+
+bang_test!(factorial
+"
+let factorial = (n) ->
+  if (n == 0) return 1
+  else return factorial(n-1) * n
+
+let a = factorial(15)
+"
+  a == 1307674368000.0
+);
+
+bang_test!(factorial_tailcall
+"
+let factorial = (n, a) ->
+  if (n == 0) return a
+  else return factorial(n-1, a * n)
+
+let a = factorial(15, 1)
+"
+  a == 1307674368000.0
+);
+
+bang_test!(tailcall_loop
+  "
+let tailcall_loop = (n) ->
+  if (n == 0) return 0
+  else return tailcall_loop(n-1)
+
+let a = tailcall_loop(1000)
+"
+  a == 0.0
+);
