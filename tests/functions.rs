@@ -238,3 +238,29 @@ let a = tailcall_loop(1000)
 "
   a == 0.0
 );
+
+bang_test!(parameters_on_different_lines
+  "
+let test = (
+  a,
+  b,
+) ->
+  return a + b
+
+let a = test(3, 5)
+"
+  a == 8.0
+);
+
+bang_test!(arguments_on_different_lines
+  "
+let test = (a, b) ->
+  return a + b
+
+let a = test(
+  3,
+  5,
+)
+"
+  a == 8.0
+);

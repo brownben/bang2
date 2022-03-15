@@ -493,6 +493,7 @@ impl<'source> Parser<'source> {
 
     let mut parameters = Vec::new();
     loop {
+      self.matches(TokenType::EndOfLine);
       if self.matches(TokenType::RightParen) {
         break;
       }
@@ -602,6 +603,7 @@ impl<'source> Parser<'source> {
 
     let mut arguments = Vec::new();
     loop {
+      self.matches(TokenType::EndOfLine);
       if self.matches(TokenType::RightParen) {
         break;
       }
