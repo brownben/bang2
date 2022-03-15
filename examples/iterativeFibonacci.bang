@@ -1,0 +1,14 @@
+// Iterative Implementation of Fibonacci
+
+let fib_iterative = (n) ->
+  let x = 0
+  let y = 1
+  let i = 1
+  while (i < n)
+    let z = x + y
+    x = y
+    y = z
+    i += 1
+  return x
+
+fib_iterative(25)
