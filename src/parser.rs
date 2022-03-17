@@ -168,9 +168,22 @@ impl<'source> Parser<'source> {
   }
 
   fn current_advance(&mut self) -> &'source Token<'source> {
-    let token = self.get(self.position);
+    let token = self.current();
     self.next();
     token
+  }
+
+  fn expect(
+    &mut self,
+    token_type: TokenType,
+    message: Error,
+  ) -> Result<&'source Token<'source>, Error> {
+    let current = self.current();
+    if current.ttype == token_type {
+      Ok(current)
+    } else {
+      Err(message)
+    }
   }
 
   fn consume(
@@ -178,13 +191,9 @@ impl<'source> Parser<'source> {
     token_type: TokenType,
     message: Error,
   ) -> Result<&'source Token<'source>, Error> {
-    let current = self.current();
-    if current.ttype == token_type {
-      self.next();
-      Ok(current)
-    } else {
-      Err(message)
-    }
+    let result = self.expect(token_type, message)?;
+    self.next();
+    Ok(result)
   }
 
   fn consume_next(
@@ -534,12 +543,14 @@ impl<'source> Parser<'source> {
       return self.function();
     }
 
-    self.next(); // Skip first bracket
+    let token = self.current_advance();
     let expression = self.expression()?;
-    self.consume_next(TokenType::RightParen, Error::ExpectedClosingBracket)?;
-    self.back();
+    self.next();
+    let end_token = self.expect(TokenType::RightParen, Error::ExpectedClosingBracket)?;
 
     Ok(Expr::Group {
+      token,
+      end_token,
       expression: Box::new(expression),
     })
   }
@@ -602,26 +613,25 @@ impl<'source> Parser<'source> {
     let token = self.current_advance();
 
     let mut arguments = Vec::new();
-    loop {
+    let end_token = loop {
       self.matches(TokenType::EndOfLine);
-      if self.matches(TokenType::RightParen) {
-        break;
+      if self.current().ttype == TokenType::RightParen {
+        break self.current();
       }
 
       arguments.push(self.expression()?);
       self.next();
 
       if !self.matches(TokenType::Comma) {
-        self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
-        break;
+        break self.expect(TokenType::RightParen, Error::ExpectedClosingBracket)?;
       }
-    }
-    self.back();
+    };
 
     Ok(Expr::Call {
       expression: Box::new(previous),
       token,
       arguments,
+      end_token,
     })
   }
 
@@ -704,7 +714,7 @@ mod tests {
     let statements = super::parse(&tokens).unwrap();
 
     if let Stmt::Expression {
-      expression: Expr::Group { expression },
+      expression: Expr::Group { expression, .. },
     } = &statements[0]
     {
       assert_literal(&**expression, "'hello world'", TokenType::String);

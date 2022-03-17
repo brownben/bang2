@@ -68,7 +68,7 @@ mod ast {
 
     match expression {
       Expr::Literal { token, .. } => println!("{}Literal ({})", prefix, token.value),
-      Expr::Group { expression } => {
+      Expr::Group { expression, .. } => {
         println!("{}Group", prefix);
         print_expression(&*expression, prefix_start, prefix_blank);
       }

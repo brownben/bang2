@@ -287,7 +287,7 @@ impl<'s> Compiler<'s> {
         TokenType::String => self.emit_constant(token, Value::from(*value)),
         _ => unreachable!(),
       },
-      Expr::Group { expression } => {
+      Expr::Group { expression, .. } => {
         self.compile_expression(expression);
       }
       Expr::Unary {

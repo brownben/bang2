@@ -2,6 +2,11 @@ use crate::tokens::Token;
 
 type TokenRef<'source> = &'source Token<'source>;
 
+pub trait GetPosition<'s> {
+  fn get_start(&'s self) -> TokenRef<'s>;
+  fn get_end(&'s self) -> TokenRef<'s>;
+}
+
 #[derive(Debug)]
 pub enum Expr<'source> {
   Assignment {
@@ -15,6 +20,7 @@ pub enum Expr<'source> {
   },
   Call {
     token: TokenRef<'source>,
+    end_token: TokenRef<'source>,
     expression: Box<Expr<'source>>,
     arguments: Vec<Expr<'source>>,
   },
@@ -25,6 +31,8 @@ pub enum Expr<'source> {
     name: Option<&'source str>,
   },
   Group {
+    token: TokenRef<'source>,
+    end_token: TokenRef<'source>,
     expression: Box<Expr<'source>>,
   },
   Literal {
@@ -67,6 +75,34 @@ impl<'s> Expr<'s> {
     }
   }
 }
+impl<'s> GetPosition<'s> for Expr<'s> {
+  fn get_start(&'s self) -> TokenRef<'s> {
+    match self {
+      Expr::Call { token, .. }
+      | Expr::Comment { token, .. }
+      | Expr::Function { token, .. }
+      | Expr::Group { token, .. }
+      | Expr::Literal { token, .. }
+      | Expr::Variable { token, .. } => token,
+      Expr::Unary { operator, .. } => operator,
+      Expr::Assignment { identifier, .. } => identifier,
+      Expr::Binary { left, .. } => left.get_start(),
+    }
+  }
+
+  fn get_end(&'s self) -> TokenRef<'s> {
+    match self {
+      Expr::Comment { token, .. } | Expr::Literal { token, .. } | Expr::Variable { token, .. } => {
+        token
+      }
+      Expr::Call { end_token, .. } | Expr::Group { end_token, .. } => end_token,
+      Expr::Assignment { identifier, .. } => identifier,
+      Expr::Binary { right, .. } => right.get_end(),
+      Expr::Function { body, .. } => body.get_end(),
+      Expr::Unary { expression, .. } => expression.get_end(),
+    }
+  }
+}
 
 #[derive(Debug)]
 pub enum Stmt<'source> {
@@ -100,6 +136,55 @@ pub enum Stmt<'source> {
   Comment {
     token: TokenRef<'source>,
   },
+}
+impl<'s> GetPosition<'s> for Stmt<'s> {
+  fn get_start(&'s self) -> TokenRef<'s> {
+    match self {
+      Stmt::Block { body, .. } => body.first().unwrap().get_start(),
+      Stmt::Declaration { token, .. } => token,
+      Stmt::Expression { expression, .. } => expression.get_start(),
+      Stmt::If { if_token, .. } => if_token,
+      Stmt::Return { token, .. } | Stmt::While { token, .. } | Stmt::Comment { token, .. } => token,
+    }
+  }
+
+  fn get_end(&'s self) -> TokenRef<'s> {
+    match self {
+      Stmt::Block { body, .. } => body.last().unwrap().get_end(),
+      Stmt::Declaration {
+        identifier,
+        expression,
+        ..
+      } => {
+        if let Some(expression) = expression {
+          expression.get_end()
+        } else {
+          identifier
+        }
+      }
+      Stmt::Expression { expression, .. } => expression.get_end(),
+      Stmt::If {
+        then, otherwise, ..
+      } => {
+        if let Some(otherwise) = otherwise {
+          otherwise.get_end()
+        } else {
+          then.get_end()
+        }
+      }
+      Stmt::Return {
+        token, expression, ..
+      } => {
+        if let Some(expression) = expression {
+          expression.get_end()
+        } else {
+          token
+        }
+      }
+      Stmt::While { body, .. } => body.get_end(),
+      Stmt::Comment { token, .. } => token,
+    }
+  }
 }
 
 pub trait Visitor {
