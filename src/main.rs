@@ -63,20 +63,14 @@ fn main() {
     .version(version)
     .subcommand(Command::new("").about("Open a REPL"))
     .subcommand(
-      Command::new("run").about("Execute a Bang program").arg(
-        Arg::new("file")
-          .help("The file to run")
-          .required(true)
-          .index(1),
-      ),
+      Command::new("run")
+        .about("Execute a Bang program")
+        .arg(Arg::new("file").help("The file to run").required(true)),
     )
     .subcommand(
-      Command::new("lint").about("Run linter on a bang file").arg(
-        Arg::new("file")
-          .help("The file to lint")
-          .required(true)
-          .index(1),
-      ),
+      Command::new("lint")
+        .about("Run linter on a bang file")
+        .arg(Arg::new("file").help("The file to lint").required(true)),
     )
     .subcommand(
       Command::new("tokens")
@@ -84,38 +78,42 @@ fn main() {
         .arg(
           Arg::new("file")
             .help("The file scan for tokens")
-            .required(true)
-            .index(1),
+            .required(true),
         ),
     )
     .subcommand(
       Command::new("ast")
         .about("Display the Abstract Syntax Tree for a file")
-        .arg(
-          Arg::new("file")
-            .help("The file to parse")
-            .required(true)
-            .index(1),
-        ),
+        .arg(Arg::new("file").help("The file to parse").required(true)),
     )
     .subcommand(
       Command::new("bytecode")
         .about("Display the Bytecode from a file")
+        .arg(Arg::new("file").help("The file to compile").required(true)),
+    )
+    .subcommand(
+      Command::new("format")
+        .alias("fmt")
+        .about("Format a bang file")
+        .arg(Arg::new("file").help("The file to format").required(true))
         .arg(
-          Arg::new("file")
-            .help("The file to compile")
-            .required(true)
-            .index(1),
+          Arg::new("dryrun")
+            .long("dryrun")
+            .help("Preview the results of the formatting"),
         ),
     )
     .get_matches();
 
-  if let Some((command @ ("lint" | "run" | "tokens" | "ast" | "bytecode"), subcommand)) =
+  if let Some((command @ ("lint" | "run" | "tokens" | "ast" | "bytecode" | "format"), subcommand)) =
     app.subcommand()
   {
     let filename = subcommand.value_of("file").unwrap();
     let source = read_file(filename);
     let tokens = bang::tokenize(&source);
+
+    if source.len() == 0 {
+      return;
+    }
 
     match command {
       "run" => match interpret(&source) {
@@ -137,6 +135,20 @@ fn main() {
       },
       "bytecode" => match compile(&source) {
         Ok(chunk) => print::chunk(&chunk),
+        Err(details) => print::error(filename, &source, details),
+      },
+      "format" => match bang::parse(&source, &tokens) {
+        Ok(ast) => {
+          let new_source = bang::format(&source, &ast);
+
+          if subcommand.is_present("dryrun") {
+            println!("{}", new_source);
+          } else if new_source != source {
+            fs::write(filename, new_source).unwrap();
+          } else {
+            println!("'{}' already matches the Bang format style!", filename);
+          }
+        }
         Err(details) => print::error(filename, &source, details),
       },
       _ => unreachable!(),

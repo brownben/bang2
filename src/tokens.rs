@@ -84,6 +84,59 @@ impl TokenType {
   }
 }
 
+impl std::fmt::Display for TokenType {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    use TokenType::*;
+
+    match self {
+      LeftParen => write!(f, "("),
+      RightParen => write!(f, ")"),
+      LeftBrace => write!(f, "{{"),
+      RightBrace => write!(f, "}}"),
+
+      Comma => write!(f, ","),
+      Dot => write!(f, "."),
+      Colon => write!(f, ":"),
+      RightArrow => write!(f, "->"),
+      FatRightArrow => write!(f, "=>"),
+
+      Minus => write!(f, "-"),
+      Plus => write!(f, "+"),
+      Slash => write!(f, "/"),
+      Star => write!(f, "*"),
+      Bang => write!(f, "!"),
+      And => write!(f, "and"),
+      Or => write!(f, "or"),
+      QuestionQuestion => write!(f, "??"),
+
+      BangEqual => write!(f, "!="),
+      Equal => write!(f, "="),
+      EqualEqual => write!(f, "=="),
+      Greater => write!(f, ">"),
+      GreaterEqual => write!(f, ">="),
+      Less => write!(f, "<"),
+      LessEqual => write!(f, "<="),
+
+      PlusEqual => write!(f, "+="),
+      MinusEqual => write!(f, "-="),
+      StarEqual => write!(f, "*="),
+      SlashEqual => write!(f, "/="),
+
+      True => write!(f, "true"),
+      False => write!(f, "false"),
+      Null => write!(f, "null"),
+
+      Else => write!(f, "else"),
+      If => write!(f, "if"),
+      Let => write!(f, "let"),
+      Return => write!(f, "return"),
+      While => write!(f, "while"),
+
+      _ => write!(f, ""),
+    }
+  }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Token {
   pub ttype: TokenType,

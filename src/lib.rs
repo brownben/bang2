@@ -7,6 +7,7 @@ mod builtins;
 mod chunk;
 mod compiler;
 mod diagnostic;
+mod formatter;
 mod linter;
 mod parser;
 pub mod print;
@@ -26,6 +27,9 @@ pub use parser::parse;
 
 // Check an AST for common problems
 pub use linter::lint;
+
+// Format an AST in a opinionated manner
+pub use formatter::format;
 
 // Compile an AST into a chunk of bytecode
 pub use chunk::Chunk;
