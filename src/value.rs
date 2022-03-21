@@ -114,6 +114,11 @@ impl From<f64> for Value {
     Self::Number(value)
   }
 }
+impl From<i32> for Value {
+  fn from(value: i32) -> Self {
+    Self::Number(value as f64)
+  }
+}
 impl From<String> for Value {
   fn from(value: String) -> Self {
     Self::String(Rc::from(value))
