@@ -402,7 +402,7 @@ impl<'source> Parser<'source> {
         parameters,
         body,
         name: Some(identifier.get_value(self.source)),
-      })
+      });
     }
 
     Ok(Stmt::Declaration {
@@ -656,7 +656,7 @@ pub fn parse<'s>(source: &'s str, tokens: &'s [Token]) -> Result<Vec<Stmt<'s>>, 
       Ok(stmt) => statements.push(stmt),
       Err(Error::EmptyStatement) => {}
       Err(err) => {
-        return Err(err.get_diagnostic(source, &parser.current()));
+        return Err(err.get_diagnostic(source, parser.current()));
       }
     }
   }

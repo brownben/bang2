@@ -111,7 +111,7 @@ fn main() {
     let source = read_file(filename);
     let tokens = bang::tokenize(&source);
 
-    if source.len() == 0 {
+    if source.is_empty() {
       return;
     }
 

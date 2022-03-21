@@ -66,14 +66,14 @@ pub enum TokenType {
   Unknown,
 }
 impl TokenType {
-  pub fn is_assignment_operator(&self) -> bool {
+  pub fn is_assignment_operator(self) -> bool {
     matches!(
       self,
       TokenType::PlusEqual | TokenType::MinusEqual | TokenType::StarEqual | TokenType::SlashEqual
     )
   }
 
-  pub fn get_corresponding_assignment_operator(&self) -> Option<TokenType> {
+  pub fn get_corresponding_assignment_operator(self) -> Option<TokenType> {
     match self {
       TokenType::PlusEqual | TokenType::Plus => Some(TokenType::PlusEqual),
       TokenType::MinusEqual | TokenType::Minus => Some(TokenType::MinusEqual),

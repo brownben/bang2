@@ -141,10 +141,12 @@ impl<'s> GetPosition<'s> for Stmt<'s> {
   fn get_start(&'s self) -> TokenRef<'s> {
     match self {
       Stmt::Block { body, .. } => body.first().unwrap().get_start(),
-      Stmt::Declaration { token, .. } => token,
       Stmt::Expression { expression, .. } => expression.get_start(),
       Stmt::If { if_token, .. } => if_token,
-      Stmt::Return { token, .. } | Stmt::While { token, .. } | Stmt::Comment { token, .. } => token,
+      Stmt::Comment { token, .. }
+      | Stmt::Declaration { token, .. }
+      | Stmt::Return { token, .. }
+      | Stmt::While { token, .. } => token,
     }
   }
 
@@ -235,6 +237,7 @@ pub trait Visitor<T: Copy> {
   fn visit_expression(&mut self, expression: &Expr, value: T) {
     match expression {
       Expr::Assignment { expression, .. }
+      | Expr::Comment { expression, .. }
       | Expr::Group { expression, .. }
       | Expr::Unary { expression, .. } => self.visit_expression(expression, value),
       Expr::Binary { left, right, .. } => {
@@ -253,7 +256,6 @@ pub trait Visitor<T: Copy> {
       }
       Expr::Function { body, .. } => self.visit_statement(body, value),
       Expr::Literal { .. } | Expr::Variable { .. } => {}
-      Expr::Comment { expression, .. } => self.visit_expression(expression, value),
     }
 
     self.exit_expression(expression, value);

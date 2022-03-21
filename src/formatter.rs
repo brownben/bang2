@@ -23,19 +23,6 @@ impl<'source> Formatter<'source> {
     token.get_value(self.source)
   }
 
-  fn write_comma(
-    &self,
-    item: usize,
-    length: usize,
-    f: &mut std::fmt::Formatter,
-  ) -> std::fmt::Result {
-    if item >= length - 1 {
-      Ok(())
-    } else {
-      write!(f, ", ")
-    }
-  }
-
   fn write_condition(
     &self,
     keyword: &str,
@@ -45,13 +32,13 @@ impl<'source> Formatter<'source> {
   ) -> std::fmt::Result {
     write!(f, "{} (", keyword)?;
 
-    if condition.get_start().line != condition.get_end().line {
+    if condition.get_start().line == condition.get_end().line {
+      self.fmt_expression(condition, indentation + 1, f)?;
+      write!(f, ")")?;
+    } else {
       write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
       self.fmt_expression(condition, indentation + 1, f)?;
       write!(f, "\n{})", INDENTATION.repeat(indentation))?;
-    } else {
-      self.fmt_expression(condition, indentation + 1, f)?;
-      write!(f, ")")?;
     }
 
     Ok(())
@@ -66,20 +53,20 @@ impl<'source> Formatter<'source> {
   ) -> std::fmt::Result {
     if let Stmt::Block { body, .. } = statement {
       if body.len() > 1 {
-        write!(f, "\n")?;
+        writeln!(f)?;
         self.fmt_statement(statement, indentation, true, f)?;
       } else {
         write!(f, " ")?;
         self.fmt_statement(&body[0], indentation, false, f)?;
         if trailing_newline {
-          write!(f, "\n")?;
+          writeln!(f)?;
         }
       }
     } else {
       write!(f, " ")?;
       self.fmt_statement(statement, indentation, false, f)?;
       if trailing_newline {
-        write!(f, "\n")?;
+        writeln!(f)?;
       }
     }
 
@@ -136,10 +123,12 @@ impl<'source> Formatter<'source> {
 
         write!(f, "(")?;
 
-        if all_same_line_as_bracket || arguments.len() == 0 {
+        if all_same_line_as_bracket || arguments.is_empty() {
           for (i, arg) in arguments.iter().enumerate() {
             self.fmt_expression(arg, indentation, f)?;
-            self.write_comma(i, arguments.len(), f)?;
+            if i < arguments.len() - 1 {
+              write!(f, ", ")?;
+            }
           }
         } else if all_same_line {
           write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
@@ -147,7 +136,7 @@ impl<'source> Formatter<'source> {
             self.fmt_expression(arg, indentation + 1, f)?;
             write!(f, ", ")?;
           }
-          write!(f, "\n")?;
+          writeln!(f)?;
         } else {
           for arg in arguments {
             write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
@@ -179,17 +168,19 @@ impl<'source> Formatter<'source> {
         let all_same_line = lines.iter().all(|line| line == &lines[0]);
         let all_same_line_as_bracket = all_same_line && lines.contains(&token.line);
 
-        if all_same_line_as_bracket || parameters.len() == 0 {
+        if all_same_line_as_bracket || parameters.is_empty() {
           for (i, parameter) in parameters.iter().enumerate() {
             write!(f, "{}",self.value(parameter))?;
-            self.write_comma(i, parameters.len(), f)?;
+            if i < parameters.len() - 1 {
+              write!(f, ", ")?;
+            }
           }
         } else if all_same_line {
           write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
           for parameter in parameters {
             write!(f, "{}, ", self.value(parameter))?;
           }
-          write!(f, "\n")?;
+          writeln!(f)?;
         } else {
           for parameter in parameters {
             write!(f, "\n{}{},", INDENTATION.repeat(indentation + 1), self.value(parameter))?;
@@ -205,7 +196,7 @@ impl<'source> Formatter<'source> {
           write!(f, ") => ")?;
           self.fmt_expression(expression, indentation, f)?;
         } else {
-          write!(f, ") ->\n")?;
+          writeln!(f, ") ->")?;
           self.fmt_statement(body, indentation, false, f)?;
         }
       }
@@ -313,7 +304,7 @@ impl<'source> Formatter<'source> {
     }
 
     if ending_new_line {
-      write!(f, "\n")
+      writeln!(f)
     } else {
       Ok(())
     }
@@ -322,14 +313,14 @@ impl<'source> Formatter<'source> {
 
 impl std::fmt::Display for Formatter<'_> {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    if self.ast.len() == 0 {
+    if self.ast.is_empty() {
       return Ok(());
     }
 
     let mut prev = &self.ast[0];
     for stmt in self.ast {
       if prev.get_end().line + 1 < stmt.get_start().line {
-        write!(f, "\n")?;
+        writeln!(f)?;
       }
 
       self.fmt_statement(stmt, 0, true, f)?;
