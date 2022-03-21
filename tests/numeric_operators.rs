@@ -164,3 +164,27 @@ let a = false + null
 "
   RuntimeError
 );
+
+bang_test!(operators_split_across_lines
+  "
+let a = 1 +
+  2
+let b = 3.4 -
+1.4
+
+let c = 1000
+  - 35.7
+
+let d = 1000.2
++ .8
+
+let e = 1000.2 - 0.2
++ 5
+
+"
+  a == 3.0
+  b == 2.0
+  c == 964.3
+  d == 1001.0
+  e == 1005.0
+);

@@ -220,6 +220,17 @@ impl<'source> Parser<'source> {
     matches
   }
 
+  fn skip_newline_if_illegal_line_start(&mut self) {
+    if self.next().ttype == TokenType::EndOfLine {
+      if !self.next().ttype.is_illegal_line_start() {
+        self.back();
+      }
+      self.back();
+    } else {
+      self.back();
+    }
+  }
+
   fn is_function_bracket(&self) -> bool {
     let mut position = self.position + 1;
     let mut token = self.get(position);
@@ -256,6 +267,7 @@ impl<'source> Parser<'source> {
     let can_assign = precedence <= Precedence::Assignment;
     let prefix = self.prefix_rule(token.ttype, can_assign)?;
     let mut previous = vec![prefix];
+    self.skip_newline_if_illegal_line_start();
 
     while precedence <= Precedence::from(self.next().ttype) {
       let token = self.current();
@@ -263,6 +275,8 @@ impl<'source> Parser<'source> {
       if let Some(value) = self.infix_rule(token.ttype, previous.pop().unwrap())? {
         previous.push(value);
       }
+
+      self.skip_newline_if_illegal_line_start();
     }
     self.back();
 

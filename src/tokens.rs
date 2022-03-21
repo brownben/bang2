@@ -82,6 +82,31 @@ impl TokenType {
       _ => None,
     }
   }
+
+  pub fn is_illegal_line_start(self) -> bool {
+    matches!(
+      self,
+      TokenType::Plus
+        | TokenType::Minus
+        | TokenType::Slash
+        | TokenType::Star
+        | TokenType::Bang
+        | TokenType::And
+        | TokenType::Or
+        | TokenType::QuestionQuestion
+        | TokenType::BangEqual
+        | TokenType::Equal
+        | TokenType::EqualEqual
+        | TokenType::Greater
+        | TokenType::GreaterEqual
+        | TokenType::Less
+        | TokenType::LessEqual
+        | TokenType::PlusEqual
+        | TokenType::MinusEqual
+        | TokenType::StarEqual
+        | TokenType::SlashEqual
+    )
+  }
 }
 
 impl std::fmt::Display for TokenType {
