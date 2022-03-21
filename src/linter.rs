@@ -5,8 +5,8 @@ use crate::{
   value::Value,
 };
 
-trait LintRule {
-  fn check(ast: &[Stmt]) -> Diagnostic;
+trait LintRule<'s> {
+  fn check(source: &'s str, ast: &[Stmt]) -> Diagnostic;
 }
 
 macro_rules! lint_rule {
@@ -19,10 +19,10 @@ macro_rules! lint_rule {
     pub struct $rule_name {
       issues: Vec<LineNumber>,
     }
-    impl LintRule for $rule_name {
-      fn check(ast: &[Stmt]) -> Diagnostic {
+    impl<'s> LintRule<'s> for $rule_name {
+      fn check(source: &'s str, ast: &[Stmt]) -> Diagnostic {
         let mut visitor = Self { issues: Vec::new() };
-        visitor.visit(ast);
+        visitor.visit(ast, source);
 
         Diagnostic {
           title: $title.to_string(),
@@ -31,7 +31,7 @@ macro_rules! lint_rule {
         }
       }
     }
-    impl Visitor for $rule_name $visitor
+    impl <'s> Visitor<&'s str> for $rule_name $visitor
   }
 }
 
@@ -40,7 +40,7 @@ lint_rule! {
   title: "No Constant Conditions";
   message: "The control flow could be removed, as the condition is always true or false";
   visitor: {
-    fn exit_statement(&mut self, statement: &Stmt) {
+    fn exit_statement(&mut self, statement: &Stmt, _source: &str) {
       match statement {
         Stmt::If {
           if_token,
@@ -69,7 +69,7 @@ lint_rule! {
   title: "No Yoda Equality";
   message: "It is clearer to have the variable first then the value to compare to";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr) {
+    fn exit_expression(&mut self, expression: &Expr, _source: &str) {
       if let Expr::Binary { left, right, operator, ..} = expression
         && let TokenType::EqualEqual | TokenType::BangEqual = operator.ttype
         && let Expr::Variable { .. } = right.as_ref()
@@ -86,7 +86,7 @@ lint_rule! {
   title: "No Negative Zero";
   message: "Negative zero is unnecessary as 0 == -0";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr) {
+    fn exit_expression(&mut self, expression: &Expr, _source: &str) {
       if let Expr::Unary { expression, .. } = expression
         && let Expr::Literal { value, token, .. } = expression.as_ref()
         && Value::parse_number(value) == Value::from(0.0)
@@ -102,7 +102,7 @@ lint_rule! {
   title: "No Self Assign";
   message: "Assigning a variable to itself is unnecessary";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr) {
+    fn exit_expression(&mut self, expression: &Expr, source: &str) {
       if let Expr::Assignment {
         identifier,
         expression,
@@ -110,7 +110,7 @@ lint_rule! {
       } = expression
       {
         if let Expr::Variable { token, .. } = expression.as_ref()
-          && identifier.value == token.value
+          && identifier.get_value(source.as_bytes()) == token.get_value(source.as_bytes())
         {
           self.issues.push(identifier.line);
         }
@@ -124,9 +124,9 @@ lint_rule! {
   title: "No Unreachable Code";
   message: "Code after a return can never be executed";
   visitor:{
-    fn exit_statement<'s>(&mut self, statement: &'s Stmt) {
+    fn exit_statement(&mut self, statement: &Stmt, _source: &str) {
       if let Stmt::Block { body, .. } = statement {
-        let mut seen_return: Option<&'s Token<'s>> = None;
+        let mut seen_return: Option<Token> = None;
         for statement in body {
           if let Some(token) = seen_return {
             self.issues.push(token.line);
@@ -134,7 +134,7 @@ lint_rule! {
           }
 
           if let Stmt::Return { token, .. } = statement {
-            seen_return = Some(token);
+            seen_return = Some(**token);
           }
         }
       }
@@ -142,13 +142,13 @@ lint_rule! {
   }
 }
 
-pub fn lint(ast: &[Stmt]) -> Vec<Diagnostic> {
+pub fn lint(source: &str, ast: &[Stmt]) -> Vec<Diagnostic> {
   let mut results = vec![
-    NoConstantCondition::check(ast),
-    NoYodaEquality::check(ast),
-    NoNegativeZero::check(ast),
-    NoSelfAssign::check(ast),
-    NoUnreachable::check(ast),
+    NoConstantCondition::check(source, ast),
+    NoYodaEquality::check(source, ast),
+    NoNegativeZero::check(source, ast),
+    NoSelfAssign::check(source, ast),
+    NoUnreachable::check(source, ast),
   ];
 
   results.retain(|r| !r.lines.is_empty());

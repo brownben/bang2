@@ -38,8 +38,8 @@ macro_rules! bang_benchmark {
 
       fn compile() -> Result<bang::Chunk, bang::Diagnostic> {
         let tokens = bang::tokenize(SOURCE);
-        let ast = bang::parse(&tokens)?;
-        bang::compile(&ast)
+        let ast = bang::parse(SOURCE, &tokens)?;
+        bang::compile(SOURCE, &ast)
       }
 
       #[bench]

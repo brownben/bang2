@@ -1,6 +1,7 @@
 pub type LineNumber = u16;
-pub type ColumnNumber = usize;
-pub type CharacterPosition = usize;
+pub type ColumnNumber = u16;
+pub type CharacterPosition = u32;
+pub type TokenLength = u16;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenType {
@@ -64,17 +65,43 @@ pub enum TokenType {
   EndOfFile,
   Unknown,
 }
+impl TokenType {
+  pub fn is_assignment_operator(&self) -> bool {
+    matches!(
+      self,
+      TokenType::PlusEqual | TokenType::MinusEqual | TokenType::StarEqual | TokenType::SlashEqual
+    )
+  }
 
-#[derive(Debug)]
-pub struct Token<'source> {
+  pub fn get_corresponding_assignment_operator(&self) -> Option<TokenType> {
+    match self {
+      TokenType::PlusEqual | TokenType::Plus => Some(TokenType::PlusEqual),
+      TokenType::MinusEqual | TokenType::Minus => Some(TokenType::MinusEqual),
+      TokenType::StarEqual | TokenType::Star => Some(TokenType::StarEqual),
+      TokenType::SlashEqual | TokenType::Slash => Some(TokenType::SlashEqual),
+      _ => None,
+    }
+  }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Token {
   pub ttype: TokenType,
-  pub value: &'source str,
-
   pub start: CharacterPosition,
-  pub end: CharacterPosition,
+  pub len: TokenLength,
 
   pub line: LineNumber,
   pub column: ColumnNumber,
+}
+impl Token {
+  pub fn get_value<'s>(&self, source: &'s [u8]) -> &'s str {
+    let start = self.start as usize;
+    let end = self.start as usize + self.len as usize;
+    unsafe {
+      // This is safe because `self.source` is converted from a string and not mutated.
+      std::str::from_utf8_unchecked(&source[start..end])
+    }
+  }
 }
 
 struct Tokeniser<'source> {
@@ -82,7 +109,7 @@ struct Tokeniser<'source> {
 
   line: LineNumber,
   column: ColumnNumber,
-  position: CharacterPosition,
+  position: usize,
 }
 
 impl<'source> Tokeniser<'source> {
@@ -100,36 +127,31 @@ impl<'source> Tokeniser<'source> {
     self.position < self.source.len()
   }
 
-  pub fn next_token(&mut self) -> Token<'source> {
-    let (token_type, length) = self.next_token_type();
-    let value = unsafe {
-      // This is safe because `self.source` is converted from a string and not mutated.
-      std::str::from_utf8_unchecked(&self.source[self.position..self.position + length])
-    };
+  pub fn next_token(&mut self) -> Token {
+    let (ttype, len) = self.next_token_type();
 
     let token = Token {
-      ttype: token_type,
-      start: self.position,
-      end: self.position + length,
+      ttype,
+      len,
+      start: self.position as CharacterPosition,
       line: self.line,
-      column: self.column,
-      value,
+      column: self.column as TokenLength,
     };
 
-    self.position += length;
+    self.position += len as usize;
     if token.ttype == TokenType::EndOfLine {
       self.line += 1;
       self.column = 0;
     } else {
-      self.column += length;
+      self.column += len;
     }
 
     token
   }
 
-  fn next_token_type(&mut self) -> (TokenType, CharacterPosition) {
-    let character = &self.source[self.position];
-    let next_character = self.source.get(self.position + 1);
+  fn next_token_type(&mut self) -> (TokenType, TokenLength) {
+    let character = &self.source[self.position as usize];
+    let next_character = self.source.get((self.position + 1) as usize);
 
     if let Some(token_type) = self.two_character_token() {
       return (token_type, 2);
@@ -162,7 +184,7 @@ impl<'source> Tokeniser<'source> {
     }
   }
 
-  fn at_end(&self, position: CharacterPosition) -> bool {
+  fn at_end(&self, position: usize) -> bool {
     position >= self.source.len()
   }
 
@@ -188,27 +210,33 @@ impl<'source> Tokeniser<'source> {
     }
   }
 
-  fn whitespace(&self) -> (TokenType, CharacterPosition) {
+  fn whitespace(&self) -> (TokenType, TokenLength) {
     let mut position = self.position;
 
     while !self.at_end(position) && matches!(self.source[position], b' ' | b'\t' | b'\r') {
       position += 1;
     }
 
-    (TokenType::Whitespace, position - self.position)
+    (
+      TokenType::Whitespace,
+      (position - self.position) as TokenLength,
+    )
   }
 
-  fn comment(&self) -> (TokenType, CharacterPosition) {
+  fn comment(&self) -> (TokenType, TokenLength) {
     let mut position = self.position + 2;
 
     while !self.at_end(position) && self.source[position] != b'\n' {
       position += 1;
     }
 
-    (TokenType::Comment, position - self.position)
+    (
+      TokenType::Comment,
+      (position - self.position) as TokenLength,
+    )
   }
 
-  fn string(&self, quote: u8) -> (TokenType, CharacterPosition) {
+  fn string(&self, quote: u8) -> (TokenType, TokenLength) {
     let mut position = self.position + 1;
 
     while !self.at_end(position) && self.source[position] != quote {
@@ -216,13 +244,16 @@ impl<'source> Tokeniser<'source> {
     }
 
     if self.at_end(position) {
-      (TokenType::String, position - self.position)
+      (TokenType::String, (position - self.position) as TokenLength)
     } else {
-      (TokenType::String, (position - self.position) + 1)
+      (
+        TokenType::String,
+        (position - self.position + 1) as TokenLength,
+      )
     }
   }
 
-  fn number(&self) -> (TokenType, CharacterPosition) {
+  fn number(&self) -> (TokenType, TokenLength) {
     let mut position = self.position + 1;
 
     while !self.at_end(position) && matches!(self.source[position], b'0'..=b'9' | b'_') {
@@ -240,10 +271,10 @@ impl<'source> Tokeniser<'source> {
       position += 1;
     }
 
-    (TokenType::Number, position - self.position)
+    (TokenType::Number, (position - self.position) as TokenLength)
   }
 
-  fn identifier(&self) -> (TokenType, CharacterPosition) {
+  fn identifier(&self) -> (TokenType, TokenLength) {
     let mut position = self.position;
 
     while !self.at_end(position + 1)
@@ -252,11 +283,11 @@ impl<'source> Tokeniser<'source> {
       position += 1;
     }
 
-    let length = (position - self.position) + 1;
-    (self.identifier_type(length), length)
+    let length = (position - self.position + 1) as TokenLength;
+    (self.identifier_type(length), length as TokenLength)
   }
 
-  fn identifier_type(&self, length: CharacterPosition) -> TokenType {
+  fn identifier_type(&self, length: TokenLength) -> TokenType {
     match self.source[self.position] {
       b'a' => self.check_keyword(length, "and", TokenType::And),
       b'e' => self.check_keyword(length, "else", TokenType::Else),
@@ -274,11 +305,12 @@ impl<'source> Tokeniser<'source> {
 
   fn check_keyword(
     &self,
-    length: CharacterPosition,
+    length: TokenLength,
     keyword: &'static str,
     token_type: TokenType,
   ) -> TokenType {
-    if &self.source[self.position..self.position + length] == keyword.as_bytes() {
+    let end = self.position + length as usize;
+    if &self.source[self.position..end] == keyword.as_bytes() {
       token_type
     } else {
       TokenType::Identifier
@@ -358,23 +390,23 @@ mod tests {
       Token {
         ttype: TokenType::String,
         start: 0,
-        end: 7,
+        len: 7,
         line: 1,
         column: 0,
-        value: "'hello'"
       }
     ));
 
     let tokens = tokenize("`world`");
-    assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].ttype, TokenType::String);
-    assert_eq!(tokens[0].value, "`world`");
+    assert_eq!(tokens.len(), 1);
 
     let tokens = tokenize("\"What's Up\"");
-    assert_eq!(tokens[0].value, "\"What's Up\"");
+    assert_eq!(tokens[0].ttype, TokenType::String);
+    assert_eq!(tokens.len(), 1);
 
     let tokens = tokenize("\"\n        What's\n        Up\"");
-    assert_eq!(tokens[0].value, "\"\n        What's\n        Up\"");
+    assert_eq!(tokens[0].ttype, TokenType::String);
+    assert_eq!(tokens.len(), 1);
 
     let tokens = tokenize("'hello' `world`");
     assert_eq!(tokens.len(), 3);
@@ -389,28 +421,27 @@ mod tests {
       Token {
         ttype: TokenType::Number,
         start: 0,
-        end: 3,
+        len: 3,
         line: 1,
         column: 0,
-        value: "752"
       }
     ));
 
     let tokens = tokenize("1.5");
     assert_eq!(tokens[0].ttype, TokenType::Number);
-    assert_eq!(tokens[0].value, "1.5");
+    assert_eq!(tokens.len(), 1);
 
     let tokens = tokenize(".75");
     assert_eq!(tokens[0].ttype, TokenType::Number);
-    assert_eq!(tokens[0].value, ".75");
+    assert_eq!(tokens.len(), 1);
 
     let tokens = tokenize("32_175.45");
     assert_eq!(tokens[0].ttype, TokenType::Number);
-    assert_eq!(tokens[0].value, "32_175.45");
+    assert_eq!(tokens.len(), 1);
 
     let tokens = tokenize("32_175.4__5");
     assert_eq!(tokens[0].ttype, TokenType::Number);
-    assert_eq!(tokens[0].value, "32_175.4__5");
+    assert_eq!(tokens.len(), 1);
   }
 
   #[test]
@@ -434,27 +465,22 @@ mod tests {
     let tokens = tokenize("hello");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].ttype, TokenType::Identifier);
-    assert_eq!(tokens[0].value, "hello");
 
     let tokens = tokenize("_hello");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].ttype, TokenType::Identifier);
-    assert_eq!(tokens[0].value, "_hello");
 
     let tokens = tokenize("hello_");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].ttype, TokenType::Identifier);
-    assert_eq!(tokens[0].value, "hello_");
 
     let tokens = tokenize("_hello_");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].ttype, TokenType::Identifier);
-    assert_eq!(tokens[0].value, "_hello_");
 
     let tokens = tokenize("hello_world");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].ttype, TokenType::Identifier);
-    assert_eq!(tokens[0].value, "hello_world");
   }
 
   #[test]

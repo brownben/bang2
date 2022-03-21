@@ -11,8 +11,8 @@ pub enum RunResult {
 
 fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
   let tokens = bang::tokenize(source);
-  let ast = bang::parse(&tokens)?;
-  bang::compile(&ast)
+  let ast = bang::parse(source, &tokens)?;
+  bang::compile(source, &ast)
 }
 
 pub fn run(source: &str) -> (RunResult, HashMap<Rc<str>, bang::Value>) {

@@ -1,6 +1,6 @@
 use crate::tokens::Token;
 
-type TokenRef<'source> = &'source Token<'source>;
+type TokenRef<'source> = &'source Token;
 
 pub trait GetPosition<'s> {
   fn get_start(&'s self) -> TokenRef<'s>;
@@ -187,74 +187,78 @@ impl<'s> GetPosition<'s> for Stmt<'s> {
   }
 }
 
-pub trait Visitor {
-  fn visit(&mut self, statements: &[Stmt]) {
-    statements.iter().for_each(|s| self.visit_statement(s));
+pub trait Visitor<T: Copy> {
+  fn visit(&mut self, statements: &[Stmt], value: T) {
+    statements
+      .iter()
+      .for_each(|s| self.visit_statement(s, value));
   }
 
-  fn visit_statement(&mut self, statement: &Stmt) {
+  fn visit_statement(&mut self, statement: &Stmt, value: T) {
     match statement {
-      Stmt::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
+      Stmt::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s, value)),
       Stmt::Declaration { expression, .. } => {
         if let Some(expression) = &*expression {
-          self.visit_expression(expression);
+          self.visit_expression(expression, value);
         }
       }
-      Stmt::Expression { expression, .. } => self.visit_expression(expression),
+      Stmt::Expression { expression, .. } => self.visit_expression(expression, value),
       Stmt::If {
         condition,
         then,
         otherwise,
         ..
       } => {
-        self.visit_expression(condition);
-        self.visit_statement(then);
+        self.visit_expression(condition, value);
+        self.visit_statement(then, value);
         if let Some(otherwise) = &*otherwise {
-          self.visit_statement(otherwise.as_ref());
+          self.visit_statement(otherwise.as_ref(), value);
         }
       }
       Stmt::Return { expression, .. } => {
         if let Some(expression) = expression {
-          self.visit_expression(expression);
+          self.visit_expression(expression, value);
         }
       }
       Stmt::While {
         condition, body, ..
       } => {
-        self.visit_expression(condition);
-        self.visit_statement(body);
+        self.visit_expression(condition, value);
+        self.visit_statement(body, value);
       }
       Stmt::Comment { .. } => {}
     }
 
-    self.exit_statement(statement);
+    self.exit_statement(statement, value);
   }
 
-  fn visit_expression(&mut self, expression: &Expr) {
+  fn visit_expression(&mut self, expression: &Expr, value: T) {
     match expression {
       Expr::Assignment { expression, .. }
       | Expr::Group { expression, .. }
-      | Expr::Unary { expression, .. } => self.visit_expression(expression),
+      | Expr::Unary { expression, .. } => self.visit_expression(expression, value),
       Expr::Binary { left, right, .. } => {
-        self.visit_expression(left);
-        self.visit_expression(right);
+        self.visit_expression(left, value);
+        self.visit_expression(right, value);
       }
       Expr::Call {
         expression,
         arguments,
         ..
       } => {
-        self.visit_expression(expression);
-        arguments.iter().for_each(|arg| self.visit_expression(arg));
+        self.visit_expression(expression, value);
+        arguments
+          .iter()
+          .for_each(|arg| self.visit_expression(arg, value));
       }
-      Expr::Function { body, .. } => self.visit_statement(body),
+      Expr::Function { body, .. } => self.visit_statement(body, value),
       Expr::Literal { .. } | Expr::Variable { .. } => {}
-      Expr::Comment { expression, .. } => self.visit_expression(expression),
+      Expr::Comment { expression, .. } => self.visit_expression(expression, value),
     }
 
-    self.exit_expression(expression);
+    self.exit_expression(expression, value);
   }
 
-  fn exit_expression(&mut self, _expression: &Expr) {}
-  fn exit_statement(&mut self, _statement: &Stmt) {}
+  fn exit_expression(&mut self, _expression: &Expr, _value: T) {}
+  fn exit_statement(&mut self, _statement: &Stmt, _value: T) {}
 }

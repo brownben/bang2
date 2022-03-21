@@ -40,8 +40,8 @@ pub use value::Value;
 // Interpret a string of code
 pub fn interpret(source: &str) -> Result<HashMap<Rc<str>, Value>, Diagnostic> {
   let tokens = tokens::tokenize(source);
-  let ast = parser::parse(&tokens)?;
-  let chunk = compiler::compile(&ast)?;
+  let ast = parser::parse(source, &tokens)?;
+  let chunk = compiler::compile(source, &ast)?;
 
   vm::run(chunk)
 }

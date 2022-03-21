@@ -24,7 +24,7 @@ impl Error {
     }
   }
 
-  fn get_message(&self, token: &Token) -> String {
+  fn get_message(&self, source: &[u8], token: &Token) -> String {
     match self {
       Self::TooBigJump | Self::TooManyConstants => {
         "This is likely an error with the language".to_string()
@@ -32,14 +32,17 @@ impl Error {
       Self::TooManyArguments | Self::TooManyParameters => {
         "There is a limit of 255 arguments for a function".to_string()
       }
-      Self::VariableAlreadyExists => format!("Variable '{}' has been defined already", token.value),
+      Self::VariableAlreadyExists => format!(
+        "Variable '{}' has been defined already",
+        token.get_value(source)
+      ),
     }
   }
 
-  fn get_diagnostic(&self, token: &Token) -> Diagnostic {
+  fn get_diagnostic(&self, source: &[u8], token: &Token) -> Diagnostic {
     Diagnostic {
       title: self.get_title().to_string(),
-      message: self.get_message(token),
+      message: self.get_message(source, token),
       lines: vec![token.line],
     }
   }
@@ -51,6 +54,8 @@ struct Local<'s> {
 }
 
 struct Compiler<'s> {
+  source: &'s [u8],
+
   chunk: ChunkBuilder,
   chunk_stack: Vec<ChunkBuilder>,
 
@@ -62,7 +67,7 @@ struct Compiler<'s> {
 
 // Emit Bytecode
 impl<'s> Compiler<'s> {
-  fn emit_opcode(&mut self, token: &'s Token<'s>, code: OpCode) {
+  fn emit_opcode(&mut self, token: &Token, code: OpCode) {
     self.chunk.write_opcode(code, token.line);
   }
 
@@ -70,15 +75,15 @@ impl<'s> Compiler<'s> {
     self.chunk.write_opcode(code, 0);
   }
 
-  fn emit_value(&mut self, token: &'s Token<'s>, value: u8) {
+  fn emit_value(&mut self, token: &Token, value: u8) {
     self.chunk.write_value(value, token.line);
   }
 
-  fn emit_long_value(&mut self, token: &'s Token<'s>, value: u16) {
+  fn emit_long_value(&mut self, token: &Token, value: u16) {
     self.chunk.write_long_value(value, token.line);
   }
 
-  fn emit_constant(&mut self, token: &'s Token<'s>, value: Value) {
+  fn emit_constant(&mut self, token: &Token, value: Value) {
     let constant_position = self.chunk.add_constant(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
@@ -92,7 +97,7 @@ impl<'s> Compiler<'s> {
     }
   }
 
-  fn emit_constant_string(&mut self, token: &'s Token<'s>, value: &'s str) {
+  fn emit_constant_string(&mut self, token: &Token, value: &'s str) {
     let constant_position = self.chunk.add_constant_string(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
@@ -102,13 +107,13 @@ impl<'s> Compiler<'s> {
     }
   }
 
-  fn emit_jump(&mut self, token: &'s Token<'s>, instruction: OpCode) -> usize {
+  fn emit_jump(&mut self, token: &Token, instruction: OpCode) -> usize {
     self.emit_opcode(token, instruction);
     self.emit_long_value(token, u16::MAX);
     self.chunk.length() - 2
   }
 
-  fn patch_jump(&mut self, token: &'s Token<'s>, offset: usize) {
+  fn patch_jump(&mut self, token: &Token, offset: usize) {
     let jump = self.chunk.length() - offset;
 
     if jump > u16::MAX as usize {
@@ -124,8 +129,9 @@ impl<'s> Compiler<'s> {
 }
 
 impl<'s> Compiler<'s> {
-  fn new() -> Self {
+  fn new(source: &'s str) -> Self {
     Self {
+      source: source.as_bytes(),
       chunk: ChunkBuilder::new(),
       chunk_stack: Vec::new(),
       locals: Vec::new(),
@@ -163,8 +169,8 @@ impl<'s> Compiler<'s> {
     chunk.finalize(name)
   }
 
-  fn error(&mut self, token: &'s Token<'s>, error: Error) {
-    self.error = Some(error.get_diagnostic(token));
+  fn error(&mut self, token: &Token, error: Error) {
+    self.error = Some(error.get_diagnostic(self.source, token));
   }
 
   fn compile_statement(&mut self, statement: &'s Stmt) {
@@ -174,7 +180,7 @@ impl<'s> Compiler<'s> {
         identifier,
         ..
       } => {
-        let variable_name = identifier.value;
+        let variable_name = identifier.get_value(self.source);
         if let Some(expression) = expression {
           self.compile_expression(expression);
         } else {
@@ -283,7 +289,7 @@ impl<'s> Compiler<'s> {
         TokenType::True => self.emit_opcode(token, OpCode::True),
         TokenType::False => self.emit_opcode(token, OpCode::False),
         TokenType::Null => self.emit_opcode(token, OpCode::Null),
-        TokenType::Number => self.emit_constant(token, Value::parse_number(token.value)),
+        TokenType::Number => self.emit_constant(token, Value::parse_number(value)),
         TokenType::String => self.emit_constant(token, Value::from(*value)),
         _ => unreachable!(),
       },
@@ -345,7 +351,7 @@ impl<'s> Compiler<'s> {
         identifier,
         expression,
       } => {
-        let variable_name = identifier.value;
+        let variable_name = identifier.get_value(self.source);
         let local_index = self
           .locals
           .iter()
@@ -362,7 +368,7 @@ impl<'s> Compiler<'s> {
         }
       }
       Expr::Variable { token } => {
-        let variable_name = token.value;
+        let variable_name = token.get_value(self.source);
         let local_index = self
           .locals
           .iter()
@@ -410,7 +416,7 @@ impl<'s> Compiler<'s> {
         self.new_chunk();
         for parameter in parameters {
           self.locals.push(Local {
-            name: parameter.value,
+            name: parameter.get_value(self.source),
             depth: self.scope_depth,
           });
         }
@@ -432,7 +438,7 @@ impl<'s> Compiler<'s> {
     }
   }
 
-  fn and(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
+  fn and(&mut self, operator: &Token, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
     let jump = self.emit_jump(operator, OpCode::JumpIfFalse);
     self.emit_opcode(operator, OpCode::Pop);
@@ -440,7 +446,7 @@ impl<'s> Compiler<'s> {
     self.patch_jump(operator, jump);
   }
 
-  fn or(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
+  fn or(&mut self, operator: &Token, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
     let else_jump = self.emit_jump(operator, OpCode::JumpIfFalse);
     let end_jump = self.emit_jump(operator, OpCode::Jump);
@@ -452,7 +458,7 @@ impl<'s> Compiler<'s> {
     self.patch_jump(operator, end_jump);
   }
 
-  fn nullish(&mut self, operator: &'s Token<'s>, left: &'s Expr, right: &'s Expr) {
+  fn nullish(&mut self, operator: &Token, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
     let else_jump = self.emit_jump(operator, OpCode::JumpIfNull);
     let end_jump = self.emit_jump(operator, OpCode::Jump);
@@ -465,8 +471,8 @@ impl<'s> Compiler<'s> {
   }
 }
 
-pub fn compile(ast: &[Stmt]) -> Result<Chunk, Diagnostic> {
-  let mut compiler = Compiler::new();
+pub fn compile(source: &str, ast: &[Stmt]) -> Result<Chunk, Diagnostic> {
+  let mut compiler = Compiler::new(source);
 
   for statement in ast {
     compiler.compile_statement(statement);

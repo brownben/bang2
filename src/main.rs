@@ -17,9 +17,9 @@ fn read_file(filename: &str) -> String {
 
 fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
   let tokens = bang::tokenize(source);
-  let ast = bang::parse(&tokens)?;
+  let ast = bang::parse(source, &tokens)?;
 
-  bang::compile(&ast)
+  bang::compile(source, &ast)
 }
 
 fn interpret(source: &str) -> Result<HashMap<Rc<str>, bang::Value>, bang::Diagnostic> {
@@ -122,17 +122,17 @@ fn main() {
         Ok(_) => {}
         Err(details) => print::error(filename, &source, details),
       },
-      "lint" => match bang::parse(&tokens) {
+      "lint" => match bang::parse(&source, &tokens) {
         Ok(ast) => {
-          for lint in bang::lint(&ast) {
+          for lint in bang::lint(&source, &ast) {
             print::warning(filename, &source, lint);
           }
         }
         Err(details) => print::error(filename, &source, details),
       },
-      "tokens" => print::tokens(&tokens),
-      "ast" => match bang::parse(&tokens) {
-        Ok(ast) => print::ast(&ast),
+      "tokens" => print::tokens(&source, &tokens),
+      "ast" => match bang::parse(&source, &tokens) {
+        Ok(ast) => print::ast(&source, &ast),
         Err(details) => print::error(filename, &source, details),
       },
       "bytecode" => match compile(&source) {

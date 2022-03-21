@@ -21,7 +21,8 @@ fn remove_carriage_returns(value: &str) -> String {
   str::replace(value, "\r", "")
 }
 
-pub fn tokens(tokens: &[Token]) {
+pub fn tokens(source: &str, tokens: &[Token]) {
+  let source = source.as_bytes();
   let mut line = 0;
 
   println!("     ╭─[Tokens]");
@@ -36,7 +37,7 @@ pub fn tokens(tokens: &[Token]) {
     let value = if token.ttype == TokenType::EndOfLine {
       ""
     } else {
-      token.value
+      token.get_value(source)
     };
     println!("{:?} ({})", token.ttype, remove_carriage_returns(value));
   }
@@ -48,15 +49,17 @@ mod ast {
   use super::remove_carriage_returns;
   use crate::ast::{Expr, Stmt};
 
-  pub fn print(ast: &[Stmt]) {
+  pub fn print(source: &str, ast: &[Stmt]) {
+    let source = source.as_bytes();
+
     println!("  ╭─[Abstract Syntax Tree]");
     for statement in ast {
-      print_statement(statement, "  ├─ ", "  │  ");
+      print_statement(source, statement, "  ├─ ", "  │  ");
     }
     println!("──╯");
   }
 
-  fn print_expression(expression: &Expr, prefix: &str, prefix_raw: &str) {
+  fn print_expression(source: &[u8], expression: &Expr, prefix: &str, prefix_raw: &str) {
     let prefix_start = &format!("{prefix_raw}╰─ ");
     let prefix_blank = &format!("{prefix_raw}   ");
     let prefix_start_indent = &format!("{prefix_raw}   ╰─ ");
@@ -67,50 +70,50 @@ mod ast {
     let prefix_list_indent = &format!("{prefix_raw}   │  ");
 
     match expression {
-      Expr::Literal { token, .. } => println!("{}Literal ({})", prefix, token.value),
+      Expr::Literal { token, .. } => println!("{}Literal ({})", prefix, token.get_value(source)),
       Expr::Group { expression, .. } => {
         println!("{}Group", prefix);
-        print_expression(&*expression, prefix_start, prefix_blank);
+        print_expression(source, &*expression, prefix_start, prefix_blank);
       }
       Expr::Unary {
         expression,
         operator,
       } => {
-        println!("{}Unary ({})", prefix, operator.value);
-        print_expression(&*expression, prefix_start, prefix_blank);
+        println!("{}Unary ({})", prefix, operator.get_value(source));
+        print_expression(source, &*expression, prefix_start, prefix_blank);
       }
       Expr::Binary {
         left,
         right,
         operator: token,
       } => {
-        println!("{}Binary ({})", prefix, token.value);
-        print_expression(&*left, prefix_list_inline_start, prefix_list_inline);
-        print_expression(&*right, prefix_start, prefix_blank);
+        println!("{}Binary ({})", prefix, token.get_value(source));
+        print_expression(source, &*left, prefix_list_inline_start, prefix_list_inline);
+        print_expression(source, &*right, prefix_start, prefix_blank);
       }
       Expr::Assignment {
         expression,
         identifier,
       } => {
-        println!("{}Assignment ({})", prefix, identifier.value);
-        print_expression(&*expression, prefix_start, prefix_blank);
+        println!("{}Assignment ({})", prefix, identifier.get_value(source));
+        print_expression(source, &*expression, prefix_start, prefix_blank);
       }
       Expr::Variable { token, .. } => {
-        println!("{}Variable ({})", prefix, token.value);
+        println!("{}Variable ({})", prefix, token.get_value(source));
       }
       Expr::Call {
         expression,
         arguments,
         ..
       } => {
-        print_expression(&*expression, prefix, prefix_blank);
+        print_expression(source, &*expression, prefix, prefix_blank);
         println!("{}Call", prefix_start);
 
         if let Some((last, arguments)) = arguments.split_last() {
           for arg in arguments {
-            print_expression(arg, prefix_list_indent_start, prefix_list_indent);
+            print_expression(source, arg, prefix_list_indent_start, prefix_list_indent);
           }
-          print_expression(last, prefix_start_indent, prefix_blank_indent);
+          print_expression(source, last, prefix_start_indent, prefix_blank_indent);
         }
       }
       Expr::Function {
@@ -119,26 +122,29 @@ mod ast {
         name,
         ..
       } => {
-        let params: Vec<String> = parameters.iter().map(|p| p.value.to_string()).collect();
+        let params: Vec<String> = parameters
+          .iter()
+          .map(|p| p.get_value(source).to_string())
+          .collect();
         if let Some(name) = name {
           println!("{}Function {}({})", prefix, name, params.join(", "));
         } else {
           println!("{}Function ({})", prefix, params.join(", "));
         }
-        print_statement(&*body, prefix_start, prefix_blank);
+        print_statement(source, &*body, prefix_start, prefix_blank);
       }
       Expr::Comment { expression, token } => {
-        print_expression(&*expression, prefix, prefix_raw);
+        print_expression(source, &*expression, prefix, prefix_raw);
         println!(
           "{}Comment ({})",
           prefix_start,
-          remove_carriage_returns(token.value)
+          remove_carriage_returns(token.get_value(source))
         );
       }
     }
   }
 
-  fn print_statement(statement: &Stmt, prefix: &str, prefix_raw: &str) {
+  fn print_statement(source: &[u8], statement: &Stmt, prefix: &str, prefix_raw: &str) {
     let prefix_indetented_start = &format!("{prefix_raw}   ╰─ ");
     let prefix_indetented = &format!("{prefix_raw}      ");
     let prefix_list_start = &format!("{prefix_raw}│  ╰─ ");
@@ -154,9 +160,9 @@ mod ast {
         expression,
         ..
       } => {
-        println!("{}Declaration ({})", prefix, identifier.value);
+        println!("{}Declaration ({})", prefix, identifier.get_value(source));
         if let Some(expression) = expression {
-          print_expression(expression, prefix_start, prefix_blank);
+          print_expression(source, expression, prefix_start, prefix_blank);
         }
       }
       Stmt::If {
@@ -167,12 +173,12 @@ mod ast {
       } => {
         println!("{}If", prefix);
         println!("{}├─ Condition", prefix_raw);
-        print_expression(condition, prefix_list_start, prefix_list);
+        print_expression(source, condition, prefix_list_start, prefix_list);
         println!("{}├─ Then", prefix_raw);
-        print_statement(&*then, prefix_list_start, prefix_list);
+        print_statement(source, &*then, prefix_list_start, prefix_list);
         if let Some(ot) = otherwise {
           println!("{}╰─ Else", prefix_raw);
-          print_statement(&*ot, prefix_indetented_start, prefix_indetented);
+          print_statement(source, &*ot, prefix_indetented_start, prefix_indetented);
         };
       }
       Stmt::While {
@@ -180,34 +186,34 @@ mod ast {
       } => {
         println!("{}While", prefix);
         println!("{}├─ Condition", prefix_raw);
-        print_expression(condition, prefix_list_start, prefix_list);
+        print_expression(source, condition, prefix_list_start, prefix_list);
         println!("{}╰─ Body", prefix_raw);
-        print_statement(&*body, prefix_indetented_start, prefix_indetented);
+        print_statement(source, &*body, prefix_indetented_start, prefix_indetented);
       }
       Stmt::Return { expression, .. } => {
         println!("{}Return", prefix);
         if let Some(expression) = expression {
-          print_expression(expression, prefix_start, prefix_blank);
+          print_expression(source, expression, prefix_start, prefix_blank);
         }
       }
       Stmt::Block { body, .. } => {
         println!("{}Block", prefix);
         if let Some((last, statements)) = body.split_last() {
           for stmt in statements {
-            print_statement(stmt, prefix_list_inline_start, prefix_list_inline);
+            print_statement(source, stmt, prefix_list_inline_start, prefix_list_inline);
           }
-          print_statement(last, prefix_start, prefix_blank);
+          print_statement(source, last, prefix_start, prefix_blank);
         }
       }
       Stmt::Expression { expression, .. } => {
         println!("{}Expression", prefix);
-        print_expression(expression, prefix_start, prefix_blank);
+        print_expression(source, expression, prefix_start, prefix_blank);
       }
       Stmt::Comment { token, .. } => {
         println!(
           "{}Comment ({})",
           prefix,
-          remove_carriage_returns(token.value)
+          remove_carriage_returns(token.get_value(source))
         );
       }
     }

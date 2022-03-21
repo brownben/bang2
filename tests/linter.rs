@@ -5,9 +5,9 @@ macro_rules! bang_lint {
     #[test]
     fn $name() {
       let tokens = bang::tokenize($code);
-      match bang::parse(&tokens) {
+      match bang::parse($code, &tokens) {
         Ok(ast) => {
-          let warnings = bang::lint(&ast);
+          let warnings = bang::lint($code, &ast);
           $({
             let warning = warnings.iter().find(|warning| warning.title == $rule).unwrap();
             assert_eq!(warning.lines, vec![$($num),*]);

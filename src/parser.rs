@@ -84,27 +84,27 @@ impl Error {
     }
   }
 
-  fn get_message(&self, token: &Token) -> String {
+  fn get_message(&self, source: &[u8], token: &Token) -> String {
     match self {
       Self::ExpectedOpeningBracket
       | Self::ExpectedClosingBracket
       | Self::ExpectedExpression
       | Self::ExpectedFunctionArrow
       | Self::ExpectedNewLine
-      | Self::ExpectedIdentifier => format!("but recieved '{}'", token.value),
-      Self::UnexpectedCharacter => format!("Unknown character '{}'", token.value),
+      | Self::ExpectedIdentifier => format!("but recieved '{}'", token.get_value(source)),
+      Self::UnexpectedCharacter => format!("Unknown character '{}'", token.get_value(source)),
       Self::UnterminatedString => {
-        format!("Missing closing quote {}", &token.value[0..1])
+        format!("Missing closing quote {}", &token.get_value(source)[0..1])
       }
       Self::InvalidAssignmentTarget => "Can't assign to an expression, only a variable".to_string(),
       Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
     }
   }
 
-  fn get_diagnostic(&self, token: &Token) -> Diagnostic {
+  fn get_diagnostic(&self, source: &str, token: &Token) -> Diagnostic {
     Diagnostic {
       title: self.get_title().to_string(),
-      message: self.get_message(token),
+      message: self.get_message(source.as_bytes(), token),
       lines: vec![token.line],
     }
   }
@@ -114,13 +114,15 @@ type ExpressionResult<'source> = Result<Expr<'source>, Error>;
 type StatementResult<'source> = Result<Stmt<'source>, Error>;
 
 struct Parser<'source> {
-  tokens: &'source [Token<'source>],
+  source: &'source [u8],
+  tokens: &'source [Token],
   position: usize,
 }
 
 impl<'source> Parser<'source> {
-  fn new(tokens: &'source [Token<'source>]) -> Self {
+  fn new(source: &'source str, tokens: &'source [Token]) -> Self {
     Self {
+      source: source.as_bytes(),
       tokens,
       position: 0,
     }
@@ -130,7 +132,7 @@ impl<'source> Parser<'source> {
     self.position >= self.tokens.len()
   }
 
-  fn next(&mut self) -> &'source Token<'source> {
+  fn next(&mut self) -> &'source Token {
     self.position += 1;
     let token = self.current();
 
@@ -141,7 +143,7 @@ impl<'source> Parser<'source> {
     }
   }
 
-  fn back(&mut self) -> &'source Token<'source> {
+  fn back(&mut self) -> &'source Token {
     self.position -= 1;
     let token = self.current();
 
@@ -152,32 +154,27 @@ impl<'source> Parser<'source> {
     }
   }
 
-  fn get(&self, position: usize) -> &'source Token<'source> {
+  fn get(&self, position: usize) -> &'source Token {
     self.tokens.get(position).unwrap_or(&Token {
       ttype: TokenType::EndOfFile,
-      value: "",
+      len: 0,
       line: 0,
       column: 0,
       start: 0,
-      end: 0,
     })
   }
 
-  fn current(&self) -> &'source Token<'source> {
+  fn current(&self) -> &'source Token {
     self.get(self.position)
   }
 
-  fn current_advance(&mut self) -> &'source Token<'source> {
+  fn current_advance(&mut self) -> &'source Token {
     let token = self.current();
     self.next();
     token
   }
 
-  fn expect(
-    &mut self,
-    token_type: TokenType,
-    message: Error,
-  ) -> Result<&'source Token<'source>, Error> {
+  fn expect(&mut self, token_type: TokenType, message: Error) -> Result<&'source Token, Error> {
     let current = self.current();
     if current.ttype == token_type {
       Ok(current)
@@ -186,11 +183,7 @@ impl<'source> Parser<'source> {
     }
   }
 
-  fn consume(
-    &mut self,
-    token_type: TokenType,
-    message: Error,
-  ) -> Result<&'source Token<'source>, Error> {
+  fn consume(&mut self, token_type: TokenType, message: Error) -> Result<&'source Token, Error> {
     let result = self.expect(token_type, message)?;
     self.next();
     Ok(result)
@@ -200,7 +193,7 @@ impl<'source> Parser<'source> {
     &mut self,
     token_type: TokenType,
     message: Error,
-  ) -> Result<&'source Token<'source>, Error> {
+  ) -> Result<&'source Token, Error> {
     self.next();
     self.consume(token_type, message)
   }
@@ -348,7 +341,7 @@ impl<'source> Parser<'source> {
     };
     let mut last_token = self.get(last);
 
-    let depth = Parser::block_depth(last_token.value);
+    let depth = Parser::block_depth(last_token.get_value(self.source));
 
     if last_token.ttype != TokenType::Whitespace || depth == 0 {
       return self.stmt();
@@ -357,10 +350,10 @@ impl<'source> Parser<'source> {
     let mut statements = Vec::new();
 
     while last_token.ttype == TokenType::Whitespace
-      && Parser::block_depth(last_token.value) >= depth
+      && Parser::block_depth(last_token.get_value(self.source)) >= depth
       && self.current().ttype != TokenType::EndOfFile
     {
-      if Parser::block_depth(last_token.value) > depth {
+      if Parser::block_depth(last_token.get_value(self.source)) > depth {
         statements.push(self.statement()?);
         last_token = self.get(self.position - 1);
       } else {
@@ -408,7 +401,7 @@ impl<'source> Parser<'source> {
         token,
         parameters,
         body,
-        name: Some(identifier.value),
+        name: Some(identifier.get_value(self.source)),
       })
     }
 
@@ -567,7 +560,7 @@ impl<'source> Parser<'source> {
 
   fn literal(&mut self) -> ExpressionResult<'source> {
     let token = self.current();
-    let string = token.value;
+    let string = token.get_value(self.source);
 
     let value = if token.ttype != TokenType::String {
       Ok(string)
@@ -582,10 +575,7 @@ impl<'source> Parser<'source> {
 
   fn variable(&mut self, can_assign: bool) -> ExpressionResult<'source> {
     let identifier = self.current();
-    let is_additional_operator = matches!(
-      self.next().ttype,
-      TokenType::PlusEqual | TokenType::MinusEqual | TokenType::StarEqual | TokenType::SlashEqual
-    );
+    let is_additional_operator = self.next().ttype.is_assignment_operator();
 
     if (true, true) == (can_assign, is_additional_operator) {
       let operator = self.current_advance();
@@ -657,8 +647,8 @@ impl<'source> Parser<'source> {
   }
 }
 
-pub fn parse<'s>(tokens: &'s [Token<'s>]) -> Result<Vec<Stmt<'s>>, Diagnostic> {
-  let mut parser = Parser::new(tokens);
+pub fn parse<'s>(source: &'s str, tokens: &'s [Token]) -> Result<Vec<Stmt<'s>>, Diagnostic> {
+  let mut parser = Parser::new(source, tokens);
   let mut statements = Vec::new();
 
   while !parser.at_end() {
@@ -666,7 +656,7 @@ pub fn parse<'s>(tokens: &'s [Token<'s>]) -> Result<Vec<Stmt<'s>>, Diagnostic> {
       Ok(stmt) => statements.push(stmt),
       Err(Error::EmptyStatement) => {}
       Err(err) => {
-        return Err(err.get_diagnostic(parser.current()));
+        return Err(err.get_diagnostic(source, &parser.current()));
       }
     }
   }
@@ -679,20 +669,20 @@ mod tests {
   use super::*;
   use crate::tokens::tokenize;
 
-  fn assert_literal(expr: &Expr<'_>, value: &str, literal_type: TokenType) {
+  fn assert_literal(source: &str, expr: &Expr<'_>, value: &str, literal_type: TokenType) {
     match expr {
       Expr::Literal { token, .. } => {
-        assert_eq!(token.value, value);
+        assert_eq!(token.get_value(source.as_bytes()), value);
         assert_eq!(token.ttype, literal_type);
       }
       _ => panic!("Expected literal"),
     }
   }
 
-  fn assert_variable(expr: &Expr<'_>, name: &str) {
+  fn assert_variable(source: &str, expr: &Expr<'_>, name: &str) {
     match expr {
       Expr::Variable { token } => {
-        assert_eq!(token.value, name);
+        assert_eq!(token.get_value(source.as_bytes()), name);
         assert_eq!(token.ttype, TokenType::Identifier);
       }
       _ => panic!("Expected literal"),
@@ -701,8 +691,9 @@ mod tests {
 
   #[test]
   fn should_error_on_unknown_character() {
-    let tokens = tokenize("&");
-    let result = super::parse(&tokens);
+    let source = "&";
+    let tokens = tokenize(source);
+    let result = super::parse(source, &tokens);
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().message, "Unknown character '&'");
@@ -710,14 +701,15 @@ mod tests {
 
   #[test]
   fn should_parse_group() {
-    let tokens = tokenize("('hello world')\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "('hello world')\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Expression {
       expression: Expr::Group { expression, .. },
     } = &statements[0]
     {
-      assert_literal(&**expression, "'hello world'", TokenType::String);
+      assert_literal(source, &**expression, "'hello world'", TokenType::String);
     } else {
       panic!("Expected group expression statement");
     }
@@ -725,8 +717,9 @@ mod tests {
 
   #[test]
   fn should_parse_unary() {
-    let tokens = tokenize("!false\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "!false\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Expression {
       expression: Expr::Unary {
@@ -735,7 +728,7 @@ mod tests {
       },
     } = &statements[0]
     {
-      assert_literal(&**expression, "false", TokenType::False);
+      assert_literal(source, &**expression, "false", TokenType::False);
       assert_eq!(operator.ttype, TokenType::Bang);
     } else {
       panic!("Expected unary expression statement");
@@ -744,8 +737,9 @@ mod tests {
 
   #[test]
   fn should_parse_binary() {
-    let tokens = tokenize("10 + 5\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "10 + 5\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Expression {
       expression: Expr::Binary {
@@ -755,8 +749,8 @@ mod tests {
       },
     } = &statements[0]
     {
-      assert_literal(&**left, "10", TokenType::Number);
-      assert_literal(&**right, "5", TokenType::Number);
+      assert_literal(source, &**left, "10", TokenType::Number);
+      assert_literal(source, &**right, "5", TokenType::Number);
       assert_eq!(operator.ttype, TokenType::Plus);
     } else {
       panic!("Expected binary expression statement");
@@ -765,8 +759,9 @@ mod tests {
 
   #[test]
   fn should_parse_call() {
-    let tokens = tokenize("function(7, null)\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "function(7, null)\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Expression {
       expression: Expr::Call {
@@ -776,9 +771,9 @@ mod tests {
       },
     } = &statements[0]
     {
-      assert_literal(&arguments[0], "7", TokenType::Number);
-      assert_literal(&arguments[1], "null", TokenType::Null);
-      assert_variable(expression, "function");
+      assert_literal(source, &arguments[0], "7", TokenType::Number);
+      assert_literal(source, &arguments[1], "null", TokenType::Null);
+      assert_variable(source, expression, "function");
     } else {
       panic!("Expected binary expression statement");
     }
@@ -786,8 +781,9 @@ mod tests {
 
   #[test]
   fn should_parse_function() {
-    let tokens = tokenize("() => null\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "() => null\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Expression {
       expression:
@@ -804,7 +800,7 @@ mod tests {
     } = &statements[0]
     {
       assert_eq!(parameters.len(), 0);
-      assert_literal(expression, "null", TokenType::Null);
+      assert_literal(source, expression, "null", TokenType::Null);
     } else {
       panic!("Expected return statement");
     }
@@ -812,8 +808,9 @@ mod tests {
 
   #[test]
   fn should_parse_variable_declaration_with_initalizer() {
-    let tokens = tokenize("let a = null\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "let a = null\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Declaration {
       identifier,
@@ -821,8 +818,7 @@ mod tests {
       ..
     } = &statements[0]
     {
-      assert_eq!(identifier.value, "a");
-      assert_eq!(token.value, "null");
+      assert_eq!(identifier.get_value(source.as_bytes()), "a");
       assert_eq!(token.ttype, TokenType::Null);
     } else {
       panic!("Expected declaration statement");
@@ -831,8 +827,9 @@ mod tests {
 
   #[test]
   fn should_parse_variable_declaration_without_initalizer() {
-    let tokens = tokenize("let b\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "let b\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Declaration {
       identifier,
@@ -840,7 +837,7 @@ mod tests {
       ..
     } = &statements[0]
     {
-      assert_eq!(identifier.value, "b");
+      assert_eq!(identifier.get_value(source.as_bytes()), "b");
     } else {
       panic!("Expected declaration statement");
     }
@@ -848,15 +845,16 @@ mod tests {
 
   #[test]
   fn should_parse_return_with_value() {
-    let tokens = tokenize("return value\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "return value\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Return {
       expression: Some(expression),
       ..
     } = &statements[0]
     {
-      assert_variable(expression, "value");
+      assert_variable(source, expression, "value");
     } else {
       panic!("Expected return statement");
     }
@@ -864,15 +862,16 @@ mod tests {
 
   #[test]
   fn should_parse_return_without_value() {
-    let tokens = tokenize("return\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "return\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Return {
       expression: None,
       token,
     } = &statements[0]
     {
-      assert_eq!(token.value, "return");
+      assert_eq!(token.ttype, TokenType::Return);
     } else {
       panic!("Expected return statement");
     }
@@ -880,19 +879,18 @@ mod tests {
 
   #[test]
   fn should_parse_while() {
-    let tokens = tokenize("while(7) doStuff\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "while(7) doStuff\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::While {
-      condition: Expr::Literal {
-        token: condition, ..
-      },
+      condition,
       body: box Stmt::Expression { expression },
       ..
     } = &statements[0]
     {
-      assert_eq!(condition.value, "7");
-      assert_variable(expression, "doStuff");
+      assert_literal(source, condition, "7", TokenType::Number);
+      assert_variable(source, expression, "doStuff");
     } else {
       panic!("Expected while statement");
     }
@@ -900,8 +898,9 @@ mod tests {
 
   #[test]
   fn should_parse_if_else() {
-    let tokens = tokenize("if (true) doStuff\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "if (true) doStuff\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::If {
       condition,
@@ -910,8 +909,8 @@ mod tests {
       ..
     } = &statements[0]
     {
-      assert_literal(condition, "true", TokenType::True);
-      assert_variable(expression, "doStuff");
+      assert_literal(source, condition, "true", TokenType::True);
+      assert_variable(source, expression, "doStuff");
       assert!(otherwise.is_none());
     } else {
       panic!("Expected if statement");
@@ -920,8 +919,9 @@ mod tests {
 
   #[test]
   fn should_parse_if_without_else() {
-    let tokens = tokenize("if (true)\n\tdoStuff\nelse\n\tdoOtherStuff\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "if (true)\n\tdoStuff\nelse\n\tdoOtherStuff\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::If {
       condition,
@@ -930,7 +930,7 @@ mod tests {
       ..
     } = &statements[0]
     {
-      assert_literal(condition, "true", TokenType::True);
+      assert_literal(source, condition, "true", TokenType::True);
       assert_eq!(then_body.len(), 1);
       assert_eq!(else_body.len(), 1);
     } else {
@@ -940,8 +940,9 @@ mod tests {
 
   #[test]
   fn should_parse_block() {
-    let tokens = tokenize("a\n\tdoStuff\n\totherStuff\n\tmoreStuff\n");
-    let statements = super::parse(&tokens).unwrap();
+    let source = "a\n\tdoStuff\n\totherStuff\n\tmoreStuff\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
 
     assert_eq!(statements.len(), 2);
 
