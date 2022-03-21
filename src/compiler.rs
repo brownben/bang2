@@ -318,6 +318,7 @@ impl<'s> Compiler<'s> {
           TokenType::QuestionQuestion => return self.nullish(operator, left, right),
           TokenType::And => return self.and(operator, left, right),
           TokenType::Or => return self.or(operator, left, right),
+          TokenType::RightRight => return self.pipeline(operator, left, right),
           _ => {}
         }
 
@@ -468,6 +469,34 @@ impl<'s> Compiler<'s> {
 
     self.compile_expression(right);
     self.patch_jump(operator, end_jump);
+  }
+
+  fn pipeline(&mut self, token: &Token, left: &'s Expr, right: &'s Expr) {
+    if let Expr::Call {
+      expression,
+      arguments,
+      ..
+    } = right
+    {
+      self.compile_expression(expression);
+
+      if arguments.len() > 254 {
+        self.error(token, Error::TooManyArguments);
+      }
+
+      self.compile_expression(left);
+      for argument in arguments {
+        self.compile_expression(argument);
+      }
+
+      self.emit_opcode(token, OpCode::Call);
+      self.emit_value(token, arguments.len() as u8 + 1);
+    } else {
+      self.compile_expression(right);
+      self.compile_expression(left);
+      self.emit_opcode(token, OpCode::Call);
+      self.emit_value(token, 1);
+    }
   }
 }
 

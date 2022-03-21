@@ -1,4 +1,4 @@
-use crate::tokens::Token;
+use crate::tokens::{Token, TokenType};
 
 type TokenRef<'source> = &'source Token;
 
@@ -24,6 +24,10 @@ pub enum Expr<'source> {
     expression: Box<Expr<'source>>,
     arguments: Vec<Expr<'source>>,
   },
+  Comment {
+    token: TokenRef<'source>,
+    expression: Box<Expr<'source>>,
+  },
   Function {
     token: TokenRef<'source>,
     parameters: Vec<TokenRef<'source>>,
@@ -46,20 +50,23 @@ pub enum Expr<'source> {
   Variable {
     token: TokenRef<'source>,
   },
-  Comment {
-    token: TokenRef<'source>,
-    expression: Box<Expr<'source>>,
-  },
 }
 impl<'s> Expr<'s> {
   pub fn has_side_effect(&self) -> bool {
     match self {
-      Expr::Call { .. } | Expr::Assignment { .. } => true,
+      Expr::Assignment { .. } | Expr::Call { .. } => true,
       Expr::Function { .. } | Expr::Variable { .. } | Expr::Literal { .. } => false,
       Expr::Group { expression, .. }
       | Expr::Unary { expression, .. }
       | Expr::Comment { expression, .. } => expression.has_side_effect(),
-      Expr::Binary { left, right, .. } => left.has_side_effect() || right.has_side_effect(),
+      Expr::Binary {
+        left,
+        right,
+        operator,
+        ..
+      } => {
+        left.has_side_effect() || right.has_side_effect() || operator.ttype == TokenType::RightRight
+      }
     }
   }
 
@@ -71,7 +78,12 @@ impl<'s> Expr<'s> {
       | Expr::Unary { expression, .. }
       | Expr::Assignment { expression, .. }
       | Expr::Comment { expression, .. } => expression.is_constant(),
-      Expr::Binary { left, right, .. } => left.is_constant() && right.is_constant(),
+      Expr::Binary {
+        left,
+        right,
+        operator,
+        ..
+      } => left.is_constant() && right.is_constant() && operator.ttype != TokenType::RightRight,
     }
   }
 }

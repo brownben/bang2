@@ -27,6 +27,7 @@ pub enum TokenType {
   And,
   Or,
   QuestionQuestion,
+  RightRight,
 
   // Comparators
   BangEqual,
@@ -105,6 +106,7 @@ impl TokenType {
         | TokenType::MinusEqual
         | TokenType::StarEqual
         | TokenType::SlashEqual
+        | TokenType::RightRight
     )
   }
 }
@@ -284,6 +286,7 @@ impl<'source> Tokeniser<'source> {
       (b'&', b'&') => Some(TokenType::And),
       (b'|', b'|') => Some(TokenType::Or),
       (b'?', b'?') => Some(TokenType::QuestionQuestion),
+      (b'>', b'>') => Some(TokenType::RightRight),
       _ => None,
     }
   }

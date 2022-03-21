@@ -8,6 +8,7 @@ use crate::{
 enum Precedence {
   None = 1,
   Assignment, // =
+  Pipeline,   // >>
   Or,         // or
   And,        // and
   Nullish,    // ??
@@ -25,7 +26,8 @@ impl Precedence {
   fn next(self) -> Self {
     match self {
       Self::None => Self::Assignment,
-      Self::Assignment => Self::Or,
+      Self::Assignment => Self::Pipeline,
+      Self::Pipeline => Self::Or,
       Self::Or => Self::And,
       Self::And => Self::Nullish,
       Self::Nullish => Self::Equality,
@@ -51,6 +53,7 @@ impl Precedence {
         Self::Comparison
       }
       TokenType::Comment => Self::Comment,
+      TokenType::RightRight => Self::Pipeline,
       _ => Self::None,
     }
   }
@@ -322,7 +325,8 @@ impl<'source> Parser<'source> {
       | TokenType::LessEqual
       | TokenType::And
       | TokenType::Or
-      | TokenType::QuestionQuestion => Ok(Some(self.binary(previous)?)),
+      | TokenType::QuestionQuestion
+      | TokenType::RightRight => Ok(Some(self.binary(previous)?)),
       _ => Ok(None),
     }
   }

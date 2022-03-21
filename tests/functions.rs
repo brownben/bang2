@@ -264,3 +264,63 @@ let a = test(
 "
   a == 8.0
 );
+
+bang_test!(pipeline_no_call
+  "
+let identity = (x) => x
+
+let a = 1 >> type
+let b = 2 >> identity
+let c = 'hello' >> identity >> identity
+"
+  a == "number"
+  b == 2.0
+  c == "hello"
+);
+
+bang_test!(pipeline_call_no_args
+  "
+let identity = (x) => x
+
+let a = 1 >> type()
+let b = 2 >> identity()
+let c = 'hello' >> identity() >> identity()
+"
+  a == "number"
+  b == 2.0
+  c == "hello"
+);
+
+bang_test!(pipeline_with_args
+  "
+let add = (x, y) => x + y
+let divide = (x, y) => x / y
+
+let a = 1 >> add(2)
+let b = 4 >> divide(2)
+"
+  a == 3.0
+  b == 2.0
+);
+
+bang_test!(pipeline_error_if_too_many_args
+  "
+let add = (x, y) => x + y
+let divide = (x, y) => x / y
+
+let a = 1 >> add(1, 2)
+"
+  RuntimeError
+);
+
+bang_test!(pipeline_precendence
+  "
+let identity = (x) => x
+let not = (x) => !x
+
+let a = 5 or 6 >> identity
+let b = false and true >> not >> not
+"
+  a == 5.0
+  b == false
+);
