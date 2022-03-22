@@ -321,10 +321,14 @@ impl<'source> Tokeniser<'source> {
     )
   }
 
-  fn string(&self, quote: u8) -> (TokenType, TokenLength) {
+  fn string(&mut self, quote: u8) -> (TokenType, TokenLength) {
     let mut position = self.position + 1;
 
     while !self.at_end(position) && self.source[position] != quote {
+      if self.source[position] == b'\n' {
+        self.line += 1;
+      }
+
       position += 1;
     }
 
