@@ -136,6 +136,12 @@ pub enum Stmt<'source> {
     then: Box<Stmt<'source>>,
     otherwise: Option<Box<Stmt<'source>>>,
   },
+  Import {
+    token: TokenRef<'source>,
+    module: TokenRef<'source>,
+    items: Vec<TokenRef<'source>>,
+    end_token: TokenRef<'source>,
+  },
   Return {
     token: TokenRef<'source>,
     expression: Option<Expr<'source>>,
@@ -157,6 +163,7 @@ impl<'s> GetPosition<'s> for Stmt<'s> {
       Stmt::If { if_token, .. } => if_token,
       Stmt::Comment { token, .. }
       | Stmt::Declaration { token, .. }
+      | Stmt::Import { token, .. }
       | Stmt::Return { token, .. }
       | Stmt::While { token, .. } => token,
     }
@@ -186,6 +193,7 @@ impl<'s> GetPosition<'s> for Stmt<'s> {
           then.get_end()
         }
       }
+      Stmt::Import { end_token, .. } => end_token,
       Stmt::Return {
         token, expression, ..
       } => {
@@ -240,7 +248,7 @@ pub trait Visitor<T: Copy> {
         self.visit_expression(condition, value);
         self.visit_statement(body, value);
       }
-      Stmt::Comment { .. } => {}
+      Stmt::Import { .. } | Stmt::Comment { .. } => {}
     }
 
     self.exit_statement(statement, value);

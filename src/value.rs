@@ -82,7 +82,9 @@ impl PartialEq for Value {
     match (self, other) {
       (Self::Boolean(value), Self::Boolean(other)) => value == other,
       (Self::Null, Self::Null) => true,
-      (Self::Number(value), Self::Number(other)) => (value - other).abs() < f64::EPSILON,
+      (Self::Number(value), Self::Number(other)) => {
+        value == other || (value - other).abs() < f64::EPSILON
+      }
       (Self::String(value), Self::String(other)) => value.eq(other),
       (Self::Function(value), Self::Function(other)) => Rc::ptr_eq(value, other),
       (Self::NativeFunction(value), Self::NativeFunction(other)) => Rc::ptr_eq(value, other),
@@ -116,6 +118,11 @@ impl From<f64> for Value {
 }
 impl From<i32> for Value {
   fn from(value: i32) -> Self {
+    Self::Number(value as f64)
+  }
+}
+impl From<usize> for Value {
+  fn from(value: usize) -> Self {
     Self::Number(value as f64)
   }
 }

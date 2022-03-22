@@ -62,6 +62,8 @@ impl Precedence {
 enum Error {
   ExpectedOpeningBracket,
   ExpectedClosingBracket,
+  ExpectedOpeningBrace,
+  ExpectedClosingBrace,
   ExpectedExpression,
   ExpectedFunctionArrow,
   ExpectedNewLine,
@@ -70,12 +72,15 @@ enum Error {
   UnexpectedCharacter,
   UnterminatedString,
   EmptyStatement,
+  ExpectedImportKeyword,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
     match self {
       Self::ExpectedOpeningBracket => "Expected '('",
       Self::ExpectedClosingBracket => "Expected ')'",
+      Self::ExpectedOpeningBrace => "Expected '{'",
+      Self::ExpectedClosingBrace => "Expected '}'",
       Self::ExpectedExpression => "Expected Expression",
       Self::ExpectedFunctionArrow => "Expected Funtion Arrow (-> / =>)",
       Self::ExpectedNewLine => "Expected New Line",
@@ -84,6 +89,7 @@ impl Error {
       Self::UnexpectedCharacter => "Unexpected Character",
       Self::UnterminatedString => "Unterminated String",
       Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
+      Self::ExpectedImportKeyword => "Expected 'import' keyword",
     }
   }
 
@@ -91,10 +97,13 @@ impl Error {
     match self {
       Self::ExpectedOpeningBracket
       | Self::ExpectedClosingBracket
+      | Self::ExpectedOpeningBrace
+      | Self::ExpectedClosingBrace
       | Self::ExpectedExpression
       | Self::ExpectedFunctionArrow
       | Self::ExpectedNewLine
-      | Self::ExpectedIdentifier => format!("but recieved '{}'", token.get_value(source)),
+      | Self::ExpectedIdentifier
+      | Self::ExpectedImportKeyword => format!("but recieved '{}'", token.get_value(source)),
       Self::UnexpectedCharacter => format!("Unknown character '{}'", token.get_value(source)),
       Self::UnterminatedString => {
         format!("Missing closing quote {}", &token.get_value(source)[0..1])
@@ -393,6 +402,7 @@ impl<'source> Parser<'source> {
       TokenType::While => self.while_statement(),
       TokenType::EndOfFile => Err(Error::EmptyStatement),
       TokenType::Comment => self.comment_statement(),
+      TokenType::From => self.import_statement(),
       _ => self.expression_statement(),
     }
   }
@@ -500,6 +510,38 @@ impl<'source> Parser<'source> {
 
     Ok(Stmt::Expression { expression })
   }
+
+  fn import_statement(&mut self) -> StatementResult<'source> {
+    let token = self.current_advance();
+    let module = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+    self.consume(TokenType::Import, Error::ExpectedImportKeyword)?;
+    self.consume(TokenType::LeftBrace, Error::ExpectedOpeningBrace)?;
+
+    let mut items = Vec::new();
+    let end_token = loop {
+      self.matches(TokenType::EndOfLine);
+      if self.current().ttype == TokenType::RightBrace {
+        break self.current();
+      }
+
+      let item = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+      items.push(item);
+
+      if !self.matches(TokenType::Comma) {
+        self.matches(TokenType::EndOfLine);
+        break self.expect(TokenType::RightBrace, Error::ExpectedClosingBrace)?;
+      }
+    };
+
+    self.expect_newline()?;
+
+    Ok(Stmt::Import {
+      token,
+      module,
+      items,
+      end_token,
+    })
+  }
 }
 
 // Expressions
@@ -522,6 +564,7 @@ impl<'source> Parser<'source> {
       parameters.push(parameter);
 
       if !self.matches(TokenType::Comma) {
+        self.matches(TokenType::EndOfLine);
         self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
         break;
       }
@@ -631,6 +674,7 @@ impl<'source> Parser<'source> {
       self.next();
 
       if !self.matches(TokenType::Comma) {
+        self.matches(TokenType::EndOfLine);
         break self.expect(TokenType::RightParen, Error::ExpectedClosingBracket)?;
       }
     };

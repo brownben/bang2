@@ -1,5 +1,6 @@
 use crate::{
   ast::{Expr, Stmt},
+  builtins::get_builtin_module_value,
   chunk::{Chunk, ChunkBuilder, OpCode},
   diagnostic::Diagnostic,
   tokens::{Token, TokenType},
@@ -12,6 +13,7 @@ enum Error {
   TooManyArguments,
   TooManyParameters,
   VariableAlreadyExists,
+  BuiltinNotFound,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -21,6 +23,7 @@ impl Error {
       Self::TooManyArguments => "Too Many Arguments",
       Self::TooManyParameters => "Too Many Parameters",
       Self::VariableAlreadyExists => "Variable Already Exists",
+      Self::BuiltinNotFound => "Builtin Not Found",
     }
   }
 
@@ -34,6 +37,10 @@ impl Error {
       }
       Self::VariableAlreadyExists => format!(
         "Variable '{}' has been defined already",
+        token.get_value(source)
+      ),
+      Self::BuiltinNotFound => format!(
+        "Could not find value in module '{}'",
         token.get_value(source)
       ),
     }
@@ -180,30 +187,13 @@ impl<'s> Compiler<'s> {
         identifier,
         ..
       } => {
-        let variable_name = identifier.get_value(self.source);
         if let Some(expression) = expression {
           self.compile_expression(expression);
         } else {
           self.emit_opcode(identifier, OpCode::Null);
         }
 
-        if self.scope_depth > 0 {
-          if self
-            .locals
-            .iter()
-            .any(|local| local.name == variable_name && local.depth == self.scope_depth)
-          {
-            self.error(identifier, Error::VariableAlreadyExists);
-          } else {
-            self.locals.push(Local {
-              name: variable_name,
-              depth: self.scope_depth,
-            });
-          }
-        } else {
-          self.emit_opcode(identifier, OpCode::DefineGlobal);
-          self.emit_constant_string(identifier, variable_name);
-        }
+        self.define_variable(identifier);
       }
       Stmt::If {
         if_token,
@@ -229,6 +219,23 @@ impl<'s> Compiler<'s> {
         } else {
           self.patch_jump(if_token, then_jump);
           self.emit_opcode(if_token, OpCode::Pop);
+        }
+      }
+      Stmt::Import {
+        token,
+        module,
+        items,
+        ..
+      } => {
+        let module_name = module.get_value(self.source);
+
+        for item in items {
+          if let Some(value) = get_builtin_module_value(module_name, item.get_value(self.source)) {
+            self.emit_constant(token, value);
+            self.define_variable(item);
+          } else {
+            self.error(module, Error::BuiltinNotFound);
+          }
         }
       }
       Stmt::While {
@@ -439,6 +446,27 @@ impl<'s> Compiler<'s> {
     }
   }
 
+  fn define_variable(&mut self, identifier: &Token) {
+    let variable_name = identifier.get_value(self.source);
+
+    if self.scope_depth > 0 {
+      if self
+        .locals
+        .iter()
+        .any(|local| local.name == variable_name && local.depth == self.scope_depth)
+      {
+        self.error(identifier, Error::VariableAlreadyExists);
+      } else {
+        self.locals.push(Local {
+          name: variable_name,
+          depth: self.scope_depth,
+        });
+      }
+    } else {
+      self.emit_opcode(identifier, OpCode::DefineGlobal);
+      self.emit_constant_string(identifier, variable_name);
+    }
+  }
   fn and(&mut self, operator: &Token, left: &'s Expr, right: &'s Expr) {
     self.compile_expression(left);
     let jump = self.emit_jump(operator, OpCode::JumpIfFalse);

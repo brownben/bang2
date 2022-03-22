@@ -181,6 +181,15 @@ mod ast {
           print_statement(source, &*ot, prefix_indetented_start, prefix_indetented);
         };
       }
+      Stmt::Import { module, items, .. } => {
+        println!("{}From '{}' Import", prefix, module.get_value(source));
+        if let Some((last, items)) = items.split_last() {
+          for item in items {
+            println!("{}├─ {}", prefix_raw, item.get_value(source));
+          }
+          println!("{}╰─ {}", prefix_raw, last.get_value(source));
+        }
+      }
       Stmt::While {
         condition, body, ..
       } => {

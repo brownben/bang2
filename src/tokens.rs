@@ -55,6 +55,8 @@ pub enum TokenType {
   // Keywords
   Else,
   If,
+  Import,
+  From,
   Let,
   Return,
   While,
@@ -155,6 +157,8 @@ impl std::fmt::Display for TokenType {
 
       Else => write!(f, "else"),
       If => write!(f, "if"),
+      Import => write!(f, "import"),
+      From => write!(f, "from"),
       Let => write!(f, "let"),
       Return => write!(f, "return"),
       While => write!(f, "while"),
@@ -372,8 +376,16 @@ impl<'source> Tokeniser<'source> {
     match self.source[self.position] {
       b'a' => self.check_keyword(length, "and", TokenType::And),
       b'e' => self.check_keyword(length, "else", TokenType::Else),
-      b'f' => self.check_keyword(length, "false", TokenType::False),
-      b'i' => self.check_keyword(length, "if", TokenType::If),
+      b'f' => match self.source[self.position + 1] {
+        b'a' => self.check_keyword(length, "false", TokenType::False),
+        b'r' => self.check_keyword(length, "from", TokenType::From),
+        _ => TokenType::Identifier,
+      },
+      b'i' => match self.source[self.position + 1] {
+        b'f' => self.check_keyword(length, "if", TokenType::If),
+        b'm' => self.check_keyword(length, "import", TokenType::Import),
+        _ => TokenType::Identifier,
+      },
       b'l' => self.check_keyword(length, "let", TokenType::Let),
       b'n' => self.check_keyword(length, "null", TokenType::Null),
       b'o' => self.check_keyword(length, "or", TokenType::Or),

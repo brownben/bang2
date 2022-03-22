@@ -289,6 +289,46 @@ impl<'source> Formatter<'source> {
           self.write_statement_inline(otherwise, indentation, false, f)?;
         }
       }
+      Stmt::Import {
+        token,
+        module,
+        items,
+        ..
+      } => {
+        write!(f, "from {} import {{", self.value(module))?;
+
+        let lines: Vec<LineNumber> = items.iter().map(|item| item.line).collect();
+        let all_same_line = lines.iter().all(|line| line == &lines[0]);
+        let all_same_line_as_bracket = all_same_line && lines.contains(&token.line);
+
+        if all_same_line_as_bracket || items.is_empty() {
+          write!(f, " ")?;
+          for (i, item) in items.iter().enumerate() {
+            write!(f, "{}", self.value(item))?;
+            if i < items.len() - 1 {
+              write!(f, ", ")?;
+            }
+          }
+          write!(f, " ")?;
+        } else if all_same_line {
+          write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
+          for item in items {
+            write!(f, "{}, ", self.value(item))?;
+          }
+          writeln!(f)?;
+        } else {
+          for item in items {
+            write!(
+              f,
+              "\n{}{},",
+              INDENTATION.repeat(indentation + 1),
+              self.value(item)
+            )?;
+          }
+          write!(f, "\n{}", INDENTATION.repeat(indentation))?;
+        }
+        write!(f, "}}")?;
+      }
       Stmt::Return { expression, .. } => {
         write!(f, "return ")?;
         if let Some(expression) = expression {
