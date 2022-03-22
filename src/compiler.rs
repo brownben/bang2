@@ -500,6 +500,13 @@ impl<'s> Compiler<'s> {
   }
 
   fn pipeline(&mut self, token: &Token, left: &'s Expr, right: &'s Expr) {
+    let mut right = right;
+
+    // If right is a comment, unwrap it
+    if let Expr::Comment { expression, .. } = right {
+      right = expression;
+    }
+
     if let Expr::Call {
       expression,
       arguments,
