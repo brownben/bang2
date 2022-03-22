@@ -1,0 +1,245 @@
+// ==========================
+// Basic Types
+// ==========================
+
+// There are 5 different types:
+// - Strings
+// - Numbers
+// - Booleans
+// - Null
+// - Functions
+
+// Strings
+// ==========================
+
+'They can have single quotes'
+"or they can have double quotes"
+`or even backticks`
+'they
+  can
+    even
+      span
+    multiple
+  lines'
+
+'hello' == "hello" // true
+'cat' > 'bat'      // true
+'he' + 'llo'       // 'hello'
+!""                // true
+!'stuff'           // false
+
+
+// Numbers
+// ==========================
+
+// are stored as f64. Can have underscores separating digits.
+125.3
+152
+1_000_000
+-5.63
+.25
+
+2.5 + 1.2   // 3.7
+5 - 2       // 3
+5.2 / 2     // 2.6
+8 * 3       // 24
+2.5 == 2.5  // true
+2.5 != 2.5  // false
+5 > 3       // true
+5 >= 3      // true
+5 < 7       // true
+5 <= 5      // true
+!0          // true
+!1          // false
+
+
+// Booleans
+// ==========================
+
+true
+false
+
+!true         // false
+true != false // true
+
+
+// Null
+// ==========================
+
+null
+
+!null // true
+
+
+// Functions
+// ==========================
+
+// Can be defined with a single line as the body
+() => 3 + 5
+
+// Or can be defined with a whole block
+() ->
+  let a = 3
+  let b = 5
+  return a + b
+
+// Functions are only equal to themselves.
+(() => 3) != (() => 3)
+
+// Are always truthy
+!!(() => 3)   // true
+
+// Can take up to 255 parameters
+(a, b) => a + b
+
+// Functions are called with brackets
+(() => 3)()        // 3
+((x) => x + 3)(4)  // 7
+
+
+// ==========================
+// Logical Operators
+// ==========================
+
+// And. Short circuiting operator, returning the first falsey value. The word form is prefered over &&.
+
+true and 2       // 2
+2 && true        // true
+"hello" and 77   // 77
+0 and 77         // 77
+2 and "hello"    // 'hello'
+"hello" && 77    // 77
+0 && 77          // 77
+2 && "hello"     // 'hello
+((a) => a + 1) && "hello"  // 'hello'
+false and false  // false
+false and true   // false
+false and 77     // false
+null and "hello" // null
+null && "hello"  // null
+
+// Or. Short circuiting operator, returning the first truthy value. The word form is prefered over ||.
+
+((a) => a + 1) || "hello" // '<function>'
+false or false   // false
+false or true    // true
+false or 77      // 77
+null or "hello"  // 'hello'
+
+// Nullish Coelesing. Short circuiting operator, returning the first non-null value.
+
+77 ?? null       // 77
+false ?? 77      // false
+null ?? "hello"  // 'hello'
+
+
+// ==========================
+// Variables
+// ==========================
+
+// Define variables with let, they don't exist until they have been defined
+// You can't use keywords as variable names
+// Variable names can be letters, or underscores
+let variable = 0  // declare with an initial value
+
+// auto initialized to null
+let otherVariable
+
+// can now be assigned to
+variable = 7
+
+// and the value can be accessed by using its name
+// variables must be defined before they can be accessed or assigned to
+variable
+
+// you can't redefine the same variable in the same scope
+// but you can redefine it in a lower scope, by using it in a block
+// variables are dropped at the end of a scope
+let a = 7
+  let a = 5
+  a // 5
+a // 7
+
+// ==========================
+// Assignment Operators
+// ==========================
+
+// Updates the variable on the left after using the operator specified
+let a = 1
+a += 1 // a = a + 1
+a -= 1 // a = a - 1
+a *= 1 // a = a * 1
+a /= 1 // a = a / 1
+
+
+// ==========================
+// Pipeline Operator
+// ==========================
+
+// Passes the value on the left as the first argument to the function on the right.
+
+25 >> type()           // 'number'
+25 >> type() >> type() // 'string'
+
+// You can also omit the braces if you want.
+25 >> type           // 'number'
+25 >> type >> type   // 'string'
+
+// If there are other arguments it just goes before them
+let add = (x, y) => x + y
+3 >> add(4) // 7
+
+
+// ==========================
+// Control Flow
+// ==========================
+
+let condition
+let doSomething
+let doSomethingElse
+
+// If statements
+
+if (condition) doSomething
+else doSomethingElse
+
+// or can be written with blocks
+if (condition)
+  doSomething
+else
+  doSomethingElse
+
+// can be chained to make if else
+if (condition) doSomething
+else if (condition) doSomething
+else doSomethingElse
+
+// While Loop
+
+while (condition) doSomething
+
+
+// ==========================
+// Imports
+// ==========================
+
+// Import values from builtin modules
+// Defines the value in the current scope
+
+from maths import { pow, sin, log }
+from string import { includes, startsWith }
+
+
+// ==========================
+// Comments
+// ==========================
+
+// As seen in this file.
+// Comment until the end of a line with `//`
+// Useless expressions are discarded, so strings can also be used as comments on thier own line, as they will be stripped out
+
+// There are a few of places where comments can't be put at the end of a line
+// - Inside an import
+// - Inside a function's parameter list
+// - Directly after an else
+// - After a variable declaration with no initial value

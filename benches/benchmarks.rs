@@ -66,3 +66,5 @@ bang_benchmark!(arithmetic, examples "arithmeticBench.bang");
 bang_benchmark!(iterative_fibonacci, examples "iterativeFibonacci.bang");
 
 bang_benchmark!(recursive_fibonacci, examples "recursiveFibonacci.bang");
+
+bang_benchmark!(syntax, examples "syntax.bang");
