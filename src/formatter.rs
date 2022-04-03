@@ -23,21 +23,20 @@ impl<'source> Formatter<'source> {
     token.get_value(self.source)
   }
 
-  fn write_condition(
+  fn write_group(
     &self,
-    keyword: &str,
-    condition: &Expr,
+    expression: &Expr,
     indentation: usize,
     f: &mut std::fmt::Formatter,
   ) -> std::fmt::Result {
-    write!(f, "{} (", keyword)?;
+    write!(f, "(")?;
 
-    if condition.get_start().line == condition.get_end().line {
-      self.fmt_expression(condition, indentation + 1, f)?;
+    if expression.get_start().line == expression.get_end().line {
+      self.fmt_expression(expression, indentation + 1, f)?;
       write!(f, ")")?;
     } else {
       write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
-      self.fmt_expression(condition, indentation + 1, f)?;
+      self.fmt_expression(expression, indentation + 1, f)?;
       write!(f, "\n{})", INDENTATION.repeat(indentation))?;
     }
 
@@ -201,9 +200,7 @@ impl<'source> Formatter<'source> {
         }
       }
       Expr::Group { expression, .. } => {
-        write!(f, "(")?;
-        self.fmt_expression(expression, indentation, f)?;
-        write!(f, ")")?;
+        self.write_group( expression, indentation, f)?;
       }
       Expr::Literal { token, value, .. } => {
         match token.ttype {
@@ -281,7 +278,8 @@ impl<'source> Formatter<'source> {
         otherwise,
         ..
       } => {
-        self.write_condition("if", condition, indentation, f)?;
+        write!(f, "if ")?;
+        self.write_group(condition, indentation, f)?;
         self.write_statement_inline(then, indentation, false, f)?;
 
         if let Some(otherwise) = otherwise {
@@ -338,7 +336,8 @@ impl<'source> Formatter<'source> {
       Stmt::While {
         condition, body, ..
       } => {
-        self.write_condition("while", condition, indentation, f)?;
+        write!(f, "while ")?;
+        self.write_group(condition, indentation, f)?;
         self.write_statement_inline(&**body, indentation, false, f)?;
       }
     }

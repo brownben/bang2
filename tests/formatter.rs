@@ -40,6 +40,39 @@ fn grouping() {
 }
 
 #[test]
+fn multiline_grouping() {
+  assert_format!(
+    "
+(
+  multiline(
+    1,
+    2,
+    3,
+  )
+)"
+  );
+  assert_format!(
+    "
+(
+  multiline(
+    1,
+    2,
+    3,
+  )
+
+)",
+    "
+(
+  multiline(
+    1,
+    2,
+    3,
+  )
+)"
+  );
+}
+
+#[test]
 fn and_or_prefer_words() {
   assert_format!("3 and 4", "3 and 4");
   assert_format!("3 or   4", "3 or 4");

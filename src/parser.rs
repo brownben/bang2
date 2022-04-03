@@ -224,6 +224,10 @@ impl<'source> Parser<'source> {
     }
   }
 
+  fn ignore_newline(&mut self) {
+    while self.matches(TokenType::EndOfLine) {}
+  }
+
   fn matches(&mut self, token_type: TokenType) -> bool {
     let matches = self.current().ttype == token_type;
     if matches {
@@ -273,7 +277,7 @@ impl<'source> Parser<'source> {
   }
 
   fn parse_expression(&mut self, precedence: Precedence) -> ExpressionResult<'source> {
-    self.matches(TokenType::EndOfLine);
+    self.ignore_newline();
     let token = self.current();
 
     let can_assign = precedence <= Precedence::Assignment;
@@ -462,11 +466,11 @@ impl<'source> Parser<'source> {
     self.matches(TokenType::EndOfLine);
     let body = self.statement()?;
 
-    while self.matches(TokenType::EndOfLine) {}
+    self.ignore_newline();
 
     let (else_token, otherwise) = if self.current().ttype == TokenType::Else {
       let else_token = self.current_advance();
-      while self.matches(TokenType::EndOfLine) {}
+      self.ignore_newline();
 
       (Some(else_token), Some(Box::new(self.statement()?)))
     } else {
@@ -519,7 +523,7 @@ impl<'source> Parser<'source> {
 
     let mut items = Vec::new();
     let end_token = loop {
-      self.matches(TokenType::EndOfLine);
+      self.ignore_newline();
       if self.current().ttype == TokenType::RightBrace {
         break self.current();
       }
@@ -528,7 +532,7 @@ impl<'source> Parser<'source> {
       items.push(item);
 
       if !self.matches(TokenType::Comma) {
-        self.matches(TokenType::EndOfLine);
+        self.ignore_newline();
         break self.expect(TokenType::RightBrace, Error::ExpectedClosingBrace)?;
       }
     };
@@ -555,7 +559,7 @@ impl<'source> Parser<'source> {
 
     let mut parameters = Vec::new();
     loop {
-      self.matches(TokenType::EndOfLine);
+      self.ignore_newline();
       if self.matches(TokenType::RightParen) {
         break;
       }
@@ -564,7 +568,7 @@ impl<'source> Parser<'source> {
       parameters.push(parameter);
 
       if !self.matches(TokenType::Comma) {
-        self.matches(TokenType::EndOfLine);
+        self.ignore_newline();
         self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
         break;
       }
@@ -576,7 +580,7 @@ impl<'source> Parser<'source> {
         expression: Some(self.expression()?),
       })
     } else if self.matches(TokenType::RightArrow) {
-      self.matches(TokenType::EndOfLine);
+      self.ignore_newline();
       let statement = self.statement()?;
       self.back();
       Ok(statement)
@@ -600,6 +604,7 @@ impl<'source> Parser<'source> {
     let token = self.current_advance();
     let expression = self.expression()?;
     self.next();
+    self.ignore_newline();
     let end_token = self.expect(TokenType::RightParen, Error::ExpectedClosingBracket)?;
 
     Ok(Expr::Group {
@@ -665,7 +670,7 @@ impl<'source> Parser<'source> {
 
     let mut arguments = Vec::new();
     let end_token = loop {
-      self.matches(TokenType::EndOfLine);
+      self.ignore_newline();
       if self.current().ttype == TokenType::RightParen {
         break self.current();
       }
@@ -674,7 +679,7 @@ impl<'source> Parser<'source> {
       self.next();
 
       if !self.matches(TokenType::Comma) {
-        self.matches(TokenType::EndOfLine);
+        self.ignore_newline();
         break self.expect(TokenType::RightParen, Error::ExpectedClosingBracket)?;
       }
     };
