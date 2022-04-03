@@ -281,10 +281,8 @@ impl<'s> Compiler<'s> {
         self.end_scope();
       }
       Stmt::Expression { expression, .. } => {
-        if expression.has_side_effect() {
-          self.compile_expression(expression);
-          self.emit_opcode_blank(OpCode::Pop);
-        }
+        self.compile_expression(expression);
+        self.emit_opcode_blank(OpCode::Pop);
       }
       Stmt::Comment { .. } => {}
     }
