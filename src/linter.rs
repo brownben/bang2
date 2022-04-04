@@ -16,13 +16,19 @@ macro_rules! lint_rule {
     message: $message:expr;
     visitor: $visitor:tt
   } => {
-    pub struct $rule_name {
+    pub struct $rule_name<'s> {
       issues: Vec<LineNumber>,
+
+      #[allow(unused)]
+      source: &'s [u8],
     }
-    impl<'s> LintRule<'s> for $rule_name {
+    impl<'s> LintRule<'s> for $rule_name<'s> {
       fn check(source: &'s str, ast: &[Stmt]) -> Diagnostic {
-        let mut visitor = Self { issues: Vec::new() };
-        visitor.visit(ast, source);
+        let mut visitor = Self {
+          issues: Vec::new(),
+          source: source.as_bytes(),
+        };
+        visitor.visit(ast);
 
         Diagnostic {
           title: $title.to_string(),
@@ -31,7 +37,7 @@ macro_rules! lint_rule {
         }
       }
     }
-    impl <'s> Visitor<&'s str> for $rule_name $visitor
+    impl <'s> Visitor for $rule_name<'s> $visitor
   }
 }
 
@@ -40,7 +46,7 @@ lint_rule! {
   title: "No Constant Conditions";
   message: "The control flow could be removed, as the condition is always true or false";
   visitor: {
-    fn exit_statement(&mut self, statement: &Stmt, _source: &str) {
+    fn exit_statement(&mut self, statement: &Stmt) {
       match statement {
         Stmt::If {
           if_token,
@@ -69,7 +75,7 @@ lint_rule! {
   title: "No Yoda Equality";
   message: "It is clearer to have the variable first then the value to compare to";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr, _source: &str) {
+    fn exit_expression(&mut self, expression: &Expr) {
       if let Expr::Binary { left, right, operator, ..} = expression
         && let TokenType::EqualEqual | TokenType::BangEqual = operator.ttype
         && let Expr::Variable { .. } = right.as_ref()
@@ -86,7 +92,7 @@ lint_rule! {
   title: "No Negative Zero";
   message: "Negative zero is unnecessary as 0 == -0";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr, _source: &str) {
+    fn exit_expression(&mut self, expression: &Expr) {
       if let Expr::Unary { expression, .. } = expression
         && let Expr::Literal { value, token, .. } = expression.as_ref()
         && Value::parse_number(value) == Value::from(0.0)
@@ -102,7 +108,7 @@ lint_rule! {
   title: "No Self Assign";
   message: "Assigning a variable to itself is unnecessary";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr, source: &str) {
+    fn exit_expression(&mut self, expression: &Expr) {
       if let Expr::Assignment {
         identifier,
         expression,
@@ -110,7 +116,7 @@ lint_rule! {
       } = expression
       {
         if let Expr::Variable { token, .. } = expression.as_ref()
-          && identifier.get_value(source.as_bytes()) == token.get_value(source.as_bytes())
+          && identifier.get_value(self.source) == token.get_value(self.source)
         {
           self.issues.push(identifier.line);
         }
@@ -124,7 +130,7 @@ lint_rule! {
   title: "No Unreachable Code";
   message: "Code after a return can never be executed";
   visitor:{
-    fn exit_statement(&mut self, statement: &Stmt, _source: &str) {
+    fn exit_statement(&mut self, statement: &Stmt) {
       if let Stmt::Block { body, .. } = statement {
         let mut seen_return: Option<Token> = None;
         for statement in body {

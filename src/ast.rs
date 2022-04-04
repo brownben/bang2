@@ -209,78 +209,74 @@ impl<'s> GetPosition<'s> for Stmt<'s> {
   }
 }
 
-pub trait Visitor<T: Copy> {
-  fn visit(&mut self, statements: &[Stmt], value: T) {
-    statements
-      .iter()
-      .for_each(|s| self.visit_statement(s, value));
+pub trait Visitor {
+  fn visit(&mut self, statements: &[Stmt]) {
+    statements.iter().for_each(|s| self.visit_statement(s));
   }
 
-  fn visit_statement(&mut self, statement: &Stmt, value: T) {
+  fn visit_statement(&mut self, statement: &Stmt) {
     match statement {
-      Stmt::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s, value)),
+      Stmt::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
       Stmt::Declaration { expression, .. } => {
         if let Some(expression) = &*expression {
-          self.visit_expression(expression, value);
+          self.visit_expression(expression);
         }
       }
-      Stmt::Expression { expression, .. } => self.visit_expression(expression, value),
+      Stmt::Expression { expression, .. } => self.visit_expression(expression),
       Stmt::If {
         condition,
         then,
         otherwise,
         ..
       } => {
-        self.visit_expression(condition, value);
-        self.visit_statement(then, value);
+        self.visit_expression(condition);
+        self.visit_statement(then);
         if let Some(otherwise) = &*otherwise {
-          self.visit_statement(otherwise.as_ref(), value);
+          self.visit_statement(otherwise.as_ref());
         }
       }
       Stmt::Return { expression, .. } => {
         if let Some(expression) = expression {
-          self.visit_expression(expression, value);
+          self.visit_expression(expression);
         }
       }
       Stmt::While {
         condition, body, ..
       } => {
-        self.visit_expression(condition, value);
-        self.visit_statement(body, value);
+        self.visit_expression(condition);
+        self.visit_statement(body);
       }
       Stmt::Import { .. } | Stmt::Comment { .. } => {}
     }
 
-    self.exit_statement(statement, value);
+    self.exit_statement(statement);
   }
 
-  fn visit_expression(&mut self, expression: &Expr, value: T) {
+  fn visit_expression(&mut self, expression: &Expr) {
     match expression {
       Expr::Assignment { expression, .. }
       | Expr::Comment { expression, .. }
       | Expr::Group { expression, .. }
-      | Expr::Unary { expression, .. } => self.visit_expression(expression, value),
+      | Expr::Unary { expression, .. } => self.visit_expression(expression),
       Expr::Binary { left, right, .. } => {
-        self.visit_expression(left, value);
-        self.visit_expression(right, value);
+        self.visit_expression(left);
+        self.visit_expression(right);
       }
       Expr::Call {
         expression,
         arguments,
         ..
       } => {
-        self.visit_expression(expression, value);
-        arguments
-          .iter()
-          .for_each(|arg| self.visit_expression(arg, value));
+        self.visit_expression(expression);
+        arguments.iter().for_each(|arg| self.visit_expression(arg));
       }
-      Expr::Function { body, .. } => self.visit_statement(body, value),
+      Expr::Function { body, .. } => self.visit_statement(body),
       Expr::Literal { .. } | Expr::Variable { .. } => {}
     }
 
-    self.exit_expression(expression, value);
+    self.exit_expression(expression);
   }
 
-  fn exit_expression(&mut self, _expression: &Expr, _value: T) {}
-  fn exit_statement(&mut self, _statement: &Stmt, _value: T) {}
+  fn exit_expression(&mut self, _expression: &Expr) {}
+  fn exit_statement(&mut self, _statement: &Stmt) {}
 }
