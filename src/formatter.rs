@@ -72,6 +72,52 @@ impl<'source> Formatter<'source> {
     Ok(())
   }
 
+  fn write_list<Item>(
+    &self,
+    items: &[Item],
+    get_line: impl Fn(&Item) -> LineNumber,
+    write_item: &mut dyn FnMut(&mut std::fmt::Formatter, &Item, usize) -> std::fmt::Result,
+    start: &Token,
+    indentation: usize,
+    padded: bool,
+    f: &mut std::fmt::Formatter,
+  ) -> std::fmt::Result {
+    let lines: Vec<LineNumber> = items.iter().map(get_line).collect();
+    let all_same_line = lines.iter().all(|line| line == &lines[0]);
+    let all_same_line_as_bracket = all_same_line && lines.contains(&start.line);
+
+    if all_same_line_as_bracket || items.is_empty() {
+      if padded {
+        write!(f, " ")?;
+      }
+      for (i, item) in items.iter().enumerate() {
+        write_item(f, item, indentation)?;
+        if i < items.len() - 1 {
+          write!(f, ", ")?;
+        }
+      }
+      if padded {
+        write!(f, " ")?;
+      }
+    } else if all_same_line {
+      write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
+      for item in items {
+        write_item(f, item, indentation + 1)?;
+        write!(f, ", ")?;
+      }
+      writeln!(f)?;
+    } else {
+      for arg in items {
+        write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
+        write_item(f, arg, indentation + 1)?;
+        write!(f, ",")?;
+      }
+      write!(f, "\n{}", INDENTATION.repeat(indentation))?;
+    }
+
+    Ok(())
+  }
+
   fn fmt_expression(
     &self,
     expr: &Expr,
@@ -113,38 +159,18 @@ impl<'source> Formatter<'source> {
         token,
         ..
       } => {
-        let argument_lines: Vec<LineNumber> =
-          arguments.iter().map(|arg| arg.get_start().line).collect();
-        let all_same_line = argument_lines.iter().all(|line| line == &argument_lines[0]);
-        let all_same_line_as_bracket = all_same_line && argument_lines.contains(&token.line);
-
         self.fmt_expression(expression, indentation, f)?;
 
         write!(f, "(")?;
-
-        if all_same_line_as_bracket || arguments.is_empty() {
-          for (i, arg) in arguments.iter().enumerate() {
-            self.fmt_expression(arg, indentation, f)?;
-            if i < arguments.len() - 1 {
-              write!(f, ", ")?;
-            }
-          }
-        } else if all_same_line {
-          write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
-          for arg in arguments {
-            self.fmt_expression(arg, indentation + 1, f)?;
-            write!(f, ", ")?;
-          }
-          writeln!(f)?;
-        } else {
-          for arg in arguments {
-            write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
-            self.fmt_expression(arg, indentation + 1, f)?;
-            write!(f, ",")?;
-          }
-          write!(f, "\n{}", INDENTATION.repeat(indentation))?;
-        }
-
+        self.write_list(
+          arguments,
+          |arg| arg.get_start().line,
+          &mut |f, arg, i| self.fmt_expression(arg, i, f),
+          token,
+          indentation,
+          false,
+          f,
+        )?;
         write!(f, ")")?;
       }
       Expr::Comment {
@@ -162,30 +188,15 @@ impl<'source> Formatter<'source> {
         ..
       } => {
         write!(f, "(")?;
-
-        let lines: Vec<LineNumber> = parameters.iter().map(|parameter| parameter.line).collect();
-        let all_same_line = lines.iter().all(|line| line == &lines[0]);
-        let all_same_line_as_bracket = all_same_line && lines.contains(&token.line);
-
-        if all_same_line_as_bracket || parameters.is_empty() {
-          for (i, parameter) in parameters.iter().enumerate() {
-            write!(f, "{}",self.value(parameter))?;
-            if i < parameters.len() - 1 {
-              write!(f, ", ")?;
-            }
-          }
-        } else if all_same_line {
-          write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
-          for parameter in parameters {
-            write!(f, "{}, ", self.value(parameter))?;
-          }
-          writeln!(f)?;
-        } else {
-          for parameter in parameters {
-            write!(f, "\n{}{},", INDENTATION.repeat(indentation + 1), self.value(parameter))?;
-          }
-          write!(f, "\n{}", INDENTATION.repeat(indentation))?;
-        }
+        self.write_list(
+          parameters,
+          |param| param.line,
+          &mut |f, parameter, _| write!(f, "{}", self.value(parameter)),
+          token,
+          indentation,
+          false,
+          f,
+        )?;
 
         if let Stmt::Return {
           expression: Some(expression),
@@ -294,37 +305,15 @@ impl<'source> Formatter<'source> {
         ..
       } => {
         write!(f, "from {} import {{", self.value(module))?;
-
-        let lines: Vec<LineNumber> = items.iter().map(|item| item.line).collect();
-        let all_same_line = lines.iter().all(|line| line == &lines[0]);
-        let all_same_line_as_bracket = all_same_line && lines.contains(&token.line);
-
-        if all_same_line_as_bracket || items.is_empty() {
-          write!(f, " ")?;
-          for (i, item) in items.iter().enumerate() {
-            write!(f, "{}", self.value(item))?;
-            if i < items.len() - 1 {
-              write!(f, ", ")?;
-            }
-          }
-          write!(f, " ")?;
-        } else if all_same_line {
-          write!(f, "\n{}", INDENTATION.repeat(indentation + 1))?;
-          for item in items {
-            write!(f, "{}, ", self.value(item))?;
-          }
-          writeln!(f)?;
-        } else {
-          for item in items {
-            write!(
-              f,
-              "\n{}{},",
-              INDENTATION.repeat(indentation + 1),
-              self.value(item)
-            )?;
-          }
-          write!(f, "\n{}", INDENTATION.repeat(indentation))?;
-        }
+        self.write_list(
+          items,
+          |item| item.line,
+          &mut |f, item, _| write!(f, "{}", self.value(item)),
+          token,
+          indentation,
+          true,
+          f,
+        )?;
         write!(f, "}}")?;
       }
       Stmt::Return { expression, .. } => {
