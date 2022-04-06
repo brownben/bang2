@@ -1,12 +1,11 @@
 use crate::{
-  ast::{Expr, Stmt, Visitor},
+  ast::{BinaryOperator, Expr, Expression, Span, Statement, Stmt, Visitor},
   diagnostic::Diagnostic,
-  tokens::{LineNumber, Token, TokenType},
   value::Value,
 };
 
-trait LintRule<'s> {
-  fn check(source: &'s str, ast: &[Stmt]) -> Diagnostic;
+trait LintRule {
+  fn check(source: &str, ast: &[Statement]) -> Diagnostic;
 }
 
 macro_rules! lint_rule {
@@ -16,28 +15,22 @@ macro_rules! lint_rule {
     message: $message:expr;
     visitor: $visitor:tt
   } => {
-    pub struct $rule_name<'s> {
-      issues: Vec<LineNumber>,
-
-      #[allow(unused)]
-      source: &'s [u8],
+    pub struct $rule_name {
+      issues: Vec<Span>,
     }
-    impl<'s> LintRule<'s> for $rule_name<'s> {
-      fn check(source: &'s str, ast: &[Stmt]) -> Diagnostic {
-        let mut visitor = Self {
-          issues: Vec::new(),
-          source: source.as_bytes(),
-        };
+    impl LintRule for $rule_name {
+      fn check(source: &str, ast: &[Statement]) -> Diagnostic {
+        let mut visitor = Self { issues: Vec::new() };
         visitor.visit(ast);
 
         Diagnostic {
           title: $title.to_string(),
           message: $message.to_string(),
-          lines: visitor.issues,
+          lines: visitor.issues.iter().map(|span| span.get_line_number(source)).collect(),
         }
       }
     }
-    impl <'s> Visitor for $rule_name<'s> $visitor
+    impl Visitor for $rule_name $visitor
   }
 }
 
@@ -46,22 +39,16 @@ lint_rule! {
   title: "No Constant Conditions";
   message: "The control flow could be removed, as the condition is always true or false";
   visitor: {
-    fn exit_statement(&mut self, statement: &Stmt) {
-      match statement {
-        Stmt::If {
-          if_token,
-          condition,
-          ..
-        } => {
+    fn exit_statement(&mut self, statement: &Statement) {
+      match &statement.stmt {
+        Stmt::If { condition, .. } => {
           if condition.is_constant() {
-            self.issues.push(if_token.line);
+            self.issues.push(statement.span);
           }
         }
-        Stmt::While {
-          token, condition, ..
-        } => {
+        Stmt::While { condition, .. } => {
           if condition.is_constant() {
-            self.issues.push(token.line);
+            self.issues.push(statement.span);
           }
         }
         _ => {}
@@ -75,13 +62,13 @@ lint_rule! {
   title: "No Yoda Equality";
   message: "It is clearer to have the variable first then the value to compare to";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr) {
-      if let Expr::Binary { left, right, operator, ..} = expression
-        && let TokenType::EqualEqual | TokenType::BangEqual = operator.ttype
-        && let Expr::Variable { .. } = right.as_ref()
-        && let Expr::Literal { .. } = left.as_ref()
+    fn exit_expression(&mut self, expression: &Expression) {
+      if let Expr::Binary { left, right, operator, ..} = &expression.expr
+        && let BinaryOperator::Equal | BinaryOperator::NotEqual = operator
+        && let Expr::Variable { .. } = right.expr
+        && let Expr::Literal { .. } = left.expr
       {
-        self.issues.push(operator.line);
+        self.issues.push(expression.span);
       }
     }
   }
@@ -92,12 +79,12 @@ lint_rule! {
   title: "No Negative Zero";
   message: "Negative zero is unnecessary as 0 == -0";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr) {
-      if let Expr::Unary { expression, .. } = expression
-        && let Expr::Literal { value, token, .. } = expression.as_ref()
+    fn exit_expression(&mut self, expression: &Expression) {
+      if let Expr::Unary { expression, .. } = &expression.expr
+        && let Expr::Literal { value,  .. } = &expression.expr
         && Value::parse_number(value) == Value::from(0.0)
       {
-        self.issues.push(token.line);
+        self.issues.push(expression.span);
       }
     }
   }
@@ -108,17 +95,17 @@ lint_rule! {
   title: "No Self Assign";
   message: "Assigning a variable to itself is unnecessary";
   visitor: {
-    fn exit_expression(&mut self, expression: &Expr) {
+    fn exit_expression(&mut self, expression: &Expression) {
       if let Expr::Assignment {
         identifier,
         expression,
         ..
-      } = expression
+      } = &expression.expr
       {
-        if let Expr::Variable { token, .. } = expression.as_ref()
-          && identifier.get_value(self.source) == token.get_value(self.source)
+        if let Expr::Variable { name, .. } = &expression.expr
+          && identifier == name
         {
-          self.issues.push(identifier.line);
+          self.issues.push(expression.span);
         }
       }
     }
@@ -129,18 +116,18 @@ lint_rule! {
   name: NoUnreachable;
   title: "No Unreachable Code";
   message: "Code after a return can never be executed";
-  visitor:{
-    fn exit_statement(&mut self, statement: &Stmt) {
-      if let Stmt::Block { body, .. } = statement {
-        let mut seen_return: Option<Token> = None;
+  visitor: {
+    fn exit_statement(&mut self, statement: &Statement) {
+      if let Stmt::Block { body, .. } = &statement.stmt {
+        let mut seen_return = false;
         for statement in body {
-          if let Some(token) = seen_return {
-            self.issues.push(token.line);
+          if seen_return {
+            self.issues.push(statement.span);
             break;
           }
 
-          if let Stmt::Return { token, .. } = statement {
-            seen_return = Some(**token);
+          if let Stmt::Return { .. } = statement.stmt {
+            seen_return = true;
           }
         }
       }
@@ -148,7 +135,7 @@ lint_rule! {
   }
 }
 
-pub fn lint(source: &str, ast: &[Stmt]) -> Vec<Diagnostic> {
+pub fn lint(source: &str, ast: &[Statement]) -> Vec<Diagnostic> {
   let mut results = vec![
     NoConstantCondition::check(source, ast),
     NoYodaEquality::check(source, ast),

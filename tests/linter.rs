@@ -74,7 +74,7 @@ let y = () ->
   (77)
   null
 "
-  "No Unreachable Code" [4 12]
+  "No Unreachable Code" [5 13]
 );
 
 bang_lint!(no_yoda_equality_check
@@ -105,5 +105,5 @@ if (-(a = 8))
   do_stuff()
 "
   "No Constant Conditions" [2 10]
-  "No Unreachable Code" [4]
+  "No Unreachable Code" [5]
 );

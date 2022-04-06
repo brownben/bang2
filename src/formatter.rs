@@ -1,37 +1,37 @@
 use crate::{
-  ast::{Expr, GetPosition, Stmt},
-  tokens::{LineNumber, Token, TokenType},
+  ast::{Expr, Expression, LiteralType, Span, Statement, Stmt},
+  tokens::LineNumber,
   Value,
 };
 
 const INDENTATION: &str = "  ";
 
 struct Formatter<'source> {
-  source: &'source [u8],
-  ast: &'source [Stmt<'source>],
+  source: &'source str,
+  ast: &'source [Statement<'source>],
 }
 
 impl<'source> Formatter<'source> {
-  fn new(source: &'source str, ast: &'source [Stmt<'source>]) -> Self {
-    Self {
-      source: source.as_bytes(),
-      ast,
-    }
+  fn new(source: &'source str, ast: &'source [Statement<'source>]) -> Self {
+    Self { source, ast }
   }
 
-  fn value(&self, token: &Token) -> &str {
-    token.get_value(self.source)
+  fn line(&self, span: &Span) -> LineNumber {
+    span.get_line_number(self.source)
+  }
+
+  fn line_end(&self, span: &Span) -> LineNumber {
+    span.get_line_number_end(self.source)
   }
 
   fn write_group(
     &self,
-    expression: &Expr,
+    expression: &Expression,
     indentation: usize,
     f: &mut std::fmt::Formatter,
   ) -> std::fmt::Result {
     write!(f, "(")?;
-
-    if expression.get_start().line == expression.get_end().line {
+    if self.line(&expression.span) == self.line_end(&expression.span) {
       self.fmt_expression(expression, indentation + 1, f)?;
       write!(f, ")")?;
     } else {
@@ -45,12 +45,12 @@ impl<'source> Formatter<'source> {
 
   fn write_statement_inline(
     &self,
-    statement: &Stmt,
+    statement: &Statement,
     indentation: usize,
     trailing_newline: bool,
     f: &mut std::fmt::Formatter,
   ) -> std::fmt::Result {
-    if let Stmt::Block { body, .. } = statement {
+    if let Stmt::Block { body, .. } = &statement.stmt {
       if body.len() > 1 {
         writeln!(f)?;
         self.fmt_statement(statement, indentation, true, f)?;
@@ -77,14 +77,14 @@ impl<'source> Formatter<'source> {
     items: &[Item],
     get_line: impl Fn(&Item) -> LineNumber,
     write_item: &mut dyn FnMut(&mut std::fmt::Formatter, &Item, usize) -> std::fmt::Result,
-    start: &Token,
+    start_line: LineNumber,
     indentation: usize,
     padded: bool,
     f: &mut std::fmt::Formatter,
   ) -> std::fmt::Result {
     let lines: Vec<LineNumber> = items.iter().map(get_line).collect();
     let all_same_line = lines.iter().all(|line| line == &lines[0]);
-    let all_same_line_as_bracket = all_same_line && lines.contains(&start.line);
+    let all_same_line_as_bracket = all_same_line && lines.contains(&start_line);
 
     if all_same_line_as_bracket || items.is_empty() {
       if padded {
@@ -120,26 +120,27 @@ impl<'source> Formatter<'source> {
 
   fn fmt_expression(
     &self,
-    expr: &Expr,
+    expression: &Expression,
     indentation: usize,
     f: &mut std::fmt::Formatter,
   ) -> std::fmt::Result {
-    match expr {
+    let span = expression.span;
+
+    match &expression.expr {
       Expr::Assignment {
         identifier,
         expression,
         ..
       } => {
-        if let Expr::Binary { operator, left, right, .. } = &**expression
-          && let Expr::Variable { token } = &**left
-          && self.value(token) == self.value(identifier)
-          && operator.ttype.get_corresponding_assignment_operator().is_some()
+        if let Expr::Binary { operator, left, right, .. } = &expression.expr
+          && let Expr::Variable { name } = &left.expr
+          && let Some(operator) = operator.get_corresponding_assignment_operator()
+          && name == identifier
         {
-          let operator = operator.ttype.get_corresponding_assignment_operator().unwrap();
-          write!(f, "{} {} ", self.value(identifier), operator)?;
+          write!(f, "{identifier} {operator} ")?;
           self.fmt_expression(right, indentation, f)?;
         } else {
-          write!(f, "{} = ", self.value(identifier))?;
+          write!(f, "{identifier} = ")?;
           self.fmt_expression(expression, indentation, f)?;
         }
       }
@@ -150,13 +151,12 @@ impl<'source> Formatter<'source> {
         ..
       } => {
         self.fmt_expression(left, indentation, f)?;
-        write!(f, " {} ", operator.ttype)?;
+        write!(f, " {operator} ")?;
         self.fmt_expression(right, indentation, f)?;
       }
       Expr::Call {
         expression,
         arguments,
-        token,
         ..
       } => {
         self.fmt_expression(expression, indentation, f)?;
@@ -164,9 +164,9 @@ impl<'source> Formatter<'source> {
         write!(f, "(")?;
         self.write_list(
           arguments,
-          |arg| arg.get_start().line,
+          |arg| self.line(&arg.span),
           &mut |f, arg, i| self.fmt_expression(arg, i, f),
-          token,
+          self.line(&expression.span),
           indentation,
           false,
           f,
@@ -174,15 +174,14 @@ impl<'source> Formatter<'source> {
         write!(f, ")")?;
       }
       Expr::Comment {
-        expression, token, ..
+        expression, text, ..
       } => {
-        let message = self.value(token).replace("//", "");
+        let message = text.replacen("//", "", 1);
 
         self.fmt_expression(expression, indentation, f)?;
         write!(f, " // {}", message.trim())?;
       }
       Expr::Function {
-        token,
         parameters,
         body,
         ..
@@ -190,9 +189,9 @@ impl<'source> Formatter<'source> {
         write!(f, "(")?;
         self.write_list(
           parameters,
-          |param| param.line,
-          &mut |f, parameter, _| write!(f, "{}", self.value(parameter)),
-          token,
+          |param| self.line(&param.span),
+          &mut |f, parameter, _| write!(f, "{}", parameter.name),
+          self.line(&span),
           indentation,
           false,
           f,
@@ -201,7 +200,7 @@ impl<'source> Formatter<'source> {
         if let Stmt::Return {
           expression: Some(expression),
           ..
-        } = &**body
+        } = &body.stmt
         {
           write!(f, ") => ")?;
           self.fmt_expression(expression, indentation, f)?;
@@ -213,20 +212,19 @@ impl<'source> Formatter<'source> {
       Expr::Group { expression, .. } => {
         self.write_group( expression, indentation, f)?;
       }
-      Expr::Literal { token, value, .. } => {
-        match token.ttype {
-          TokenType::String => write!(f, "'{}'", value)?,
-          TokenType::Number => {
+      Expr::Literal { type_, value, .. } => {
+        match type_ {
+          LiteralType::String => write!(f, "'{value}'")?,
+          LiteralType::Number => {
             if str::contains(value, "_") {
-              write!(f, "{}", value)?;
+              write!(f, "{value}")?;
             } else {
               write!(f, "{}", Value::parse_number(value))?;
             }
           }
-          TokenType::True => write!(f, "true")?,
-          TokenType::False => write!(f, "false")?,
-          TokenType::Null => write!(f, "null")?,
-          _ => unreachable!(),
+          LiteralType::True => write!(f, "true")?,
+          LiteralType::False => write!(f, "false")?,
+          LiteralType::Null => write!(f, "null")?,
         };
       }
       Expr::Unary {
@@ -234,11 +232,11 @@ impl<'source> Formatter<'source> {
         expression,
         ..
       } => {
-        write!(f, "{}", operator.ttype)?;
+        write!(f, "{operator}")?;
         self.fmt_expression(expression, indentation, f)?;
       }
-      Expr::Variable { token, .. } => {
-        write!(f, "{}", self.value(token))?;
+      Expr::Variable { name, .. } => {
+        write!(f, "{name}")?;
       }
     }
 
@@ -247,14 +245,15 @@ impl<'source> Formatter<'source> {
 
   fn fmt_statement(
     &self,
-    stmt: &Stmt,
+    statement: &Statement,
     indentation: usize,
     new_line: bool,
     f: &mut std::fmt::Formatter,
   ) -> std::fmt::Result {
     let mut ending_new_line = new_line;
+    let span = statement.span;
 
-    match stmt {
+    match &statement.stmt {
       Stmt::Block { body, .. } => {
         if let Some((last, body)) = body.split_last() {
           for stmt in body {
@@ -266,8 +265,8 @@ impl<'source> Formatter<'source> {
         }
         ending_new_line = false;
       }
-      Stmt::Comment { token, .. } => {
-        let message = self.value(token).replace("//", "");
+      Stmt::Comment { text, .. } => {
+        let message = text.replacen("//", "", 1);
         write!(f, "// {}", message.trim())?;
       }
       Stmt::Declaration {
@@ -275,7 +274,7 @@ impl<'source> Formatter<'source> {
         expression,
         ..
       } => {
-        write!(f, "let {} = ", self.value(identifier))?;
+        write!(f, "let {identifier} = ")?;
         if let Some(expression) = expression {
           self.fmt_expression(expression, indentation, f)?;
         }
@@ -298,18 +297,13 @@ impl<'source> Formatter<'source> {
           self.write_statement_inline(otherwise, indentation, false, f)?;
         }
       }
-      Stmt::Import {
-        token,
-        module,
-        items,
-        ..
-      } => {
-        write!(f, "from {} import {{", self.value(module))?;
+      Stmt::Import { module, items, .. } => {
+        write!(f, "from {module} import {{")?;
         self.write_list(
           items,
-          |item| item.line,
-          &mut |f, item, _| write!(f, "{}", self.value(item)),
-          token,
+          |item| self.line(&item.span),
+          &mut |f, item, _| write!(f, "{}", item.name),
+          self.line(&span),
           indentation,
           true,
           f,
@@ -327,7 +321,7 @@ impl<'source> Formatter<'source> {
       } => {
         write!(f, "while ")?;
         self.write_group(condition, indentation, f)?;
-        self.write_statement_inline(&**body, indentation, false, f)?;
+        self.write_statement_inline(body, indentation, false, f)?;
       }
     }
 
@@ -347,7 +341,7 @@ impl std::fmt::Display for Formatter<'_> {
 
     let mut prev = &self.ast[0];
     for stmt in self.ast {
-      if prev.get_end().line + 1 < stmt.get_start().line {
+      if self.line(&prev.span) + 1 < self.line(&stmt.span) {
         writeln!(f)?;
       }
 
@@ -359,6 +353,6 @@ impl std::fmt::Display for Formatter<'_> {
   }
 }
 
-pub fn format(source: &str, ast: &[Stmt]) -> String {
+pub fn format(source: &str, ast: &[Statement]) -> String {
   Formatter::new(source, ast).to_string()
 }

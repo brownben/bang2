@@ -1,5 +1,8 @@
 use crate::{
-  ast::{Expr, Stmt},
+  ast::{
+    expression, statement, BinaryOperator, Expr, Expression, ImportItem, LiteralType, Parameter,
+    Span, Statement, Stmt, UnaryOperator,
+  },
   diagnostic::Diagnostic,
   tokens::{Token, TokenType},
 };
@@ -122,8 +125,8 @@ impl Error {
   }
 }
 
-type ExpressionResult<'source> = Result<Expr<'source>, Error>;
-type StatementResult<'source> = Result<Stmt<'source>, Error>;
+type ExpressionResult<'source> = Result<Expression<'source>, Error>;
+type StatementResult<'source> = Result<Statement<'source>, Error>;
 
 struct Parser<'source> {
   source: &'source [u8],
@@ -169,9 +172,8 @@ impl<'source> Parser<'source> {
   fn get(&self, position: usize) -> &'source Token {
     self.tokens.get(position).unwrap_or(&Token {
       ttype: TokenType::EndOfFile,
-      len: 0,
       line: 0,
-      column: 0,
+      end: 0,
       start: 0,
     })
   }
@@ -321,8 +323,8 @@ impl<'source> Parser<'source> {
   fn infix_rule(
     &mut self,
     token_type: TokenType,
-    previous: Expr<'source>,
-  ) -> Result<Option<Expr<'source>>, Error> {
+    previous: Expression<'source>,
+  ) -> Result<Option<Expression<'source>>, Error> {
     match token_type {
       TokenType::LeftParen => Ok(Some(self.call(previous)?)),
       TokenType::Comment => Ok(Some(self.comment(previous))),
@@ -393,7 +395,10 @@ impl<'source> Parser<'source> {
       }
     }
 
-    Ok(Stmt::Block { body: statements })
+    Ok(statement!(
+      Block { body: statements },
+      (statements[0].span, statements.last().unwrap().span)
+    ))
   }
 
   fn stmt(&mut self) -> StatementResult<'source> {
@@ -413,48 +418,63 @@ impl<'source> Parser<'source> {
 
   fn var_declaration(&mut self) -> StatementResult<'source> {
     let token = self.current();
-    let identifier = self.consume_next(TokenType::Identifier, Error::ExpectedIdentifier)?;
-    let mut expression = if self.matches(TokenType::Equal) {
-      Some(self.expression()?)
+    let identifier_token = self.consume_next(TokenType::Identifier, Error::ExpectedIdentifier)?;
+    let identifier = identifier_token.get_value(self.source);
+    let statement = if self.matches(TokenType::Equal) {
+      let mut expression = self.expression()?;
+
+      if let Expr::Function {
+        parameters, body, ..
+      } = expression.expr
+      {
+        expression = Expression {
+          expr: Expr::Function {
+            parameters,
+            body,
+            name: Some(identifier),
+          },
+          span: expression.span,
+        }
+      }
+
+      Ok(statement!(
+        Declaration {
+          identifier,
+          expression: Some(expression)
+        },
+        (token, expression.span)
+      ))
     } else {
       self.back();
-      None
+
+      Ok(statement!(
+        Declaration {
+          identifier,
+          expression: None
+        },
+        (token, identifier_token)
+      ))
     };
+
     self.expect_newline()?;
-
-    if let Some(Expr::Function {
-      token,
-      parameters,
-      body,
-      ..
-    }) = expression
-    {
-      expression = Some(Expr::Function {
-        token,
-        parameters,
-        body,
-        name: Some(identifier.get_value(self.source)),
-      });
-    }
-
-    Ok(Stmt::Declaration {
-      token,
-      identifier,
-      expression,
-    })
+    statement
   }
 
   fn return_statement(&mut self) -> StatementResult<'source> {
     let token = self.current_advance();
-    let expression = if self.matches(TokenType::EndOfLine) {
-      None
+    if self.matches(TokenType::EndOfLine) {
+      Ok(statement!(Return { expression: None }, token))
     } else {
-      let exp = Some(self.expression()?);
+      let expression = self.expression()?;
       self.expect_newline()?;
-      exp
-    };
 
-    Ok(Stmt::Return { token, expression })
+      Ok(statement!(
+        Return {
+          expression: Some(expression)
+        },
+        (token, expression.span)
+      ))
+    }
   }
 
   fn if_statement(&mut self) -> StatementResult<'source> {
@@ -468,22 +488,24 @@ impl<'source> Parser<'source> {
 
     self.ignore_newline();
 
-    let (else_token, otherwise) = if self.current().ttype == TokenType::Else {
-      let else_token = self.current_advance();
+    let (end, otherwise) = if self.current().ttype == TokenType::Else {
+      self.next();
       self.ignore_newline();
+      let statement = self.statement()?;
 
-      (Some(else_token), Some(Box::new(self.statement()?)))
+      (statement.span, Some(Box::new(statement)))
     } else {
-      (None, None)
+      (body.span, None)
     };
 
-    Ok(Stmt::If {
-      if_token,
-      else_token,
-      condition,
-      then: Box::new(body),
-      otherwise,
-    })
+    Ok(statement!(
+      If {
+        condition,
+        then: Box::new(body),
+        otherwise
+      },
+      (if_token, end)
+    ))
   }
 
   fn while_statement(&mut self) -> StatementResult<'source> {
@@ -492,27 +514,31 @@ impl<'source> Parser<'source> {
     let condition = self.expression()?;
     self.consume_next(TokenType::RightParen, Error::ExpectedClosingBracket)?;
     self.matches(TokenType::EndOfLine);
-    let body = Box::new(self.statement()?);
 
-    Ok(Stmt::While {
-      token,
-      condition,
-      body,
-    })
+    let body = self.statement()?;
+
+    Ok(statement!(
+      While {
+        condition,
+        body: Box::new(body)
+      },
+      (token, body.span)
+    ))
   }
 
   fn comment_statement(&mut self) -> StatementResult<'source> {
     let token = self.current_advance();
+    let text = token.get_value(self.source);
     self.expect_newline()?;
 
-    Ok(Stmt::Comment { token })
+    Ok(statement!(Comment { text }, token))
   }
 
   fn expression_statement(&mut self) -> StatementResult<'source> {
     let expression = self.expression()?;
     self.expect_newline()?;
 
-    Ok(Stmt::Expression { expression })
+    Ok(statement!(Expression { expression }, expression.span))
   }
 
   fn import_statement(&mut self) -> StatementResult<'source> {
@@ -529,7 +555,10 @@ impl<'source> Parser<'source> {
       }
 
       let item = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
-      items.push(item);
+      items.push(ImportItem {
+        name: item.get_value(self.source),
+        span: Span::from(item),
+      });
 
       if !self.matches(TokenType::Comma) {
         self.ignore_newline();
@@ -539,12 +568,13 @@ impl<'source> Parser<'source> {
 
     self.expect_newline()?;
 
-    Ok(Stmt::Import {
-      token,
-      module,
-      items,
-      end_token,
-    })
+    Ok(statement!(
+      Import {
+        module: module.get_value(self.source),
+        items,
+      },
+      (token, end_token)
+    ))
   }
 }
 
@@ -565,7 +595,10 @@ impl<'source> Parser<'source> {
       }
 
       let parameter = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
-      parameters.push(parameter);
+      parameters.push(Parameter {
+        name: parameter.get_value(self.source),
+        span: Span::from(parameter),
+      });
 
       if !self.matches(TokenType::Comma) {
         self.ignore_newline();
@@ -575,10 +608,14 @@ impl<'source> Parser<'source> {
     }
 
     let body = if self.matches(TokenType::FatRightArrow) {
-      Ok(Stmt::Return {
-        token: self.current(),
-        expression: Some(self.expression()?),
-      })
+      let expression = self.expression()?;
+
+      Ok(statement!(
+        Return {
+          expression: Some(expression)
+        },
+        (token, expression.span)
+      ))
     } else if self.matches(TokenType::RightArrow) {
       self.ignore_newline();
       let statement = self.statement()?;
@@ -588,12 +625,14 @@ impl<'source> Parser<'source> {
       Err(Error::ExpectedFunctionArrow)
     }?;
 
-    Ok(Expr::Function {
-      token,
-      body: Box::new(body),
-      parameters,
-      name: None,
-    })
+    Ok(expression!(
+      Function {
+        body: Box::new(body),
+        parameters,
+        name: None,
+      },
+      (token, body.span)
+    ))
   }
 
   fn grouping(&mut self) -> ExpressionResult<'source> {
@@ -607,21 +646,25 @@ impl<'source> Parser<'source> {
     self.ignore_newline();
     let end_token = self.expect(TokenType::RightParen, Error::ExpectedClosingBracket)?;
 
-    Ok(Expr::Group {
-      token,
-      end_token,
-      expression: Box::new(expression),
-    })
+    Ok(expression!(
+      Group {
+        expression: Box::new(expression),
+      },
+      (token, end_token)
+    ))
   }
 
   fn unary(&mut self) -> ExpressionResult<'source> {
     let token = self.current_advance();
     let expression = self.parse_expression(Precedence::Unary)?;
 
-    Ok(Expr::Unary {
-      operator: token,
-      expression: Box::new(expression),
-    })
+    Ok(expression!(
+      Unary {
+        operator: UnaryOperator::from(token.ttype),
+        expression: Box::new(expression),
+      },
+      (token, expression.span)
+    ))
   }
 
   fn literal(&mut self) -> ExpressionResult<'source> {
@@ -636,37 +679,64 @@ impl<'source> Parser<'source> {
       Err(Error::UnterminatedString)
     }?;
 
-    Ok(Expr::Literal { token, value })
+    Ok(expression!(
+      Literal {
+        value,
+        type_: LiteralType::from(token.ttype)
+      },
+      token
+    ))
   }
 
   fn variable(&mut self, can_assign: bool) -> ExpressionResult<'source> {
     let identifier = self.current();
-    let is_additional_operator = self.next().ttype.is_assignment_operator();
+    let name = identifier.get_value(self.source);
+    let is_assignment_operator = self.next().ttype.is_assignment_operator();
 
-    if (true, true) == (can_assign, is_additional_operator) {
+    if (true, true) == (can_assign, is_assignment_operator) {
       let operator = self.current_advance();
+      let right = self.expression()?;
+      let end_span = right.span;
 
-      Ok(Expr::Assignment {
-        identifier,
-        expression: Box::new(Expr::Binary {
-          operator,
-          left: Box::new(Expr::Variable { token: identifier }),
-          right: Box::new(self.expression()?),
-        }),
-      })
+      let binary = expression!(
+        Binary {
+          operator: BinaryOperator::from(operator.ttype),
+          left: Box::new(expression!(Variable { name }, identifier)),
+          right: Box::new(right),
+        },
+        (identifier, end_span)
+      );
+
+      Ok(expression!(
+        Assignment {
+          identifier: name,
+          expression: Box::new(binary)
+        },
+        (identifier, end_span)
+      ))
     } else if self.matches(TokenType::Equal) && can_assign {
-      Ok(Expr::Assignment {
-        identifier,
-        expression: Box::new(self.expression()?),
-      })
+      let expression = self.expression()?;
+
+      Ok(expression!(
+        Assignment {
+          identifier: name,
+          expression: Box::new(expression),
+        },
+        (identifier, expression.span)
+      ))
     } else {
       self.back();
-      Ok(Expr::Variable { token: identifier })
+      Ok(expression!(
+        Variable {
+          name: identifier.get_value(self.source)
+        },
+        identifier
+      ))
     }
   }
 
-  fn call(&mut self, previous: Expr<'source>) -> ExpressionResult<'source> {
-    let token = self.current_advance();
+  fn call(&mut self, previous: Expression<'source>) -> ExpressionResult<'source> {
+    self.next();
 
     let mut arguments = Vec::new();
     let end_token = loop {
@@ -684,37 +754,44 @@ impl<'source> Parser<'source> {
       }
     };
 
-    Ok(Expr::Call {
-      expression: Box::new(previous),
-      token,
-      arguments,
-      end_token,
-    })
+    Ok(expression!(
+      Call {
+        expression: Box::new(previous),
+        arguments,
+      },
+      (previous.span, end_token)
+    ))
   }
 
-  fn comment(&mut self, previous: Expr<'source>) -> Expr<'source> {
+  fn comment(&mut self, previous: Expression<'source>) -> Expression<'source> {
     let token = self.current();
 
-    Expr::Comment {
-      expression: Box::new(previous),
-      token,
-    }
+    expression!(
+      Comment {
+        expression: Box::new(previous),
+        text: token.get_value(self.source),
+      },
+      (previous.span, token)
+    )
   }
 
-  fn binary(&mut self, previous: Expr<'source>) -> ExpressionResult<'source> {
+  fn binary(&mut self, previous: Expression<'source>) -> ExpressionResult<'source> {
     let operator = self.current_advance();
     let precedence = Precedence::from(operator.ttype);
     let right = self.parse_expression(precedence.next())?;
 
-    Ok(Expr::Binary {
-      operator,
-      left: Box::new(previous),
-      right: Box::new(right),
-    })
+    Ok(expression!(
+      Binary {
+        operator: BinaryOperator::from(operator.ttype),
+        left: Box::new(previous),
+        right: Box::new(right),
+      },
+      (previous.span, right.span)
+    ))
   }
 }
 
-pub fn parse<'s>(source: &'s str, tokens: &'s [Token]) -> Result<Vec<Stmt<'s>>, Diagnostic> {
+pub fn parse<'s>(source: &'s str, tokens: &'s [Token]) -> Result<Vec<Statement<'s>>, Diagnostic> {
   let mut parser = Parser::new(source, tokens);
   let mut statements = Vec::new();
 
@@ -736,23 +813,30 @@ mod tests {
   use super::*;
   use crate::tokens::tokenize;
 
-  fn assert_literal(source: &str, expr: &Expr<'_>, value: &str, literal_type: TokenType) {
+  fn assert_literal(expr: &Expr<'_>, expected: &str, literal_type: LiteralType) {
     match expr {
-      Expr::Literal { token, .. } => {
-        assert_eq!(token.get_value(source.as_bytes()), value);
-        assert_eq!(token.ttype, literal_type);
+      Expr::Literal { value, type_, .. } => {
+        assert_eq!(*value, expected);
+        assert_eq!(type_, &literal_type);
       }
       _ => panic!("Expected literal"),
     }
   }
 
-  fn assert_variable(source: &str, expr: &Expr<'_>, name: &str) {
+  fn assert_variable(expr: &Expr<'_>, expected: &str) {
     match expr {
-      Expr::Variable { token } => {
-        assert_eq!(token.get_value(source.as_bytes()), name);
-        assert_eq!(token.ttype, TokenType::Identifier);
+      Expr::Variable { name } => {
+        assert_eq!(name, &expected);
       }
       _ => panic!("Expected literal"),
+    }
+  }
+
+  fn unwrap_expression<'s>(statement: &'s Statement<'s>) -> &'s Expr<'s> {
+    if let Stmt::Expression { expression } = &statement.stmt {
+      &expression.expr
+    } else {
+      panic!("Expected expression");
     }
   }
 
@@ -772,11 +856,8 @@ mod tests {
     let tokens = tokenize(source);
     let statements = super::parse(source, &tokens).unwrap();
 
-    if let Stmt::Expression {
-      expression: Expr::Group { expression, .. },
-    } = &statements[0]
-    {
-      assert_literal(source, &**expression, "'hello world'", TokenType::String);
+    if let Expr::Group { expression, .. } = unwrap_expression(&statements[0]) {
+      assert_literal(expression, "hello world", LiteralType::String);
     } else {
       panic!("Expected group expression statement");
     }
@@ -788,15 +869,13 @@ mod tests {
     let tokens = tokenize(source);
     let statements = super::parse(source, &tokens).unwrap();
 
-    if let Stmt::Expression {
-      expression: Expr::Unary {
-        operator,
-        expression,
-      },
-    } = &statements[0]
+    if let Expr::Unary {
+      operator,
+      expression,
+    } = unwrap_expression(&statements[0])
     {
-      assert_literal(source, &**expression, "false", TokenType::False);
-      assert_eq!(operator.ttype, TokenType::Bang);
+      assert_literal(expression, "false", LiteralType::False);
+      assert_eq!(*operator, UnaryOperator::Not);
     } else {
       panic!("Expected unary expression statement");
     }
@@ -808,17 +887,15 @@ mod tests {
     let tokens = tokenize(source);
     let statements = super::parse(source, &tokens).unwrap();
 
-    if let Stmt::Expression {
-      expression: Expr::Binary {
-        operator,
-        left,
-        right,
-      },
-    } = &statements[0]
+    if let Expr::Binary {
+      operator,
+      left,
+      right,
+    } = unwrap_expression(&statements[0])
     {
-      assert_literal(source, &**left, "10", TokenType::Number);
-      assert_literal(source, &**right, "5", TokenType::Number);
-      assert_eq!(operator.ttype, TokenType::Plus);
+      assert_literal(left, "10", LiteralType::Number);
+      assert_literal(right, "5", LiteralType::Number);
+      assert_eq!(*operator, BinaryOperator::Plus);
     } else {
       panic!("Expected binary expression statement");
     }
@@ -830,17 +907,15 @@ mod tests {
     let tokens = tokenize(source);
     let statements = super::parse(source, &tokens).unwrap();
 
-    if let Stmt::Expression {
-      expression: Expr::Call {
-        expression,
-        arguments,
-        ..
-      },
-    } = &statements[0]
+    if let Expr::Call {
+      expression,
+      arguments,
+      ..
+    } = unwrap_expression(&statements[0])
     {
-      assert_literal(source, &arguments[0], "7", TokenType::Number);
-      assert_literal(source, &arguments[1], "null", TokenType::Null);
-      assert_variable(source, expression, "function");
+      assert_literal(&arguments[0], "7", LiteralType::Number);
+      assert_literal(&arguments[1], "null", LiteralType::Null);
+      assert_variable(expression, "function");
     } else {
       panic!("Expected binary expression statement");
     }
@@ -852,22 +927,19 @@ mod tests {
     let tokens = tokenize(source);
     let statements = super::parse(source, &tokens).unwrap();
 
-    if let Stmt::Expression {
-      expression:
-        Expr::Function {
-          parameters,
-          body:
-            box Stmt::Return {
-              expression: Some(expression),
-              ..
-            },
-          ..
-        },
-      ..
-    } = &statements[0]
+    if let Expr::Function {
+      parameters, body, ..
+    } = unwrap_expression(&statements[0])
     {
       assert_eq!(parameters.len(), 0);
-      assert_literal(source, expression, "null", TokenType::Null);
+
+      if let Stmt::Return {
+        expression: Some(expression),
+        ..
+      } = &body.stmt
+      {
+        assert_literal(expression, "null", LiteralType::Null);
+      }
     } else {
       panic!("Expected return statement");
     }
@@ -881,12 +953,13 @@ mod tests {
 
     if let Stmt::Declaration {
       identifier,
-      expression: Some(Expr::Literal { token, .. }),
+      expression,
       ..
-    } = &statements[0]
+    } = &statements[0].stmt
     {
-      assert_eq!(identifier.get_value(source.as_bytes()), "a");
-      assert_eq!(token.ttype, TokenType::Null);
+      let expr = expression.as_ref().unwrap();
+      assert_eq!(*identifier, "a");
+      assert_literal(&expr.expr, "null", LiteralType::Null);
     } else {
       panic!("Expected declaration statement");
     }
@@ -902,9 +975,9 @@ mod tests {
       identifier,
       expression: None,
       ..
-    } = &statements[0]
+    } = &statements[0].stmt
     {
-      assert_eq!(identifier.get_value(source.as_bytes()), "b");
+      assert_eq!(*identifier, "b");
     } else {
       panic!("Expected declaration statement");
     }
@@ -919,9 +992,9 @@ mod tests {
     if let Stmt::Return {
       expression: Some(expression),
       ..
-    } = &statements[0]
+    } = &statements[0].stmt
     {
-      assert_variable(source, expression, "value");
+      assert_variable(expression, "value");
     } else {
       panic!("Expected return statement");
     }
@@ -934,12 +1007,9 @@ mod tests {
     let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::Return {
-      expression: None,
-      token,
-    } = &statements[0]
+      expression: Some(_),
+    } = &statements[0].stmt
     {
-      assert_eq!(token.ttype, TokenType::Return);
-    } else {
       panic!("Expected return statement");
     }
   }
@@ -951,13 +1021,11 @@ mod tests {
     let statements = super::parse(source, &tokens).unwrap();
 
     if let Stmt::While {
-      condition,
-      body: box Stmt::Expression { expression },
-      ..
-    } = &statements[0]
+      condition, body, ..
+    } = &statements[0].stmt
     {
-      assert_literal(source, condition, "7", TokenType::Number);
-      assert_variable(source, expression, "doStuff");
+      assert_literal(&condition.expr, "7", LiteralType::Number);
+      assert_variable(unwrap_expression(body), "doStuff");
     } else {
       panic!("Expected while statement");
     }
@@ -971,13 +1039,13 @@ mod tests {
 
     if let Stmt::If {
       condition,
-      then: box Stmt::Expression { expression },
+      then,
       otherwise,
       ..
-    } = &statements[0]
+    } = &statements[0].stmt
     {
-      assert_literal(source, condition, "true", TokenType::True);
-      assert_variable(source, expression, "doStuff");
+      assert_literal(condition, "true", LiteralType::True);
+      assert_variable(unwrap_expression(then), "doStuff");
       assert!(otherwise.is_none());
     } else {
       panic!("Expected if statement");
@@ -992,14 +1060,12 @@ mod tests {
 
     if let Stmt::If {
       condition,
-      then: box Stmt::Block { body: then_body },
-      otherwise: Some(box Stmt::Block { body: else_body }),
+      otherwise,
       ..
-    } = &statements[0]
+    } = &statements[0].stmt
     {
-      assert_literal(source, condition, "true", TokenType::True);
-      assert_eq!(then_body.len(), 1);
-      assert_eq!(else_body.len(), 1);
+      assert_literal(condition, "true", LiteralType::True);
+      assert!(otherwise.is_some());
     } else {
       panic!("Expected if statement");
     }
@@ -1013,7 +1079,7 @@ mod tests {
 
     assert_eq!(statements.len(), 2);
 
-    if let Stmt::Block { body } = &statements[1] {
+    if let Stmt::Block { body } = &statements[1].stmt {
       assert_eq!(body.len(), 3);
     } else {
       panic!("Expected block statement");

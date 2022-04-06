@@ -1,54 +1,182 @@
-use crate::tokens::{Token, TokenType};
+use std::ops::{Deref, Range};
 
-type TokenRef<'source> = &'source Token;
+use crate::tokens::{CharacterPosition, LineNumber, Token, TokenType};
 
-pub trait GetPosition<'s> {
-  fn get_start(&'s self) -> TokenRef<'s>;
-  fn get_end(&'s self) -> TokenRef<'s>;
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum BinaryOperator {
+  Plus,
+  Minus,
+  Multiply,
+  Divide,
+  NotEqual,
+  Equal,
+  Greater,
+  GreaterEqual,
+  Less,
+  LessEqual,
+  And,
+  Or,
+  Nullish,
+  Pipeline,
+  PlusEqual,
+  MinusEqual,
+  MultiplyEqual,
+  DivideEqual,
+}
+impl BinaryOperator {
+  pub fn get_corresponding_assignment_operator(&self) -> Option<Self> {
+    match self {
+      Self::PlusEqual | Self::Plus => Some(Self::PlusEqual),
+      Self::MinusEqual | Self::Minus => Some(Self::MinusEqual),
+      Self::MultiplyEqual | Self::Multiply => Some(Self::MultiplyEqual),
+      Self::DivideEqual | Self::Divide => Some(Self::DivideEqual),
+      _ => None,
+    }
+  }
+}
+impl From<TokenType> for BinaryOperator {
+  fn from(token_type: TokenType) -> Self {
+    match token_type {
+      TokenType::Plus => Self::Plus,
+      TokenType::Minus => Self::Minus,
+      TokenType::Star => Self::Multiply,
+      TokenType::Slash => Self::Divide,
+      TokenType::BangEqual => Self::NotEqual,
+      TokenType::EqualEqual => Self::Equal,
+      TokenType::Greater => Self::Greater,
+      TokenType::GreaterEqual => Self::GreaterEqual,
+      TokenType::Less => Self::Less,
+      TokenType::LessEqual => Self::LessEqual,
+      TokenType::And => Self::And,
+      TokenType::Or => Self::Or,
+      TokenType::QuestionQuestion => Self::Nullish,
+      TokenType::RightRight => Self::Pipeline,
+      TokenType::PlusEqual => Self::PlusEqual,
+      TokenType::MinusEqual => Self::MinusEqual,
+      TokenType::StarEqual => Self::MultiplyEqual,
+      TokenType::SlashEqual => Self::DivideEqual,
+      _ => unreachable!(),
+    }
+  }
+}
+impl std::fmt::Display for BinaryOperator {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      Self::Plus => write!(f, "+"),
+      Self::Minus => write!(f, "-"),
+      Self::Multiply => write!(f, "*"),
+      Self::Divide => write!(f, "/"),
+      Self::NotEqual => write!(f, "!="),
+      Self::Equal => write!(f, "=="),
+      Self::Greater => write!(f, ">"),
+      Self::GreaterEqual => write!(f, ">="),
+      Self::Less => write!(f, "<"),
+      Self::LessEqual => write!(f, "<="),
+      Self::And => write!(f, "and"),
+      Self::Or => write!(f, "or"),
+      Self::Nullish => write!(f, "??"),
+      Self::Pipeline => write!(f, ">>"),
+      Self::PlusEqual => write!(f, "+="),
+      Self::MinusEqual => write!(f, "-="),
+      Self::MultiplyEqual => write!(f, "*="),
+      Self::DivideEqual => write!(f, "/="),
+    }
+  }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum UnaryOperator {
+  Not,
+  Minus,
+}
+impl From<TokenType> for UnaryOperator {
+  fn from(token_type: TokenType) -> Self {
+    match token_type {
+      TokenType::Bang => Self::Not,
+      TokenType::Minus => Self::Minus,
+      _ => unreachable!(),
+    }
+  }
+}
+impl std::fmt::Display for UnaryOperator {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      Self::Not => write!(f, "!"),
+      Self::Minus => write!(f, "-"),
+    }
+  }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum LiteralType {
+  String,
+  Number,
+  True,
+  False,
+  Null,
+}
+impl From<TokenType> for LiteralType {
+  fn from(token_type: TokenType) -> Self {
+    match token_type {
+      TokenType::String => Self::String,
+      TokenType::Number => Self::Number,
+      TokenType::True => Self::True,
+      TokenType::False => Self::False,
+      TokenType::Null => Self::Null,
+      _ => unreachable!(),
+    }
+  }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct ImportItem<'s> {
+  pub name: &'s str,
+  pub span: Span,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Parameter<'s> {
+  pub name: &'s str,
+  pub span: Span,
+}
+
+#[derive(Clone, Debug)]
 pub enum Expr<'source> {
   Assignment {
-    identifier: TokenRef<'source>,
-    expression: Box<Expr<'source>>,
+    identifier: &'source str,
+    expression: Box<Expression<'source>>,
   },
   Binary {
-    operator: TokenRef<'source>,
-    left: Box<Expr<'source>>,
-    right: Box<Expr<'source>>,
+    operator: BinaryOperator,
+    left: Box<Expression<'source>>,
+    right: Box<Expression<'source>>,
   },
   Call {
-    token: TokenRef<'source>,
-    end_token: TokenRef<'source>,
-    expression: Box<Expr<'source>>,
-    arguments: Vec<Expr<'source>>,
+    expression: Box<Expression<'source>>,
+    arguments: Vec<Expression<'source>>,
   },
   Comment {
-    token: TokenRef<'source>,
-    expression: Box<Expr<'source>>,
+    expression: Box<Expression<'source>>,
+    text: &'source str,
   },
   Function {
-    token: TokenRef<'source>,
-    parameters: Vec<TokenRef<'source>>,
-    body: Box<Stmt<'source>>,
+    parameters: Vec<Parameter<'source>>,
+    body: Box<Statement<'source>>,
     name: Option<&'source str>,
   },
   Group {
-    token: TokenRef<'source>,
-    end_token: TokenRef<'source>,
-    expression: Box<Expr<'source>>,
+    expression: Box<Expression<'source>>,
   },
   Literal {
-    token: TokenRef<'source>,
+    type_: LiteralType,
     value: &'source str,
   },
   Unary {
-    operator: TokenRef<'source>,
-    expression: Box<Expr<'source>>,
+    operator: UnaryOperator,
+    expression: Box<Expression<'source>>,
   },
   Variable {
-    token: TokenRef<'source>,
+    name: &'source str,
   },
 }
 impl<'s> Expr<'s> {
@@ -65,7 +193,7 @@ impl<'s> Expr<'s> {
         operator,
         ..
       } => {
-        left.has_side_effect() || right.has_side_effect() || operator.ttype == TokenType::RightRight
+        left.has_side_effect() || right.has_side_effect() || *operator == BinaryOperator::Pipeline
       }
     }
   }
@@ -83,139 +211,164 @@ impl<'s> Expr<'s> {
         right,
         operator,
         ..
-      } => left.is_constant() && right.is_constant() && operator.ttype != TokenType::RightRight,
-    }
-  }
-}
-impl<'s> GetPosition<'s> for Expr<'s> {
-  fn get_start(&'s self) -> TokenRef<'s> {
-    match self {
-      Expr::Call { token, .. }
-      | Expr::Comment { token, .. }
-      | Expr::Function { token, .. }
-      | Expr::Group { token, .. }
-      | Expr::Literal { token, .. }
-      | Expr::Variable { token, .. } => token,
-      Expr::Unary { operator, .. } => operator,
-      Expr::Assignment { identifier, .. } => identifier,
-      Expr::Binary { left, .. } => left.get_start(),
-    }
-  }
-
-  fn get_end(&'s self) -> TokenRef<'s> {
-    match self {
-      Expr::Comment { token, .. } | Expr::Literal { token, .. } | Expr::Variable { token, .. } => {
-        token
-      }
-      Expr::Call { end_token, .. } | Expr::Group { end_token, .. } => end_token,
-      Expr::Assignment { identifier, .. } => identifier,
-      Expr::Binary { right, .. } => right.get_end(),
-      Expr::Function { body, .. } => body.get_end(),
-      Expr::Unary { expression, .. } => expression.get_end(),
+      } => left.is_constant() && right.is_constant() && *operator != BinaryOperator::Pipeline,
     }
   }
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Stmt<'source> {
   Block {
-    body: Vec<Stmt<'source>>,
+    body: Vec<Statement<'source>>,
   },
   Declaration {
-    token: TokenRef<'source>,
-    identifier: TokenRef<'source>,
-    expression: Option<Expr<'source>>,
+    identifier: &'source str,
+    expression: Option<Expression<'source>>,
   },
   Expression {
-    expression: Expr<'source>,
+    expression: Expression<'source>,
   },
   If {
-    if_token: TokenRef<'source>,
-    else_token: Option<TokenRef<'source>>,
-    condition: Expr<'source>,
-    then: Box<Stmt<'source>>,
-    otherwise: Option<Box<Stmt<'source>>>,
+    condition: Expression<'source>,
+    then: Box<Statement<'source>>,
+    otherwise: Option<Box<Statement<'source>>>,
   },
   Import {
-    token: TokenRef<'source>,
-    module: TokenRef<'source>,
-    items: Vec<TokenRef<'source>>,
-    end_token: TokenRef<'source>,
+    module: &'source str,
+    items: Vec<ImportItem<'source>>,
   },
   Return {
-    token: TokenRef<'source>,
-    expression: Option<Expr<'source>>,
+    expression: Option<Expression<'source>>,
   },
   While {
-    token: TokenRef<'source>,
-    condition: Expr<'source>,
-    body: Box<Stmt<'source>>,
+    condition: Expression<'source>,
+    body: Box<Statement<'source>>,
   },
   Comment {
-    token: TokenRef<'source>,
+    text: &'source str,
   },
 }
-impl<'s> GetPosition<'s> for Stmt<'s> {
-  fn get_start(&'s self) -> TokenRef<'s> {
-    match self {
-      Stmt::Block { body, .. } => body.first().unwrap().get_start(),
-      Stmt::Expression { expression, .. } => expression.get_start(),
-      Stmt::If { if_token, .. } => if_token,
-      Stmt::Comment { token, .. }
-      | Stmt::Declaration { token, .. }
-      | Stmt::Import { token, .. }
-      | Stmt::Return { token, .. }
-      | Stmt::While { token, .. } => token,
+
+#[derive(Copy, Clone, Debug)]
+pub struct Span {
+  pub start: CharacterPosition,
+  pub end: CharacterPosition,
+}
+impl Span {
+  pub fn get_line_number(&self, source: &str) -> LineNumber {
+    let mut line = 1;
+
+    for (i, byte) in source.as_bytes().iter().enumerate() {
+      if *byte == b'\n' {
+        line += 1;
+      }
+
+      if i == self.start as usize {
+        return line as LineNumber;
+      }
     }
+
+    unreachable!()
   }
 
-  fn get_end(&'s self) -> TokenRef<'s> {
-    match self {
-      Stmt::Block { body, .. } => body.last().unwrap().get_end(),
-      Stmt::Declaration {
-        identifier,
-        expression,
-        ..
-      } => {
-        if let Some(expression) = expression {
-          expression.get_end()
-        } else {
-          identifier
-        }
+  pub fn get_line_number_end(&self, source: &str) -> LineNumber {
+    let mut line = 1;
+
+    for (i, byte) in source.as_bytes().iter().enumerate() {
+      if *byte == b'\n' {
+        line += 1;
       }
-      Stmt::Expression { expression, .. } => expression.get_end(),
-      Stmt::If {
-        then, otherwise, ..
-      } => {
-        if let Some(otherwise) = otherwise {
-          otherwise.get_end()
-        } else {
-          then.get_end()
-        }
+
+      if i == self.end as usize {
+        return line as LineNumber;
       }
-      Stmt::Import { end_token, .. } => end_token,
-      Stmt::Return {
-        token, expression, ..
-      } => {
-        if let Some(expression) = expression {
-          expression.get_end()
-        } else {
-          token
-        }
-      }
-      Stmt::While { body, .. } => body.get_end(),
-      Stmt::Comment { token, .. } => token,
+    }
+
+    unreachable!()
+  }
+}
+impl From<Range<CharacterPosition>> for Span {
+  fn from(range: Range<CharacterPosition>) -> Self {
+    Span {
+      start: range.start,
+      end: range.end,
+    }
+  }
+}
+impl From<&Token> for Span {
+  fn from(token: &Token) -> Self {
+    Span {
+      start: token.start,
+      end: token.end,
     }
   }
 }
 
+#[derive(Clone, Debug)]
+pub struct Expression<'s> {
+  pub expr: Expr<'s>,
+  pub span: Span,
+}
+impl<'s> Deref for Expression<'s> {
+  type Target = Expr<'s>;
+  fn deref(&self) -> &Expr<'s> {
+    &self.expr
+  }
+}
+
+macro_rules! expression {
+  ($type:ident $struct:tt, ($start:expr, $end:expr)) => {{
+    let start = $start;
+    let end = $end;
+
+    Expression {
+      expr: Expr::$type $struct,
+      span: Span { start: start.start, end: end.end  }
+    }
+  }};
+
+  ($type:ident $struct:tt, $range:expr) => {
+    expression!($type $struct, ($range, $range))
+  };
+}
+pub(crate) use expression;
+
+#[derive(Clone, Debug)]
+pub struct Statement<'s> {
+  pub stmt: Stmt<'s>,
+  pub span: Span,
+}
+impl<'s> Deref for Statement<'s> {
+  type Target = Stmt<'s>;
+  fn deref(&self) -> &Stmt<'s> {
+    &self.stmt
+  }
+}
+
+macro_rules! statement {
+  ($type:ident $struct:tt, ($start:expr, $end:expr)) => {{
+    let start = $start;
+    let end = $end;
+
+    Statement {
+      stmt: Stmt::$type $struct,
+      span: Span { start: start.start, end: end.end }
+    }
+  }};
+
+  ($type:ident $struct:tt, $range:expr) => {
+    statement!($type $struct, ($range, $range))
+  };
+}
+pub(crate) use statement;
+
 pub trait Visitor {
-  fn visit(&mut self, statements: &[Stmt]) {
+  fn visit(&mut self, statements: &[Statement]) {
     statements.iter().for_each(|s| self.visit_statement(s));
   }
 
-  fn visit_statement(&mut self, statement: &Stmt) {
-    match statement {
+  fn visit_statement(&mut self, statement: &Statement) {
+    match &statement.stmt {
       Stmt::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
       Stmt::Declaration { expression, .. } => {
         if let Some(expression) = &*expression {
@@ -252,8 +405,8 @@ pub trait Visitor {
     self.exit_statement(statement);
   }
 
-  fn visit_expression(&mut self, expression: &Expr) {
-    match expression {
+  fn visit_expression(&mut self, expression: &Expression) {
+    match &expression.expr {
       Expr::Assignment { expression, .. }
       | Expr::Comment { expression, .. }
       | Expr::Group { expression, .. }
@@ -277,6 +430,6 @@ pub trait Visitor {
     self.exit_expression(expression);
   }
 
-  fn exit_expression(&mut self, _expression: &Expr) {}
-  fn exit_statement(&mut self, _statement: &Stmt) {}
+  fn exit_expression(&mut self, _expression: &Expression) {}
+  fn exit_statement(&mut self, _statement: &Statement) {}
 }

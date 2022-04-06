@@ -1,5 +1,4 @@
 pub type LineNumber = u16;
-pub type ColumnNumber = u16;
 pub type CharacterPosition = u32;
 pub type TokenLength = u16;
 
@@ -76,16 +75,6 @@ impl TokenType {
     )
   }
 
-  pub fn get_corresponding_assignment_operator(self) -> Option<TokenType> {
-    match self {
-      TokenType::PlusEqual | TokenType::Plus => Some(TokenType::PlusEqual),
-      TokenType::MinusEqual | TokenType::Minus => Some(TokenType::MinusEqual),
-      TokenType::StarEqual | TokenType::Star => Some(TokenType::StarEqual),
-      TokenType::SlashEqual | TokenType::Slash => Some(TokenType::SlashEqual),
-      _ => None,
-    }
-  }
-
   pub fn is_illegal_line_start(self) -> bool {
     matches!(
       self,
@@ -113,74 +102,17 @@ impl TokenType {
   }
 }
 
-impl std::fmt::Display for TokenType {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-    use TokenType::*;
-
-    match self {
-      LeftParen => write!(f, "("),
-      RightParen => write!(f, ")"),
-      LeftBrace => write!(f, "{{"),
-      RightBrace => write!(f, "}}"),
-
-      Comma => write!(f, ","),
-      Dot => write!(f, "."),
-      Colon => write!(f, ":"),
-      RightArrow => write!(f, "->"),
-      FatRightArrow => write!(f, "=>"),
-
-      Minus => write!(f, "-"),
-      Plus => write!(f, "+"),
-      Slash => write!(f, "/"),
-      Star => write!(f, "*"),
-      Bang => write!(f, "!"),
-      And => write!(f, "and"),
-      Or => write!(f, "or"),
-      QuestionQuestion => write!(f, "??"),
-
-      BangEqual => write!(f, "!="),
-      Equal => write!(f, "="),
-      EqualEqual => write!(f, "=="),
-      Greater => write!(f, ">"),
-      GreaterEqual => write!(f, ">="),
-      Less => write!(f, "<"),
-      LessEqual => write!(f, "<="),
-
-      PlusEqual => write!(f, "+="),
-      MinusEqual => write!(f, "-="),
-      StarEqual => write!(f, "*="),
-      SlashEqual => write!(f, "/="),
-
-      True => write!(f, "true"),
-      False => write!(f, "false"),
-      Null => write!(f, "null"),
-
-      Else => write!(f, "else"),
-      If => write!(f, "if"),
-      Import => write!(f, "import"),
-      From => write!(f, "from"),
-      Let => write!(f, "let"),
-      Return => write!(f, "return"),
-      While => write!(f, "while"),
-
-      _ => write!(f, ""),
-    }
-  }
-}
-
 #[derive(Clone, Copy, Debug)]
 pub struct Token {
   pub ttype: TokenType,
   pub start: CharacterPosition,
-  pub len: TokenLength,
-
+  pub end: CharacterPosition,
   pub line: LineNumber,
-  pub column: ColumnNumber,
 }
 impl Token {
   pub fn get_value<'s>(&self, source: &'s [u8]) -> &'s str {
     let start = self.start as usize;
-    let end = self.start as usize + self.len as usize;
+    let end = self.end as usize;
     unsafe {
       // This is safe because `self.source` is converted from a string and not mutated.
       std::str::from_utf8_unchecked(&source[start..end])
@@ -192,7 +124,6 @@ struct Tokeniser<'source> {
   source: &'source [u8],
 
   line: LineNumber,
-  column: ColumnNumber,
   position: usize,
 }
 
@@ -202,7 +133,6 @@ impl<'source> Tokeniser<'source> {
       source: source.as_bytes(),
 
       line: 1,
-      column: 0,
       position: 0,
     }
   }
@@ -216,18 +146,15 @@ impl<'source> Tokeniser<'source> {
 
     let token = Token {
       ttype,
-      len,
+
       start: self.position as CharacterPosition,
+      end: self.position as u32 + len as u32,
       line: self.line,
-      column: self.column as TokenLength,
     };
 
     self.position += len as usize;
     if token.ttype == TokenType::EndOfLine {
       self.line += 1;
-      self.column = 0;
-    } else {
-      self.column += len;
     }
 
     token
@@ -487,9 +414,8 @@ mod tests {
       Token {
         ttype: TokenType::String,
         start: 0,
-        len: 7,
+        end: 7,
         line: 1,
-        column: 0,
       }
     ));
 
@@ -518,9 +444,8 @@ mod tests {
       Token {
         ttype: TokenType::Number,
         start: 0,
-        len: 3,
+        end: 3,
         line: 1,
-        column: 0,
       }
     ));
 
