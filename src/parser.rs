@@ -555,9 +555,17 @@ impl<'source> Parser<'source> {
       }
 
       let item = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+      let alias = if self.matches(TokenType::As) {
+        let token = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+        Some(token.get_value(self.source))
+      } else {
+        None
+      };
+
       items.push(ImportItem {
         name: item.get_value(self.source),
         span: Span::from(item),
+        alias,
       });
 
       if !self.matches(TokenType::Comma) {

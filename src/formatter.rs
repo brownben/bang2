@@ -302,7 +302,13 @@ impl<'source> Formatter<'source> {
         self.write_list(
           items,
           |item| self.line(&item.span),
-          &mut |f, item, _| write!(f, "{}", item.name),
+          &mut |f, item, _| {
+            write!(f, "{}", item.name)?;
+            if let Some(alias) = &item.alias {
+              write!(f, " as {alias}")?;
+            }
+            Ok(())
+          },
           self.line(&span),
           indentation,
           true,

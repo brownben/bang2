@@ -36,6 +36,14 @@ bang_test!(unknown_module_import
   CompileError
 );
 
+bang_test!(rename_imports_with_as
+  "
+from maths import { sqrt as squareRoot }
+let squareRootIsFunction = type(squareRoot) == 'function'
+"
+  squareRootIsFunction == true
+);
+
 mod maths {
   use super::*;
 

@@ -229,6 +229,8 @@ while (condition) doSomething
 from maths import { pow, sin, log }
 from string import { includes, startsWith }
 
+// you can rename imports with `as`
+from maths import { sqrt as squareRoot }
 
 // ==========================
 // Comments

@@ -185,11 +185,13 @@ mod ast {
       }
       Stmt::Import { module, items, .. } => {
         println!("{}From '{}' Import", prefix, module);
-        if let Some((last, items)) = items.split_last() {
-          for item in items {
+
+        for item in items {
+          if let Some(alias) = item.alias {
+            println!("{}├─ {} as {}", prefix_raw, item.name, alias);
+          } else {
             println!("{}├─ {}", prefix_raw, item.name);
           }
-          println!("{}╰─ {}", prefix_raw, last.name);
         }
       }
       Stmt::While {

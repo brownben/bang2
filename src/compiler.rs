@@ -224,7 +224,12 @@ impl<'s> Compiler<'s> {
         for item in items {
           if let Some(value) = get_builtin_module_value(module, item.name) {
             self.emit_constant(span, value);
-            self.define_variable(item.name, item.span);
+
+            if let Some(alias) = item.alias {
+              self.define_variable(alias, item.span);
+            } else {
+              self.define_variable(item.name, item.span);
+            }
           } else {
             self.error(Error::BuiltinNotFound, item.span, module);
           }

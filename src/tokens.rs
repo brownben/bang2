@@ -52,6 +52,7 @@ pub enum TokenType {
   Null,
 
   // Keywords
+  As,
   Else,
   If,
   Import,
@@ -305,7 +306,11 @@ impl<'source> Tokeniser<'source> {
 
   fn identifier_type(&self, length: TokenLength) -> TokenType {
     match self.source[self.position] {
-      b'a' => self.check_keyword(length, "and", TokenType::And),
+      b'a' => match self.source[self.position + 1] {
+        b'n' => self.check_keyword(length, "and", TokenType::And),
+        b's' => self.check_keyword(length, "as", TokenType::As),
+        _ => TokenType::Identifier,
+      },
       b'e' => self.check_keyword(length, "else", TokenType::Else),
       b'f' => match self.source[self.position + 1] {
         b'a' => self.check_keyword(length, "false", TokenType::False),

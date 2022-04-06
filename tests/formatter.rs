@@ -377,3 +377,14 @@ fn import_statement() {
   assert_format!("from maths import {\n  sqrt, pow, abs, floor, \n}");
   assert_format!("from maths import {\n  sqrt,\n  pow,\n  abs,\n  floor,\n}");
 }
+
+#[test]
+fn import_statement_alias() {
+  assert_format!("from maths import { sqrt as squareRoot }");
+  assert_format!("from maths import { sqrt, pow as power }");
+  assert_format!("from maths import { sqrt, pow, abs }");
+  assert_format!("from maths import {\n  sqrt, pow, abs as absolute, floor, \n}");
+  assert_format!(
+    "from maths import {\n  sqrt as squareRoot,\n  pow as power,\n  abs,\n  floor,\n}"
+  );
+}

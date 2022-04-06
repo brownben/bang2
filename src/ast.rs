@@ -149,6 +149,7 @@ impl From<TokenType> for LiteralType {
 pub struct ImportItem<'s> {
   pub name: &'s str,
   pub span: Span,
+  pub alias: Option<&'s str>,
 }
 
 #[derive(Copy, Clone, Debug)]
