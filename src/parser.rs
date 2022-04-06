@@ -481,7 +481,9 @@ impl<'source> Parser<'source> {
     let if_token = self.current();
     self.consume_next(TokenType::LeftParen, Error::ExpectedOpeningBracket)?;
     let condition = self.expression()?;
-    self.consume_next(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+    self.next();
+    self.ignore_newline();
+    self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
 
     self.matches(TokenType::EndOfLine);
     let body = self.statement()?;
@@ -512,7 +514,9 @@ impl<'source> Parser<'source> {
     let token = self.current();
     self.consume_next(TokenType::LeftParen, Error::ExpectedOpeningBracket)?;
     let condition = self.expression()?;
-    self.consume_next(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+    self.next();
+    self.ignore_newline();
+    self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
     self.matches(TokenType::EndOfLine);
 
     let body = self.statement()?;

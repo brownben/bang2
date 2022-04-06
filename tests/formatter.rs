@@ -4,12 +4,23 @@ macro_rules! assert_format {
   ($source:expr) => {
     assert_format!($source, $source)
   };
+
   ($source:expr, $output:expr) => {
     let tokens = tokenize($source);
     let ast = parse($source, &tokens).unwrap();
     let formatter = format($source, &ast);
+    let output = formatter.to_string();
 
-    assert_eq!(formatter.to_string().trim(), $output.trim());
+    assert_eq!(output.trim(), $output.trim());
+    assert_format!(remains_constant output);
+  };
+
+  (remains_constant $source:expr) => {
+    let tokens = tokenize(&$source);
+    let ast = parse(&$source, &tokens).unwrap();
+    let formatter = format(&$source, &ast);
+
+    assert_eq!(&formatter.to_string(), &$source);
   };
 }
 
