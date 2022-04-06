@@ -128,14 +128,14 @@ impl Error {
 type ExpressionResult<'source> = Result<Expression<'source>, Error>;
 type StatementResult<'source> = Result<Statement<'source>, Error>;
 
-struct Parser<'source> {
+struct Parser<'source, 'tokens> {
   source: &'source [u8],
-  tokens: &'source [Token],
+  tokens: &'tokens [Token],
   position: usize,
 }
 
-impl<'source> Parser<'source> {
-  fn new(source: &'source str, tokens: &'source [Token]) -> Self {
+impl<'source, 'tokens> Parser<'source, 'tokens> {
+  fn new(source: &'source str, tokens: &'tokens [Token]) -> Self {
     Self {
       source: source.as_bytes(),
       tokens,
@@ -147,7 +147,7 @@ impl<'source> Parser<'source> {
     self.position >= self.tokens.len()
   }
 
-  fn next(&mut self) -> &'source Token {
+  fn next(&mut self) -> &Token {
     self.position += 1;
     let token = self.current();
 
@@ -158,7 +158,7 @@ impl<'source> Parser<'source> {
     }
   }
 
-  fn back(&mut self) -> &'source Token {
+  fn back(&mut self) -> &Token {
     self.position -= 1;
     let token = self.current();
 
@@ -169,7 +169,7 @@ impl<'source> Parser<'source> {
     }
   }
 
-  fn get(&self, position: usize) -> &'source Token {
+  fn get(&self, position: usize) -> &'tokens Token {
     self.tokens.get(position).unwrap_or(&Token {
       ttype: TokenType::EndOfFile,
       line: 0,
@@ -178,17 +178,17 @@ impl<'source> Parser<'source> {
     })
   }
 
-  fn current(&self) -> &'source Token {
+  fn current(&self) -> &'tokens Token {
     self.get(self.position)
   }
 
-  fn current_advance(&mut self) -> &'source Token {
+  fn current_advance(&mut self) -> &'tokens Token {
     let token = self.current();
     self.next();
     token
   }
 
-  fn expect(&mut self, token_type: TokenType, message: Error) -> Result<&'source Token, Error> {
+  fn expect(&mut self, token_type: TokenType, message: Error) -> Result<&'tokens Token, Error> {
     let current = self.current();
     if current.ttype == token_type {
       Ok(current)
@@ -197,7 +197,7 @@ impl<'source> Parser<'source> {
     }
   }
 
-  fn consume(&mut self, token_type: TokenType, message: Error) -> Result<&'source Token, Error> {
+  fn consume(&mut self, token_type: TokenType, message: Error) -> Result<&'tokens Token, Error> {
     let result = self.expect(token_type, message)?;
     self.next();
     Ok(result)
@@ -207,7 +207,7 @@ impl<'source> Parser<'source> {
     &mut self,
     token_type: TokenType,
     message: Error,
-  ) -> Result<&'source Token, Error> {
+  ) -> Result<&'tokens Token, Error> {
     self.next();
     self.consume(token_type, message)
   }
@@ -348,7 +348,7 @@ impl<'source> Parser<'source> {
 }
 
 // Statements
-impl<'source> Parser<'source> {
+impl<'source> Parser<'source, '_> {
   fn block_depth(whitespace: &str) -> i32 {
     let mut depth = 0;
     for c in whitespace.chars() {
@@ -591,7 +591,7 @@ impl<'source> Parser<'source> {
 }
 
 // Expressions
-impl<'source> Parser<'source> {
+impl<'source> Parser<'source, '_> {
   fn expression(&mut self) -> ExpressionResult<'source> {
     self.parse_expression(Precedence::Assignment)
   }
@@ -803,7 +803,10 @@ impl<'source> Parser<'source> {
   }
 }
 
-pub fn parse<'s>(source: &'s str, tokens: &'s [Token]) -> Result<Vec<Statement<'s>>, Diagnostic> {
+pub fn parse<'source, 'tokens>(
+  source: &'source str,
+  tokens: &'tokens [Token],
+) -> Result<Vec<Statement<'source>>, Diagnostic> {
   let mut parser = Parser::new(source, tokens);
   let mut statements = Vec::new();
 
