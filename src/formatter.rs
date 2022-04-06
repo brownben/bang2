@@ -1,5 +1,5 @@
 use crate::{
-  ast::{Expr, Expression, LiteralType, Span, Statement, Stmt},
+  ast::{AssignmentOperator, Expr, Expression, LiteralType, Span, Statement, Stmt},
   parser::parse_number,
   tokens::LineNumber,
 };
@@ -134,10 +134,10 @@ impl<'source> Formatter<'source> {
       } => {
         if let Expr::Binary { operator, left, right, .. } = &expression.expr
           && let Expr::Variable { name } = &left.expr
-          && let Some(operator) = operator.get_corresponding_assignment_operator()
+          && let Some(assignment_operator) = AssignmentOperator::from_binary(operator)
           && name == identifier
         {
-          write!(f, "{identifier} {operator} ")?;
+          write!(f, "{identifier} {assignment_operator} ")?;
           self.fmt_expression(right, indentation, f)?;
         } else {
           write!(f, "{identifier} = ")?;

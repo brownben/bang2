@@ -18,21 +18,6 @@ pub enum BinaryOperator {
   Or,
   Nullish,
   Pipeline,
-  PlusEqual,
-  MinusEqual,
-  MultiplyEqual,
-  DivideEqual,
-}
-impl BinaryOperator {
-  pub fn get_corresponding_assignment_operator(&self) -> Option<Self> {
-    match self {
-      Self::PlusEqual | Self::Plus => Some(Self::PlusEqual),
-      Self::MinusEqual | Self::Minus => Some(Self::MinusEqual),
-      Self::MultiplyEqual | Self::Multiply => Some(Self::MultiplyEqual),
-      Self::DivideEqual | Self::Divide => Some(Self::DivideEqual),
-      _ => None,
-    }
-  }
 }
 impl From<TokenType> for BinaryOperator {
   fn from(token_type: TokenType) -> Self {
@@ -51,10 +36,6 @@ impl From<TokenType> for BinaryOperator {
       TokenType::Or => Self::Or,
       TokenType::QuestionQuestion => Self::Nullish,
       TokenType::RightRight => Self::Pipeline,
-      TokenType::PlusEqual => Self::PlusEqual,
-      TokenType::MinusEqual => Self::MinusEqual,
-      TokenType::StarEqual => Self::MultiplyEqual,
-      TokenType::SlashEqual => Self::DivideEqual,
       _ => unreachable!(),
     }
   }
@@ -76,10 +57,46 @@ impl std::fmt::Display for BinaryOperator {
       Self::Or => write!(f, "or"),
       Self::Nullish => write!(f, "??"),
       Self::Pipeline => write!(f, ">>"),
-      Self::PlusEqual => write!(f, "+="),
-      Self::MinusEqual => write!(f, "-="),
-      Self::MultiplyEqual => write!(f, "*="),
-      Self::DivideEqual => write!(f, "/="),
+    }
+  }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+
+pub enum AssignmentOperator {
+  Plus,
+  Minus,
+  Multiply,
+  Divide,
+}
+impl AssignmentOperator {
+  pub fn from_binary(operator: &BinaryOperator) -> Option<Self> {
+    match operator {
+      BinaryOperator::Plus => Some(Self::Plus),
+      BinaryOperator::Minus => Some(Self::Minus),
+      BinaryOperator::Multiply => Some(Self::Multiply),
+      BinaryOperator::Divide => Some(Self::Divide),
+      _ => None,
+    }
+  }
+
+  pub fn token_to_binary(token_type: TokenType) -> BinaryOperator {
+    match token_type {
+      TokenType::PlusEqual => BinaryOperator::Plus,
+      TokenType::MinusEqual => BinaryOperator::Minus,
+      TokenType::StarEqual => BinaryOperator::Multiply,
+      TokenType::SlashEqual => BinaryOperator::Divide,
+      _ => unreachable!("The only supported assignment operators are: +, -, *, /"),
+    }
+  }
+}
+impl std::fmt::Display for AssignmentOperator {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      Self::Plus => write!(f, "+="),
+      Self::Minus => write!(f, "-="),
+      Self::Multiply => write!(f, "*="),
+      Self::Divide => write!(f, "/="),
     }
   }
 }

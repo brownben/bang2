@@ -1,7 +1,7 @@
 use crate::{
   ast::{
-    expression, statement, BinaryOperator, Expr, Expression, ImportItem, LiteralType, Parameter,
-    Span, Statement, Stmt, UnaryOperator,
+    expression, statement, AssignmentOperator, BinaryOperator, Expr, Expression, ImportItem,
+    LiteralType, Parameter, Span, Statement, Stmt, UnaryOperator,
   },
   diagnostic::Diagnostic,
   tokens::{Token, TokenType},
@@ -700,7 +700,7 @@ impl<'source> Parser<'source> {
 
       let binary = expression!(
         Binary {
-          operator: BinaryOperator::from(operator.ttype),
+          operator: AssignmentOperator::token_to_binary(operator.ttype),
           left: Box::new(expression!(Variable { name }, identifier)),
           right: Box::new(right),
         },

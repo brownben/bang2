@@ -318,16 +318,10 @@ impl<'s> Compiler<'s> {
         self.compile_expression(right);
 
         match operator {
-          BinaryOperator::Plus | BinaryOperator::PlusEqual => self.emit_opcode(span, OpCode::Add),
-          BinaryOperator::Minus | BinaryOperator::MinusEqual => {
-            self.emit_opcode(span, OpCode::Subtract)
-          }
-          BinaryOperator::Multiply | BinaryOperator::MultiplyEqual => {
-            self.emit_opcode(span, OpCode::Multiply)
-          }
-          BinaryOperator::Divide | BinaryOperator::DivideEqual => {
-            self.emit_opcode(span, OpCode::Divide)
-          }
+          BinaryOperator::Plus => self.emit_opcode(span, OpCode::Add),
+          BinaryOperator::Minus => self.emit_opcode(span, OpCode::Subtract),
+          BinaryOperator::Multiply => self.emit_opcode(span, OpCode::Multiply),
+          BinaryOperator::Divide => self.emit_opcode(span, OpCode::Divide),
           BinaryOperator::Equal => self.emit_opcode(span, OpCode::Equal),
           BinaryOperator::Greater => self.emit_opcode(span, OpCode::Greater),
           BinaryOperator::Less => self.emit_opcode(span, OpCode::Less),
