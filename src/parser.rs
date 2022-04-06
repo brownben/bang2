@@ -808,6 +808,13 @@ pub fn parse<'s>(source: &'s str, tokens: &'s [Token]) -> Result<Vec<Statement<'
   Ok(statements)
 }
 
+pub fn parse_number(string: &str) -> f64 {
+  string
+    .replace('_', "")
+    .parse()
+    .expect("String to be valid number representation")
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;

@@ -69,12 +69,6 @@ impl Value {
       Self::Function(_) | Self::NativeFunction(_) => "function",
     }
   }
-
-  pub fn parse_number(string: &str) -> Value {
-    let value: f64 = string.replace('_', "").parse().unwrap();
-
-    Value::from(value)
-  }
 }
 
 impl PartialEq for Value {

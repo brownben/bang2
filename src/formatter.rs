@@ -1,7 +1,7 @@
 use crate::{
   ast::{Expr, Expression, LiteralType, Span, Statement, Stmt},
+  parser::parse_number,
   tokens::LineNumber,
-  Value,
 };
 
 const INDENTATION: &str = "  ";
@@ -219,7 +219,7 @@ impl<'source> Formatter<'source> {
             if str::contains(value, "_") {
               write!(f, "{value}")?;
             } else {
-              write!(f, "{}", Value::parse_number(value))?;
+              write!(f, "{}", parse_number(value))?;
             }
           }
           LiteralType::True => write!(f, "true")?,

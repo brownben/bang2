@@ -1,7 +1,7 @@
 use crate::{
   ast::{BinaryOperator, Expr, Expression, Span, Statement, Stmt, Visitor},
   diagnostic::Diagnostic,
-  value::Value,
+  parser::parse_number,
 };
 
 trait LintRule {
@@ -82,7 +82,7 @@ lint_rule! {
     fn exit_expression(&mut self, expression: &Expression) {
       if let Expr::Unary { expression, .. } = &expression.expr
         && let Expr::Literal { value,  .. } = &expression.expr
-        && Value::parse_number(value) == Value::from(0.0)
+        && parse_number(value) == 0.0
       {
         self.issues.push(expression.span);
       }

@@ -3,6 +3,7 @@ use crate::{
   builtins::get_builtin_module_value,
   chunk::{Chunk, ChunkBuilder, OpCode},
   diagnostic::Diagnostic,
+  parser::parse_number,
   value::{Function, Value},
 };
 
@@ -282,7 +283,7 @@ impl<'s> Compiler<'s> {
         LiteralType::True => self.emit_opcode(span, OpCode::True),
         LiteralType::False => self.emit_opcode(span, OpCode::False),
         LiteralType::Null => self.emit_opcode(span, OpCode::Null),
-        LiteralType::Number => self.emit_constant(span, Value::parse_number(value)),
+        LiteralType::Number => self.emit_constant(span, Value::from(parse_number(value))),
         LiteralType::String => self.emit_constant(span, Value::from(*value)),
       },
       Expr::Group { expression, .. } => {
