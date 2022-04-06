@@ -294,7 +294,7 @@ impl<'source> Tokeniser<'source> {
     let mut position = self.position;
 
     while !self.at_end(position + 1)
-      && matches!(self.source[position + 1], b'_' | b'a'..=b'z' | b'A'..=b'Z')
+      && matches!(self.source[position + 1], b'_' | b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9')
     {
       position += 1;
     }
@@ -503,6 +503,13 @@ mod tests {
     let tokens = tokenize("hello_world");
     assert_eq!(tokens.len(), 1);
     assert_eq!(tokens[0].ttype, TokenType::Identifier);
+
+    let tokens = tokenize("hello_3");
+    assert_eq!(tokens.len(), 1);
+    assert_eq!(tokens[0].ttype, TokenType::Identifier);
+
+    let tokens = tokenize("3hello");
+    assert_eq!(tokens.len(), 2);
   }
 
   #[test]
