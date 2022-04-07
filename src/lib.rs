@@ -12,6 +12,7 @@ mod linter;
 mod parser;
 pub mod print;
 mod tokens;
+mod typechecker;
 mod value;
 mod vm;
 
@@ -30,6 +31,9 @@ pub use linter::lint;
 
 // Format an AST in a opinionated manner
 pub use formatter::format;
+
+// Typecheck the code
+pub use typechecker::typecheck;
 
 // Compile an AST into a chunk of bytecode
 pub use chunk::Chunk;

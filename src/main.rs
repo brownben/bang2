@@ -102,10 +102,21 @@ fn main() {
             .help("Preview the results of the formatting"),
         ),
     )
+    .subcommand(
+      Command::new("typecheck")
+        .about("Run typechecker on on a file")
+        .arg(
+          Arg::new("file")
+            .help("The file to typecheck")
+            .required(true),
+        ),
+    )
     .get_matches();
 
-  if let Some((command @ ("lint" | "run" | "tokens" | "ast" | "bytecode" | "format"), subcommand)) =
-    app.subcommand()
+  if let Some((
+    command @ ("lint" | "run" | "tokens" | "ast" | "bytecode" | "format" | "typecheck"),
+    subcommand,
+  )) = app.subcommand()
   {
     let filename = subcommand.value_of("file").unwrap();
     let source = read_file(filename);
@@ -147,6 +158,14 @@ fn main() {
             fs::write(filename, new_source).unwrap();
           } else {
             println!("'{}' already matches the Bang format style!", filename);
+          }
+        }
+        Err(details) => print::error(filename, &source, details),
+      },
+      "typecheck" => match bang::parse(&source, &tokens) {
+        Ok(mut ast) => {
+          for error in bang::typecheck(&source, &mut ast) {
+            print::error(filename, &source, error);
           }
         }
         Err(details) => print::error(filename, &source, details),
