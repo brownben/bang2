@@ -23,7 +23,7 @@ let resultIsNull = test() == null
 
 bang_test!(function_returns_value
 "
-let test = () ->
+let test = () -> number
   return 4 + 5
 
 let result = test()
@@ -38,7 +38,7 @@ let result_two = test_two()
 bang_test!(function_doesnt_execute_after_return
 "
 let i = 0
-let test = () ->
+let test = () -> number
   return 4 + 5
   i = 7 + 5 + 3
 
@@ -50,12 +50,12 @@ let result = test()
 
 bang_test!(function_accepts_parameters
 "
-let test = (a, b) ->
+let test = (a: number, b: number) -> number
   return a + b
 
 let result = test(3, 5)
 
-let test = (a, b,) ->
+let test = (a: number, b: number,) -> number
   return a + b
 
 let result_two = test(100, 5)
@@ -66,7 +66,7 @@ let result_two = test(100, 5)
 
 bang_test!(function_errors_when_too_many_arguments
 "
-let test = (a, b,) ->
+let test = (a: number, b: number,) -> number
   return a + b
 
 test(3, 5, 8)
@@ -83,7 +83,7 @@ print(3, 5, 8)
 
 bang_test!(function_errors_when_too_few_arguments
 "
-let test = (a, b,) ->
+let test = (a: number, b: number,) -> number
   return a + b
 
 test(3)
@@ -93,7 +93,7 @@ test(3)
 
 bang_test!(iterative_fibonacci
 "
-let fib_iterative = (n) ->
+let fib_iterative = (n: number) -> number
   let x = 0
   let y = 1
   let i = 1
@@ -111,7 +111,7 @@ let result = fib_iterative(36)
 
 bang_test!(recursive_fibonacci
 "
-let fib_recursive = (n) ->
+let fib_recursive = (n: number) -> number
   if (n == 0)
     return 0
   else if (n <= 2)
@@ -128,7 +128,7 @@ bang_test!(recursive_loop
 "
 let iterations = 0
 
-let loop = (n) ->
+let loop = (n: number) -> number
   iterations += 1
   if (n == 0)
     return 0
@@ -143,9 +143,9 @@ let result = loop(10)
 
 bang_test!(function_as_argument
   "
-let identity = (x) => x
+let identity = (x: number) => x
 
-let f = (a) ->
+let f = (a: (number) -> number) -> number
   return a(4) * 4
 
 let result = f(identity)
@@ -183,7 +183,23 @@ true()
 
 bang_test!(max_255_parameters
 "
-let a = (x0, x1, x2, x3, x4, x5, x6, x7, x8, x9, xa, xb, xc, xd, xe, xf, x10, x11, x12, x13, x14, x15, x16, x17, x18, x19, x1a, x1b, x1c, x1d, x1e, x1f, x20, x21, x22, x23, x24, x25, x26, x27, x28, x29, x2a, x2b, x2c, x2d, x2e, x2f, x30, x31, x32, x33, x34, x35, x36, x37, x38, x39, x3a, x3b, x3c, x3d, x3e, x3f, x40, x41, x42, x43, x44, x45, x46, x47, x48, x49, x4a, x4b, x4c, x4d, x4e, x4f, x50, x51, x52, x53, x54, x55, x56, x57, x58, x59, x5a, x5b, x5c, x5d, x5e, x5f, x60, x61, x62, x63, x64, x65, x66, x67, x68, x69, x6a, x6b, x6c, x6d, x6e, x6f, x70, x71, x72, x73, x74, x75, x76, x77, x78, x79, x7a, x7b, x7c, x7d, x7e, x7f, x80, x81, x82, x83, x84, x85, x86, x87, x88, x89, x8a, x8b, x8c, x8d, x8e, x8f, x90, x91, x92, x93, x94, x95, x96, x97, x98, x99, x9a, x9b, x9c, x9d, x9e, x9f, xa0, xa1, xa2, xa3, xa4, xa5, xa6, xa7, xa8, xa9, xaa, xab, xac, xad, xae, xaf, xb0, xb1, xb2, xb3, xb4, xb5, xb6, xb7, xb8, xb9, xba, xbb, xbc, xbd, xbe, xbf, xc0, xc1, xc2, xc3, xc4, xc5, xc6, xc7, xc8, xc9, xca, xcb, xcc, xcd, xce, xcf, xd0, xd1, xd2, xd3, xd4, xd5, xd6, xd7, xd8, xd9, xda, xdb, xdc, xdd, xde, xdf, xe0, xe1, xe2, xe3, xe4, xe5, xe6, xe7, xe8, xe9, xea, xeb, xec, xed, xee, xef, xf0, xf1, xf2, xf3, xf4, xf5, xf6, xf7, xf8, xf9, xfa, xfb, xfc, xfd, xfe, xff, xaa) ->
+let a = (
+  x0: number, x1: number, x2: number, x3: number, x4: number, x5: number, x6: number, x7: number, x8: number, x9: number, xa: number, xb: number, xc: number, xd: number, xe: number, xf: number,
+  x10: number, x11: number, x12: number, x13: number, x14: number, x15: number, x16: number, x17: number, x18: number, x19: number, x1a: number, x1b: number, x1c: number, x1d: number, x1e: number, x1f: number,
+  x20: number, x21: number, x22: number, x23: number, x24: number, x25: number, x26: number, x27: number, x28: number, x29: number, x2a: number, x2b: number, x2c: number, x2d: number, x2e: number, x2f: number,
+  x30: number, x31: number, x32: number, x33: number, x34: number, x35: number, x36: number, x37: number, x38: number, x39: number, x3a: number, x3b: number, x3c: number, x3d: number, x3e: number, x3f: number,
+  x40: number, x41: number, x42: number, x43: number, x44: number, x45: number, x46: number, x47: number, x48: number, x49: number, x4a: number, x4b: number, x4c: number, x4d: number, x4e: number, x4f: number,
+   x50: number, x51: number, x52: number, x53: number, x54: number, x55: number, x56: number, x57: number, x58: number, x59: number, x5a: number, x5b: number, x5c: number, x5d: number, x5e: number, x5f: number,
+   x60: number, x61: number, x62: number, x63: number, x64: number, x65: number, x66: number, x67: number, x68: number, x69: number, x6a: number, x6b: number, x6c: number, x6d: number, x6e: number, x6f: number,
+   x70: number, x71: number, x72: number, x73: number, x74: number, x75: number, x76: number, x77: number, x78: number, x79: number, x7a: number, x7b: number, x7c: number, x7d: number, x7e: number, x7f: number,
+   x80: number, x81: number, x82: number, x83: number, x84: number, x85: number, x86: number, x87: number, x88: number, x89: number, x8a: number, x8b: number, x8c: number, x8d: number, x8e: number, x8f: number,
+   x90: number, x91: number, x92: number, x93: number, x94: number, x95: number, x96: number, x97: number, x98: number, x99: number, x9a: number, x9b: number, x9c: number, x9d: number, x9e: number, x9f: number,
+   xa0: number, xa1: number, xa2: number, xa3: number, xa4: number, xa5: number, xa6: number, xa7: number, xa8: number, xa9: number, xaa: number, xab: number, xac: number, xad: number, xae: number, xaf: number,
+   xb0: number, xb1: number, xb2: number, xb3: number, xb4: number, xb5: number, xb6: number, xb7: number, xb8: number, xb9: number, xba: number, xbb: number, xbc: number, xbd: number, xbe: number, xbf: number,
+   xc0: number, xc1: number, xc2: number, xc3: number, xc4: number, xc5: number, xc6: number, xc7: number, xc8: number, xc9: number, xca: number, xcb: number, xcc: number, xcd: number, xce: number, xcf: number,
+   xd0: number, xd1: number, xd2: number, xd3: number, xd4: number, xd5: number, xd6: number, xd7: number, xd8: number, xd9: number, xda: number, xdb: number, xdc: number, xdd: number, xde: number, xdf: number,
+   xe0: number, xe1: number, xe2: number, xe3: number, xe4: number, xe5: number, xe6: number, xe7: number, xe8: number, xe9: number, xea: number, xeb: number, xec: number, xed: number, xee: number, xef: number,
+   xf0: number, xf1: number, xf2: number, xf3: number, xf4: number, xf5: number, xf6: number, xf7: number, xf8: number, xf9: number, xfa: number, xfb: number, xfc: number, xfd: number, xfe: number, xff: number, xaa) -> number
   return 1
 "
   CompileError
@@ -208,7 +224,7 @@ let a = b() == null
 
 bang_test!(factorial
 "
-let factorial = (n) ->
+let factorial = (n: number) -> number
   if (n == 0) return 1
   else return factorial(n-1) * n
 
@@ -219,7 +235,7 @@ let a = factorial(15)
 
 bang_test!(factorial_tailcall
 "
-let factorial = (n, a) ->
+let factorial = (n: number, a: number) -> number
   if (n == 0) return a
   else return factorial(n-1, a * n)
 
@@ -230,7 +246,7 @@ let a = factorial(15, 1)
 
 bang_test!(tailcall_loop
   "
-let tailcall_loop = (n) ->
+let tailcall_loop = (n: number) -> number
   if (n == 0) return 0
   else return tailcall_loop(n-1)
 
@@ -242,9 +258,9 @@ let a = tailcall_loop(1000)
 bang_test!(parameters_on_different_lines
   "
 let test = (
-  a,
-  b,
-) ->
+  a: number,
+  b: number,
+) -> number
   return a + b
 
 let a = test(3, 5)
@@ -254,7 +270,7 @@ let a = test(3, 5)
 
 bang_test!(arguments_on_different_lines
   "
-let test = (a, b) ->
+let test = (a: number, b: number) -> number
   return a + b
 
 let a = test(
@@ -267,7 +283,7 @@ let a = test(
 
 bang_test!(pipeline_no_call
   "
-let identity = (x) => x
+let identity = (x: any) => x
 
 let a = 1 >> type
 let b = 2 >> identity
@@ -280,7 +296,7 @@ let c = 'hello' >> identity >> identity
 
 bang_test!(pipeline_call_no_args
   "
-let identity = (x) => x
+let identity = (x: any) => x
 
 let a = 1 >> type()
 let b = 2 >> identity()
@@ -293,8 +309,8 @@ let c = 'hello' >> identity() >> identity()
 
 bang_test!(pipeline_with_args
   "
-let add = (x, y) => x + y
-let divide = (x, y) => x / y
+let add = (x: number, y: number) => x + y
+let divide = (x: number, y: number) => x / y
 
 let a = 1 >> add(2)
 let b = 4 >> divide(2)
@@ -305,8 +321,8 @@ let b = 4 >> divide(2)
 
 bang_test!(pipeline_error_if_too_many_args
   "
-let add = (x, y) => x + y
-let divide = (x, y) => x / y
+let add = (x: number, y: number) => x + y
+let divide = (x: number, y: number) => x / y
 
 let a = 1 >> add(1, 2)
 "
@@ -315,8 +331,8 @@ let a = 1 >> add(1, 2)
 
 bang_test!(pipeline_precendence
   "
-let identity = (x) => x
-let not = (x) => !x
+let identity = (x: any) => x
+let not = (x: any) => !x
 
 let a = 5 or 6 >> identity
 let b = false and true >> not >> not

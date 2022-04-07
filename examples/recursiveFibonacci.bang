@@ -1,6 +1,6 @@
 // Recursive Implementation of Fibonacci
 
-let fib_recursive = (n) ->
+let fib_recursive = (n: number) -> number
   if (n <= 2)
     if (n == 0) return 0
     return n - 1

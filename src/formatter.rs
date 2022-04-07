@@ -1,5 +1,7 @@
 use crate::{
-  ast::{AssignmentOperator, Expr, Expression, LiteralType, Span, Statement, Stmt},
+  ast::{
+    AssignmentOperator, Expr, Expression, LiteralType, Span, Statement, Stmt, Type, TypeExpression,
+  },
   parser::parse_number,
   tokens::LineNumber,
 };
@@ -118,6 +120,39 @@ impl<'source> Formatter<'source> {
     Ok(())
   }
 
+  fn fmt_type(&self, t: &TypeExpression, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match &t.type_ {
+      Type::Named(name) => write!(f, "{name}")?,
+      Type::Union(a, b) => {
+        self.fmt_type(a, f)?;
+        write!(f, " | ")?;
+        self.fmt_type(b, f)?;
+      }
+      Type::Function(return_type, parameters) => {
+        write!(f, "(")?;
+        for (i, param) in parameters.iter().enumerate() {
+          self.fmt_type(param, f)?;
+          if i < parameters.len() - 1 {
+            write!(f, ", ")?;
+          }
+        }
+        write!(f, ") -> ")?;
+        self.fmt_type(return_type, f)?;
+      }
+      Type::Group(type_) => {
+        write!(f, "(")?;
+        self.fmt_type(type_, f)?;
+        write!(f, ")")?;
+      }
+      Type::Optional(type_) => {
+        self.fmt_type(type_, f)?;
+        write!(f, "?")?;
+      }
+    }
+
+    Ok(())
+  }
+
   fn fmt_expression(
     &self,
     expression: &Expression,
@@ -184,13 +219,17 @@ impl<'source> Formatter<'source> {
       Expr::Function {
         parameters,
         body,
+        return_type,
         ..
       } => {
         write!(f, "(")?;
         self.write_list(
           parameters,
           |param| self.line(&param.span),
-          &mut |f, parameter, _| write!(f, "{}", parameter.name),
+          &mut |f, parameter, _| {
+            write!(f, "{}: ", parameter.name)?;
+            self.fmt_type(&parameter.type_, f)
+          },
           self.line(&span),
           indentation,
           false,
@@ -205,7 +244,12 @@ impl<'source> Formatter<'source> {
           write!(f, ") => ")?;
           self.fmt_expression(expression, indentation, f)?;
         } else {
-          writeln!(f, ") ->")?;
+          write!(f, ") ->")?;
+          if let Some(return_type) = return_type {
+            write!(f, " ")?;
+            self.fmt_type(return_type, f)?;
+          }
+          writeln!(f)?;
           self.fmt_statement(body, indentation, false, f)?;
         }
       }
@@ -272,10 +316,15 @@ impl<'source> Formatter<'source> {
       Stmt::Declaration {
         identifier,
         expression,
-        ..
+        type_,
       } => {
-        write!(f, "let {identifier} = ")?;
+        write!(f, "let {identifier}")?;
+        if let Some(type_) = type_ {
+          write!(f, ": ")?;
+          self.fmt_type(type_, f)?;
+        }
         if let Some(expression) = expression {
+          write!(f, " = ")?;
           self.fmt_expression(expression, indentation, f)?;
         }
       }

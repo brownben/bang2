@@ -125,7 +125,7 @@ let a
 if (print)
     a = true
 
-let identity = (x) => x
+let identity = (x: any) => x
 
 let b
 if (identity)

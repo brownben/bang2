@@ -77,8 +77,8 @@ null
 // Can be defined with a single line as the body
 () => 3 + 5
 
-// Or can be defined with a whole block
-() ->
+// Or can be defined with a whole block (multiline functions must have type)
+() -> number
   let a = 3
   let b = 5
   return a + b
@@ -90,11 +90,11 @@ null
 !!(() => 3)   // true
 
 // Can take up to 255 parameters
-(a, b) => a + b
+(a: number, b: number) => a + b
 
 // Functions are called with brackets
 (() => 3)()        // 3
-((x) => x + 3)(4)  // 7
+((x: number) => x + 3)(4)  // 7
 
 
 // ==========================
@@ -111,7 +111,7 @@ true and 2       // 2
 "hello" && 77    // 77
 0 && 77          // 77
 2 && "hello"     // 'hello
-((a) => a + 1) && "hello"  // 'hello'
+((a: number) => a + 1) && "hello"  // 'hello'
 false and false  // false
 false and true   // false
 false and 77     // false
@@ -120,7 +120,7 @@ null && "hello"  // null
 
 // Or. Short circuiting operator, returning the first truthy value. The word form is prefered over ||.
 
-((a) => a + 1) || "hello" // '<function>'
+((a: number) => a + 1) || "hello" // '<function>'
 false or false   // false
 false or true    // true
 false or 77      // 77
@@ -139,7 +139,7 @@ null ?? "hello"  // 'hello'
 
 // Define variables with let, they don't exist until they have been defined
 // You can't use keywords as variable names
-// Variable names can be letters, or underscores
+// Variable names can be letters, or underscores, or number (but cannot start with a number)
 let variable = 0  // declare with an initial value
 
 // auto initialized to null
@@ -159,6 +159,10 @@ let a = 7
   let a = 5
   a // 5
 a // 7
+
+// You can declare the type of a variable
+let a: number = 7
+let b: number | null
 
 // ==========================
 // Assignment Operators
@@ -186,7 +190,7 @@ a /= 1 // a = a / 1
 25 >> type >> type   // 'string'
 
 // If there are other arguments it just goes before them
-let add = (x, y) => x + y
+let add = (x: number, y: number) => x + y
 3 >> add(4) // 7
 
 

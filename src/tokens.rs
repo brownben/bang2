@@ -17,6 +17,10 @@ pub enum TokenType {
   RightArrow,
   FatRightArrow,
 
+  // Type Operators
+  Pipe,
+  Question,
+
   // Operators
   Minus,
   Plus,
@@ -192,6 +196,8 @@ impl<'source> Tokeniser<'source> {
       b'<' => (TokenType::Less, 1),
       b'>' => (TokenType::Greater, 1),
       b':' => (TokenType::Colon, 1),
+      b'|' => (TokenType::Pipe, 1),
+      b'?' => (TokenType::Question, 1),
       _ => (TokenType::Unknown, 1),
     }
   }
@@ -519,9 +525,6 @@ mod tests {
 
   #[test]
   fn should_tokenize_unknown_characters() {
-    let tokens = tokenize("?");
-    assert_eq!(tokens[0].ttype, TokenType::Unknown);
-
     let tokens = tokenize("#");
     assert_eq!(tokens[0].ttype, TokenType::Unknown);
 

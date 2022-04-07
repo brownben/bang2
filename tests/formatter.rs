@@ -183,15 +183,24 @@ fn asssignment_expression() {
 fn function_with_expression_body() {
   assert_format!("() => null", "() => null");
   assert_format!("()    =>    null", "() => null");
-  assert_format!("(a) => null", "(a) => null");
-  assert_format!("(  a )   =>null", "(a) => null");
+  assert_format!("(a: number) => null", "(a: number) => null");
+  assert_format!("(  a : string )   =>null", "(a: string) => null");
 }
 
 #[test]
 fn function_with_parameters_multiline() {
-  assert_format!("(a,b,) => null", "(a, b) => null");
-  assert_format!("(\na, b)    =>    null", "(\n  a, b, \n) => null");
-  assert_format!("(a, \nb, \n c) => null", "(\n  a,\n  b,\n  c,\n) => null");
+  assert_format!(
+    "(a: number,b   : string,) => null",
+    "(a: number, b: string) => null"
+  );
+  assert_format!(
+    "(\na: c, b: d   )    =>    null",
+    "(\n  a: c, b: d, \n) => null"
+  );
+  assert_format!(
+    "(a: a, \nb: b, \n c: c) => null",
+    "(\n  a: a,\n  b: b,\n  c: c,\n) => null"
+  );
 }
 
 #[test]
@@ -199,6 +208,7 @@ fn declaration_statement() {
   assert_format!("let x = 7", "let x = 7");
   assert_format!("let    x=7", "let x = 7");
   assert_format!("let print = ( ) =>  null", "let print = () => null");
+  assert_format!("let print");
 }
 
 #[test]
@@ -304,7 +314,7 @@ fn fibonacci_iterative() {
   let fibonacci_iterative = "
 // Iterative Implementation of Fibonacci
 
-let fib_iterative = (n) ->
+let fib_iterative = (n: number) -> number
   let x = 0
   let y = 1
   let i = 1
@@ -323,7 +333,7 @@ fib_iterative(25)
 #[test]
 fn if_statement_in_block() {
   let source = "
-let block = (n) ->
+let block = (n: null) ->
   if (true)
     stuff
     more
@@ -333,7 +343,7 @@ block(25)
   assert_format!(source);
 
   let source = "
-let block = (n) ->
+let block = (n: null) ->
   if (true)
     stuff
     more
@@ -344,7 +354,7 @@ block(25)
   assert_format!(source);
 
   let source = "
-let block = (n) ->
+let block = (n: null) ->
   if (true)
     stuff
     more
@@ -357,7 +367,7 @@ block(25)
   assert_format!(source);
 
   let source = "
-let block = (n) ->
+let block = (n: null) ->
   if (true) stuff
   else other
 
@@ -369,7 +379,7 @@ block(25)
 #[test]
 fn fibonacci_recursive() {
   let fibonacci_recursive = "
-let fib_recursive = (n) ->
+let fib_recursive = (n: number) -> number
 if (n <= 2)
   if (n == 0) return 0
   return n - 1
@@ -397,5 +407,16 @@ fn import_statement_alias() {
   assert_format!("from maths import {\n  sqrt, pow, abs as absolute, floor, \n}");
   assert_format!(
     "from maths import {\n  sqrt as squareRoot,\n  pow as power,\n  abs,\n  floor,\n}"
+  );
+}
+
+#[test]
+fn declaration_statement_with_type() {
+  assert_format!("let x :   number = 7", "let x: number = 7");
+  assert_format!("let    x:null|number   =7", "let x: null | number = 7");
+  assert_format!("let print: null", "let print: null");
+  assert_format!(
+    "let print: null|function|boolean",
+    "let print: null | function | boolean"
   );
 }

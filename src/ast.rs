@@ -152,10 +152,11 @@ pub struct ImportItem<'s> {
   pub alias: Option<&'s str>,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct Parameter<'s> {
   pub name: &'s str,
   pub span: Span,
+  pub type_: TypeExpression<'s>,
 }
 
 #[derive(Clone, Debug)]
@@ -179,6 +180,7 @@ pub enum Expr<'source> {
   },
   Function {
     parameters: Vec<Parameter<'source>>,
+    return_type: Option<TypeExpression<'source>>,
     body: Box<Statement<'source>>,
     name: Option<&'source str>,
   },
@@ -241,6 +243,7 @@ pub enum Stmt<'source> {
   },
   Declaration {
     identifier: &'source str,
+    type_: Option<TypeExpression<'source>>,
     expression: Option<Expression<'source>>,
   },
   Expression {
@@ -341,7 +344,7 @@ macro_rules! expression {
 
     Expression {
       expr: Expr::$type $struct,
-      span: Span { start: start.start, end: end.end  }
+      span: Span { start: start.start, end: end.end  },
     }
   }};
 
@@ -379,6 +382,44 @@ macro_rules! statement {
   };
 }
 pub(crate) use statement;
+
+#[derive(Clone, Debug)]
+pub struct TypeExpression<'s> {
+  pub type_: Type<'s>,
+  pub span: Span,
+}
+impl<'s> Deref for TypeExpression<'s> {
+  type Target = Type<'s>;
+  fn deref(&self) -> &Type<'s> {
+    &self.type_
+  }
+}
+
+#[derive(Debug, Clone)]
+pub enum Type<'s> {
+  Named(&'s str),
+  Union(Box<TypeExpression<'s>>, Box<TypeExpression<'s>>),
+  Function(Box<TypeExpression<'s>>, Vec<TypeExpression<'s>>),
+  Optional(Box<TypeExpression<'s>>),
+  Group(Box<TypeExpression<'s>>),
+}
+
+macro_rules! types {
+  ($type:ident $struct:tt, ($start:expr, $end:expr)) => {{
+    let start = $start;
+    let end = $end;
+
+    TypeExpression {
+      type_: Type::$type $struct,
+      span: Span { start: start.start, end: end.end }
+    }
+  }};
+
+  ($type:ident $struct:tt, $range:expr) => {
+    types!($type $struct, ($range, $range))
+  };
+}
+pub(crate) use types;
 
 pub trait Visitor {
   fn visit(&mut self, statements: &[Statement]) {

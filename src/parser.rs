@@ -1,7 +1,7 @@
 use crate::{
   ast::{
-    expression, statement, AssignmentOperator, BinaryOperator, Expr, Expression, ImportItem,
-    LiteralType, Parameter, Span, Statement, Stmt, UnaryOperator,
+    expression, statement, types, AssignmentOperator, BinaryOperator, Expr, Expression, ImportItem,
+    LiteralType, Parameter, Span, Statement, Stmt, Type, TypeExpression, UnaryOperator,
   },
   diagnostic::Diagnostic,
   tokens::{Token, TokenType},
@@ -76,6 +76,8 @@ enum Error {
   UnterminatedString,
   EmptyStatement,
   ExpectedImportKeyword,
+  ExpectedType,
+  ExpectedColon,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -93,6 +95,8 @@ impl Error {
       Self::UnterminatedString => "Unterminated String",
       Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
       Self::ExpectedImportKeyword => "Expected 'import' keyword",
+      Self::ExpectedType => "Expected Type",
+      Self::ExpectedColon => "Expected ':'",
     }
   }
 
@@ -106,7 +110,9 @@ impl Error {
       | Self::ExpectedFunctionArrow
       | Self::ExpectedNewLine
       | Self::ExpectedIdentifier
-      | Self::ExpectedImportKeyword => format!("but recieved '{}'", token.get_value(source)),
+      | Self::ExpectedImportKeyword
+      | Self::ExpectedType
+      | Self::ExpectedColon => format!("but recieved '{}'", token.get_value(source)),
       Self::UnexpectedCharacter => format!("Unknown character '{}'", token.get_value(source)),
       Self::UnterminatedString => {
         format!("Missing closing quote {}", &token.get_value(source)[0..1])
@@ -127,6 +133,7 @@ impl Error {
 
 type ExpressionResult<'source> = Result<Expression<'source>, Error>;
 type StatementResult<'source> = Result<Statement<'source>, Error>;
+type TypeResult<'source> = Result<TypeExpression<'source>, Error>;
 
 struct Parser<'source, 'tokens> {
   source: &'source [u8],
@@ -420,11 +427,20 @@ impl<'source> Parser<'source, '_> {
     let token = self.current();
     let identifier_token = self.consume_next(TokenType::Identifier, Error::ExpectedIdentifier)?;
     let identifier = identifier_token.get_value(self.source);
+    let type_ = if self.matches(TokenType::Colon) {
+      Some(self.types()?)
+    } else {
+      None
+    };
+
     let statement = if self.matches(TokenType::Equal) {
       let mut expression = self.expression()?;
 
       if let Expr::Function {
-        parameters, body, ..
+        parameters,
+        body,
+        return_type,
+        ..
       } = expression.expr
       {
         expression = Expression {
@@ -432,6 +448,7 @@ impl<'source> Parser<'source, '_> {
             parameters,
             body,
             name: Some(identifier),
+            return_type,
           },
           span: expression.span,
         }
@@ -440,6 +457,7 @@ impl<'source> Parser<'source, '_> {
       Ok(statement!(
         Declaration {
           identifier,
+          type_,
           expression: Some(expression)
         },
         (token, expression.span)
@@ -450,6 +468,7 @@ impl<'source> Parser<'source, '_> {
       Ok(statement!(
         Declaration {
           identifier,
+          type_,
           expression: None
         },
         (token, identifier_token)
@@ -607,9 +626,13 @@ impl<'source> Parser<'source, '_> {
       }
 
       let parameter = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+      self.consume(TokenType::Colon, Error::ExpectedColon)?;
+      let type_ = self.types()?;
+
       parameters.push(Parameter {
         name: parameter.get_value(self.source),
         span: Span::from(parameter),
+        type_,
       });
 
       if !self.matches(TokenType::Comma) {
@@ -619,29 +642,35 @@ impl<'source> Parser<'source, '_> {
       }
     }
 
-    let body = if self.matches(TokenType::FatRightArrow) {
+    let (body, return_type) = if self.matches(TokenType::FatRightArrow) {
       let expression = self.expression()?;
 
-      Ok(statement!(
-        Return {
-          expression: Some(expression)
-        },
-        (token, expression.span)
-      ))
+      (
+        Ok(statement!(
+          Return {
+            expression: Some(expression)
+          },
+          (token, expression.span)
+        )),
+        None,
+      )
     } else if self.matches(TokenType::RightArrow) {
+      let return_type = self.optional_types()?;
       self.ignore_newline();
       let statement = self.statement()?;
       self.back();
-      Ok(statement)
+      (Ok(statement), return_type)
     } else {
-      Err(Error::ExpectedFunctionArrow)
-    }?;
+      (Err(Error::ExpectedFunctionArrow), None)
+    };
+    let body = body?;
 
     Ok(expression!(
       Function {
         body: Box::new(body),
         parameters,
         name: None,
+        return_type
       },
       (token, body.span)
     ))
@@ -799,6 +828,90 @@ impl<'source> Parser<'source, '_> {
         right: Box::new(right),
       },
       (previous.span, right.span)
+    ))
+  }
+}
+
+// Types
+impl<'source> Parser<'source, '_> {
+  fn optional_types(&mut self) -> Result<Option<TypeExpression<'source>>, Error> {
+    if self.current().ttype == TokenType::EndOfLine {
+      Ok(None)
+    } else {
+      Ok(Some(self.types()?))
+    }
+  }
+
+  fn types(&mut self) -> TypeResult<'source> {
+    let token = self.current();
+
+    let t = match token.ttype {
+      TokenType::Identifier | TokenType::Null | TokenType::True | TokenType::False => {
+        self.next();
+        Ok(types!(Named(token.get_value(self.source)), token))
+      }
+      TokenType::LeftParen => self.type_group(),
+      _ => Err(Error::ExpectedType),
+    };
+
+    match self.current().ttype {
+      TokenType::Pipe => self.type_union(t?),
+      TokenType::Question => self.type_optional(t?),
+      _ => t,
+    }
+  }
+
+  fn type_union(&mut self, left: TypeExpression<'source>) -> TypeResult<'source> {
+    let _token = self.current_advance();
+    let right = self.types()?;
+
+    Ok(types!(
+      Union(Box::new(left), Box::new(right)),
+      (left.span, right.span)
+    ))
+  }
+
+  fn type_optional(&mut self, left: TypeExpression<'source>) -> TypeResult<'source> {
+    let token = self.current_advance();
+
+    Ok(types!(Optional(Box::new(left)), (left.span, token)))
+  }
+
+  fn type_group(&mut self) -> TypeResult<'source> {
+    if self.is_function_bracket() {
+      return self.type_function();
+    }
+
+    let token = self.current_advance();
+    let types = self.types()?;
+    let end_token = self.expect(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+    self.next();
+
+    Ok(types!(Group(Box::new(types)), (token, end_token)))
+  }
+
+  fn type_function(&mut self) -> TypeResult<'source> {
+    let start_token = *self.next();
+    let mut parameters = Vec::new();
+    loop {
+      if self.matches(TokenType::RightParen) {
+        break;
+      }
+
+      parameters.push(self.types()?);
+
+      if !self.matches(TokenType::Comma) {
+        self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+        break;
+      }
+    }
+
+    self.consume(TokenType::RightArrow, Error::ExpectedFunctionArrow)?;
+    let return_type = self.types()?;
+
+    Ok(types!(
+      Function(Box::new(return_type), parameters),
+      (start_token, self.current())
     ))
   }
 }

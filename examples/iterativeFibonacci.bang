@@ -1,6 +1,6 @@
 // Iterative Implementation of Fibonacci
 
-let fib_iterative = (n) ->
+let fib_iterative = (n: number) -> number
   let x = 0
   let y = 1
   let i = 1
