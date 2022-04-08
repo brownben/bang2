@@ -1,5 +1,9 @@
 use crate::{
-  ast::{BinaryOperator, Expr, Expression, Span, Statement, Stmt, Visitor},
+  ast::{
+    expression::{BinaryOperator, Expr, Expression},
+    statement::{Statement, Stmt},
+    Span, Visitor,
+  },
   diagnostic::Diagnostic,
   parser::parse_number,
 };

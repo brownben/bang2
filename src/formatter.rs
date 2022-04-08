@@ -1,6 +1,9 @@
 use crate::{
   ast::{
-    AssignmentOperator, Expr, Expression, LiteralType, Span, Statement, Stmt, Type, TypeExpression,
+    expression::{AssignmentOperator, Expr, Expression, LiteralType},
+    statement::{Statement, Stmt},
+    types::{Type, TypeExpression},
+    Span,
   },
   parser::parse_number,
   tokens::LineNumber,

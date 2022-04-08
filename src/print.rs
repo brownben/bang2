@@ -47,7 +47,10 @@ pub fn tokens(source: &str, tokens: &[Token]) {
 pub use ast::print as ast;
 mod ast {
   use super::remove_carriage_returns;
-  use crate::ast::{Expr, Expression, Statement, Stmt};
+  use crate::ast::{
+    expression::{Expr, Expression},
+    statement::{Statement, Stmt},
+  };
 
   pub fn print(source: &str, ast: &[Statement]) {
     let source = source.as_bytes();

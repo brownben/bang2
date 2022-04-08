@@ -1,7 +1,12 @@
 use crate::{
   ast::{
-    expression, statement, types, AssignmentOperator, BinaryOperator, Expr, Expression, ImportItem,
-    LiteralType, Parameter, Span, Statement, Stmt, Type, TypeExpression, UnaryOperator,
+    expression::{
+      expression, AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, Parameter,
+      UnaryOperator,
+    },
+    statement::{statement, ImportItem, Statement, Stmt},
+    types::{types, Type, TypeExpression},
+    Span,
   },
   diagnostic::Diagnostic,
   tokens::{Token, TokenType},

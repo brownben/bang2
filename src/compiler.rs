@@ -1,7 +1,11 @@
 use std::rc::Rc;
 
 use crate::{
-  ast::{BinaryOperator, Expr, Expression, LiteralType, Span, Statement, Stmt, UnaryOperator},
+  ast::{
+    expression::{BinaryOperator, Expr, Expression, LiteralType, UnaryOperator},
+    statement::{Statement, Stmt},
+    Span,
+  },
   builtins::get_builtin_module_value,
   chunk::{Chunk, ChunkBuilder, OpCode},
   diagnostic::Diagnostic,

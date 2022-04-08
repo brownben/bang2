@@ -23,7 +23,7 @@ pub use diagnostic::Diagnostic;
 pub use tokens::{tokenize, Token};
 
 // Parse a slice of tokens into an AST
-pub use ast::{Expr, Stmt};
+pub use ast::{expression, statement, types};
 pub use parser::parse;
 
 // Check an AST for common problems

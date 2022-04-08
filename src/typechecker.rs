@@ -4,8 +4,10 @@
 
 use crate::{
   ast::{
-    BinaryOperator, Expr, Expression, LiteralType, Span, Statement, Stmt, Type as TypeItem,
-    TypeExpression, UnaryOperator,
+    expression::{BinaryOperator, Expr, Expression, LiteralType, UnaryOperator},
+    statement::{Statement, Stmt},
+    types::{Type as TypeItem, TypeExpression},
+    Span,
   },
   Diagnostic,
 };
