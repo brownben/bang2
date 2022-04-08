@@ -31,7 +31,7 @@ macro_rules! numeric_expression {
 
     match (left, right) {
       (Value::Number(left), Value::Number(right)) => {
-        $vm.stack.push(Value::Number(left $token right));
+        $vm.push(Value::Number(left $token right));
       }
       _ => {
         break runtime_error!(($vm, $chunk, $ip), "Both operands must be numbers.");
@@ -66,20 +66,29 @@ impl VM {
     vm
   }
 
+  #[inline]
   fn store_frame(&mut self, ip: usize, offset: usize) {
     self.frames.push(CallFrame { ip, offset });
   }
 
+  #[inline]
   fn restore_frame(&mut self) -> CallFrame {
     self.frames.pop().unwrap()
   }
 
+  #[inline]
   fn peek(&self) -> &Value {
     self.stack.last().unwrap()
   }
 
+  #[inline]
   fn pop(&mut self) -> Value {
     self.stack.pop().unwrap()
+  }
+
+  #[inline]
+  fn push(&mut self, value: Value) {
+    self.stack.push(value);
   }
 
   pub fn run(&mut self, chunk: Chunk) -> Result<(), Diagnostic> {
@@ -93,25 +102,25 @@ impl VM {
         OpCode::Constant => {
           let constant_location = chunk.get_value(ip + 1);
           let constant = chunk.get_constant(constant_location as usize);
-          self.stack.push(constant);
+          self.push(constant);
           ip += 2;
         }
         OpCode::ConstantLong => {
           let constant_location = chunk.get_long_value(ip + 1) as u16;
           let constant = chunk.get_constant(constant_location as usize);
-          self.stack.push(constant);
+          self.push(constant);
           ip += 3;
         }
         OpCode::Null => {
-          self.stack.push(Value::Null);
+          self.push(Value::Null);
           ip += 1;
         }
         OpCode::True => {
-          self.stack.push(Value::Boolean(true));
+          self.push(Value::Boolean(true));
           ip += 1;
         }
         OpCode::False => {
-          self.stack.push(Value::Boolean(false));
+          self.push(Value::Boolean(false));
           ip += 1;
         }
         OpCode::Add => {
@@ -119,10 +128,10 @@ impl VM {
 
           match (left, right) {
             (Value::Number(left), Value::Number(right)) => {
-              self.stack.push(Value::Number(left + right));
+              self.push(Value::Number(left + right));
             }
             (Value::String(left), Value::String(right)) => {
-              self.stack.push(Value::from([left, right].concat()));
+              self.push(Value::from([left, right].concat()));
             }
             _ => {
               break runtime_error!(
@@ -149,7 +158,7 @@ impl VM {
         OpCode::Negate => {
           let value = self.pop();
           if let Value::Number(n) = value {
-            self.stack.push(Value::Number(-n));
+            self.push(Value::Number(-n));
           } else {
             break runtime_error!(
               (self, chunk, ip),
@@ -162,13 +171,13 @@ impl VM {
         }
         OpCode::Not => {
           let value = self.pop();
-          self.stack.push(Value::Boolean(value.is_falsy()));
+          self.push(Value::Boolean(value.is_falsy()));
           ip += 1;
         }
 
         OpCode::Equal => {
           let (right, left) = (self.pop(), self.pop());
-          self.stack.push(Value::Boolean(left == right));
+          self.push(Value::Boolean(left == right));
           ip += 1;
         }
         OpCode::Less => {
@@ -176,10 +185,10 @@ impl VM {
 
           match (left, right) {
             (Value::Number(left), Value::Number(right)) => {
-              self.stack.push(Value::Boolean(left < right));
+              self.push(Value::Boolean(left < right));
             }
             (Value::String(left), Value::String(right)) => {
-              self.stack.push(Value::Boolean(left < right));
+              self.push(Value::Boolean(left < right));
             }
             _ => {
               break runtime_error!(
@@ -196,10 +205,10 @@ impl VM {
 
           match (left, right) {
             (Value::Number(left), Value::Number(right)) => {
-              self.stack.push(Value::Boolean(left > right));
+              self.push(Value::Boolean(left > right));
             }
             (Value::String(left), Value::String(right)) => {
-              self.stack.push(Value::Boolean(left > right));
+              self.push(Value::Boolean(left > right));
             }
             _ => {
               break runtime_error!(
@@ -213,7 +222,7 @@ impl VM {
         }
 
         OpCode::Pop => {
-          self.stack.pop();
+          self.stack.pop(); // Don't unwrap as could be empty.
           ip += 1;
         }
 
@@ -230,10 +239,10 @@ impl VM {
           let name_location = chunk.get_value(ip + 1);
           let name = chunk.get_constant(name_location as usize);
 
-          let value = self.globals.get(&name.as_str());
+          let value = self.globals.get(&name.as_str()).cloned();
 
           if let Some(value) = value {
-            self.stack.push(value.clone());
+            self.push(value);
           } else {
             break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name.as_str());
           }
@@ -257,7 +266,7 @@ impl VM {
         }
         OpCode::GetLocal => {
           let slot = chunk.get_value(ip + 1);
-          self.stack.push(self.stack[offset + slot as usize].clone());
+          self.push(self.stack[offset + slot as usize].clone());
           ip += 2;
         }
         OpCode::SetLocal => {
@@ -291,14 +300,14 @@ impl VM {
         }
 
         OpCode::Return => {
-          let result = self.stack.pop();
+          let result = self.stack.pop(); // Don't unwrap pop as it may be empty
 
           if self.frames.is_empty() {
             break Ok(());
           }
 
           self.stack.drain(offset - 1..);
-          self.stack.push(result.unwrap());
+          self.push(result.unwrap());
 
           let frame = self.restore_frame();
           ip = frame.ip;
@@ -340,8 +349,8 @@ impl VM {
                 let args = self.stack.drain(start_of_args..);
                 (func.func)(args.as_slice())
               };
-              self.stack.pop();
-              self.stack.push(result);
+              self.pop();
+              self.push(result);
 
               ip += 2;
             }
