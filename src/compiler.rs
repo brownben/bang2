@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::{
   ast::{BinaryOperator, Expr, Expression, LiteralType, Span, Statement, Stmt, UnaryOperator},
   builtins::get_builtin_module_value,
@@ -57,11 +59,12 @@ struct Local<'s> {
 struct Compiler<'s> {
   source: &'s str,
 
-  chunk: ChunkBuilder,
-  chunk_stack: Vec<ChunkBuilder>,
-
   locals: Vec<Local<'s>>,
   scope_depth: u8,
+
+  chunk: ChunkBuilder,
+  chunk_stack: Vec<ChunkBuilder>,
+  finished_chunks: Vec<Chunk>,
 
   error: Option<Diagnostic>,
 }
@@ -90,8 +93,16 @@ impl<'s> Compiler<'s> {
       .write_long_value(value, span.get_line_number(self.source));
   }
 
+  fn base_chunk(&mut self) -> &mut ChunkBuilder {
+    if self.chunk_stack.is_empty() {
+      &mut self.chunk
+    } else {
+      &mut self.chunk_stack[0]
+    }
+  }
+
   fn emit_constant(&mut self, span: Span, value: Value) {
-    let constant_position = self.chunk.add_constant(value);
+    let constant_position = self.base_chunk().add_constant(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
       self.emit_opcode(span, OpCode::Constant);
@@ -105,7 +116,7 @@ impl<'s> Compiler<'s> {
   }
 
   fn emit_constant_string(&mut self, span: Span, value: &'s str) {
-    let constant_position = self.chunk.add_constant_string(value);
+    let constant_position = self.base_chunk().add_constant_string(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
       self.emit_value(span, constant_position);
@@ -141,6 +152,7 @@ impl<'s> Compiler<'s> {
       source,
       chunk: ChunkBuilder::new(),
       chunk_stack: Vec::new(),
+      finished_chunks: Vec::new(),
       locals: Vec::new(),
       scope_depth: 0,
       error: None,
@@ -170,10 +182,13 @@ impl<'s> Compiler<'s> {
     self.begin_scope();
   }
 
-  fn finish_chunk(&mut self, name: String) -> Chunk {
-    let mut chunk = std::mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
+  fn finish_chunk(&mut self) -> usize {
     self.end_scope();
-    chunk.finalize(name)
+
+    let chunk = std::mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
+    let chunk_id = self.finished_chunks.len();
+    self.finished_chunks.push(chunk.finalize());
+    chunk_id
   }
 
   fn error(&mut self, error: Error, span: Span, value: &str) {
@@ -414,14 +429,14 @@ impl<'s> Compiler<'s> {
         self.compile_statement(body);
         self.emit_opcode(span, OpCode::Null);
         self.emit_opcode(span, OpCode::Return);
-        let chunk = self.finish_chunk(name.unwrap_or("").to_string());
+        let chunk = self.finish_chunk();
 
         self.emit_constant(
           span,
           Value::from(Function {
             name: name.unwrap_or("").to_string(),
             arity: parameters.len() as u8,
-            chunk,
+            start: chunk,
           }),
         );
       }
@@ -533,7 +548,18 @@ pub fn compile(source: &str, ast: &[Statement]) -> Result<Chunk, Diagnostic> {
 
   compiler.emit_opcode_blank(OpCode::Return);
 
-  let chunk = compiler.chunk.finalize("<script>".to_string());
+  let mut chunk = compiler.chunk.finalize();
+  let chunk_locations: Vec<_> = compiler
+    .finished_chunks
+    .iter()
+    .map(|c| chunk.merge(c))
+    .collect();
+
+  for constant in &mut chunk.constants {
+    if let Value::Function(func) = constant {
+      Rc::get_mut(func).unwrap().start = chunk_locations[func.start];
+    };
+  }
 
   Ok(chunk)
 }

@@ -1,20 +1,9 @@
 use std::{fmt::Display, rc::Rc};
 
-use crate::chunk::Chunk;
-
 pub struct Function {
   pub name: String,
   pub arity: u8,
-  pub chunk: Chunk,
-}
-impl Function {
-  pub fn script(chunk: Chunk) -> Rc<Self> {
-    Rc::new(Self {
-      arity: 0,
-      chunk,
-      name: String::new(),
-    })
-  }
+  pub start: usize,
 }
 
 pub struct NativeFunction {

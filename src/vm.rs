@@ -2,7 +2,7 @@ use crate::{
   builtins,
   chunk::{Chunk, OpCode},
   diagnostic::Diagnostic,
-  value::{Function, Value},
+  value::Value,
 };
 use ahash::AHashMap as HashMap;
 use std::rc::Rc;
@@ -14,7 +14,7 @@ macro_rules! runtime_error {
     let mut lines = vec![$chunk.get_line_number($ip)];
 
     for frame in $vm.frames.iter().rev() {
-      lines.push(frame.function.chunk.get_line_number(frame.ip));
+      lines.push($chunk.get_line_number(frame.ip));
     }
 
     Err(Diagnostic {
@@ -41,7 +41,6 @@ macro_rules! numeric_expression {
 }
 
 struct CallFrame {
-  function: Rc<Function>,
   ip: usize,
   offset: usize,
 }
@@ -67,12 +66,8 @@ impl VM {
     vm
   }
 
-  fn store_frame(&mut self, function: Rc<Function>, ip: usize, offset: usize) {
-    self.frames.push(CallFrame {
-      function,
-      ip,
-      offset,
-    });
+  fn store_frame(&mut self, ip: usize, offset: usize) {
+    self.frames.push(CallFrame { ip, offset });
   }
 
   fn restore_frame(&mut self) -> CallFrame {
@@ -88,23 +83,22 @@ impl VM {
   }
 
   pub fn run(&mut self, chunk: Chunk) -> Result<(), Diagnostic> {
-    let mut function = Function::script(chunk);
     let mut ip: usize = 0;
     let mut offset: usize = 0;
 
     loop {
-      let instruction = function.chunk.get(ip);
+      let instruction = chunk.get(ip);
 
       match instruction {
         OpCode::Constant => {
-          let constant_location = function.chunk.get_value(ip + 1);
-          let constant = function.chunk.get_constant(constant_location as usize);
+          let constant_location = chunk.get_value(ip + 1);
+          let constant = chunk.get_constant(constant_location as usize);
           self.stack.push(constant);
           ip += 2;
         }
         OpCode::ConstantLong => {
-          let constant_location = function.chunk.get_long_value(ip + 1) as u16;
-          let constant = function.chunk.get_constant(constant_location as usize);
+          let constant_location = chunk.get_long_value(ip + 1) as u16;
+          let constant = chunk.get_constant(constant_location as usize);
           self.stack.push(constant);
           ip += 3;
         }
@@ -132,7 +126,7 @@ impl VM {
             }
             _ => {
               break runtime_error!(
-                (self, function.chunk, ip),
+                (self, chunk, ip),
                 "Operands must be two numbers or two strings.",
               );
             }
@@ -141,15 +135,15 @@ impl VM {
           ip += 1;
         }
         OpCode::Subtract => {
-          numeric_expression!(self, -, function.chunk, ip);
+          numeric_expression!(self, -, chunk, ip);
           ip += 1;
         }
         OpCode::Multiply => {
-          numeric_expression!(self, *, function.chunk, ip);
+          numeric_expression!(self, *, chunk, ip);
           ip += 1;
         }
         OpCode::Divide => {
-          numeric_expression!(self, /, function.chunk, ip);
+          numeric_expression!(self, /, chunk, ip);
           ip += 1;
         }
         OpCode::Negate => {
@@ -158,7 +152,7 @@ impl VM {
             self.stack.push(Value::Number(-n));
           } else {
             break runtime_error!(
-              (self, function.chunk, ip),
+              (self, chunk, ip),
               "Operand must be a number but recieved {}.",
               value.get_type()
             );
@@ -189,7 +183,7 @@ impl VM {
             }
             _ => {
               break runtime_error!(
-                (self, function.chunk, ip),
+                (self, chunk, ip),
                 "Operands must be two numbers or two strings.",
               );
             }
@@ -209,7 +203,7 @@ impl VM {
             }
             _ => {
               break runtime_error!(
-                (self, function.chunk, ip),
+                (self, chunk, ip),
                 "Operands must be two numbers or two strings.",
               );
             }
@@ -224,8 +218,8 @@ impl VM {
         }
 
         OpCode::DefineGlobal => {
-          let name_location = function.chunk.get_value(ip + 1);
-          let name = function.chunk.get_constant(name_location as usize);
+          let name_location = chunk.get_value(ip + 1);
+          let name = chunk.get_constant(name_location as usize);
 
           let value = self.pop();
           self.globals.insert(name.as_str(), value);
@@ -233,26 +227,22 @@ impl VM {
           ip += 2;
         }
         OpCode::GetGlobal => {
-          let name_location = function.chunk.get_value(ip + 1);
-          let name = function.chunk.get_constant(name_location as usize);
+          let name_location = chunk.get_value(ip + 1);
+          let name = chunk.get_constant(name_location as usize);
 
           let value = self.globals.get(&name.as_str());
 
           if let Some(value) = value {
             self.stack.push(value.clone());
           } else {
-            break runtime_error!(
-              (self, function.chunk, ip),
-              "Undefined variable '{}'",
-              name.as_str(),
-            );
+            break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name.as_str());
           }
 
           ip += 2;
         }
         OpCode::SetGlobal => {
-          let name_location = function.chunk.get_value(ip + 1);
-          let name = function.chunk.get_constant(name_location as usize);
+          let name_location = chunk.get_value(ip + 1);
+          let name = chunk.get_constant(name_location as usize);
           let value = self.peek().clone();
 
           if let std::collections::hash_map::Entry::Occupied(mut entry) =
@@ -260,28 +250,24 @@ impl VM {
           {
             entry.insert(value);
           } else {
-            break runtime_error!(
-              (self, function.chunk, ip),
-              "Undefined variable '{}'",
-              name.as_str()
-            );
+            break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name.as_str());
           }
 
           ip += 2;
         }
         OpCode::GetLocal => {
-          let slot = function.chunk.get_value(ip + 1);
+          let slot = chunk.get_value(ip + 1);
           self.stack.push(self.stack[offset + slot as usize].clone());
           ip += 2;
         }
         OpCode::SetLocal => {
-          let slot = function.chunk.get_value(ip + 1);
+          let slot = chunk.get_value(ip + 1);
           self.stack[offset + slot as usize] = self.peek().clone();
           ip += 2;
         }
 
         OpCode::JumpIfFalse => {
-          let offset = function.chunk.get_long_value(ip + 1);
+          let offset = chunk.get_long_value(ip + 1);
           if self.peek().is_falsy() {
             ip += offset as usize + 1;
           } else {
@@ -289,18 +275,18 @@ impl VM {
           }
         }
         OpCode::JumpIfNull => {
-          let offset = function.chunk.get_long_value(ip + 1);
+          let offset = chunk.get_long_value(ip + 1);
           ip += match self.peek() {
             Value::Null => offset as usize + 1,
             _ => 3,
           };
         }
         OpCode::Jump => {
-          let offset = function.chunk.get_long_value(ip + 1);
+          let offset = chunk.get_long_value(ip + 1);
           ip += offset as usize + 1;
         }
         OpCode::Loop => {
-          let offset = function.chunk.get_long_value(ip + 1);
+          let offset = chunk.get_long_value(ip + 1);
           ip -= offset as usize - 1;
         }
 
@@ -315,12 +301,11 @@ impl VM {
           self.stack.push(result.unwrap());
 
           let frame = self.restore_frame();
-          function = frame.function;
           ip = frame.ip;
           offset = frame.offset;
         }
         OpCode::Call => {
-          let arg_count = function.chunk.get_value(ip + 1);
+          let arg_count = chunk.get_value(ip + 1);
           let pos = self.stack.len() - arg_count as usize - 1;
           let callee = self.stack[pos].clone();
 
@@ -328,23 +313,22 @@ impl VM {
             Value::Function(func) => {
               if arg_count != func.arity {
                 break runtime_error!(
-                  (self, function.chunk, ip),
+                  (self, chunk, ip),
                   "Expected {} arguments but got {}.",
                   func.arity,
                   arg_count
                 );
               }
 
-              self.store_frame(function.clone(), ip + 2, offset);
+              self.store_frame(ip + 2, offset);
 
               offset = self.stack.len() - arg_count as usize;
-              function = func;
-              ip = 0;
+              ip = func.start;
             }
             Value::NativeFunction(func) => {
               if arg_count != func.arity {
                 break runtime_error!(
-                  (self, function.chunk, ip),
+                  (self, chunk, ip),
                   "Expected {} arguments but got {}.",
                   func.arity,
                   arg_count
@@ -362,12 +346,12 @@ impl VM {
               ip += 2;
             }
             _ => {
-              break runtime_error!((self, function.chunk, ip), "Can only call functions.",);
+              break runtime_error!((self, chunk, ip), "Can only call functions.");
             }
           }
         }
         OpCode::Unknown => {
-          break runtime_error!((self, function.chunk, ip), "Unknown OpCode");
+          break runtime_error!((self, chunk, ip), "Unknown OpCode");
         }
       }
 

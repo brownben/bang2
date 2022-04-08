@@ -231,22 +231,10 @@ mod ast {
 
 pub use chunk::print as chunk;
 mod chunk {
-  use crate::{
-    chunk::{Chunk, OpCode},
-    value::Value,
-  };
+  use crate::chunk::{Chunk, OpCode};
 
   pub fn print(chunk: &Chunk) {
-    disassemble_chunk(chunk);
-    for constant in &chunk.constants {
-      if let Value::Function(function) = constant {
-        print(&function.chunk);
-      }
-    }
-  }
-
-  fn disassemble_chunk(chunk: &Chunk) {
-    println!("          ╭─[Bytecode:{}]", chunk.name);
+    println!("          ╭─[Bytecode]");
 
     let mut position: usize = 0;
     let mut last_line_number = 0;

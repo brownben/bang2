@@ -90,16 +90,13 @@ impl LineInfoBuilder {
     }
   }
 
-  fn finalize(&mut self) -> LineInfo {
+  fn finalize(mut self) -> LineInfo {
     if self.repeated > 0 {
       self.lines.push((self.last, self.repeated));
       self.last = 0;
       self.repeated = 0;
     }
-    self.lines.shrink_to_fit();
-    LineInfo {
-      lines: self.lines.clone(),
-    }
+    LineInfo { lines: self.lines }
   }
 }
 
@@ -186,22 +183,17 @@ impl ChunkBuilder {
     self.code[offset + 1] = value as u8;
   }
 
-  pub fn finalize(&mut self, name: String) -> Chunk {
-    self.code.shrink_to_fit();
-    self.constants.shrink_to_fit();
-
+  pub fn finalize(self) -> Chunk {
     Chunk {
-      code: self.code.clone(),
-      constants: self.constants.clone(),
+      code: self.code,
+      constants: self.constants,
       lines: self.lines.finalize(),
-      name,
     }
   }
 }
 
 #[derive(Clone)]
 pub struct Chunk {
-  pub name: String,
   pub code: Vec<u8>,
   pub constants: Vec<Value>,
   lines: LineInfo,
@@ -228,5 +220,12 @@ impl Chunk {
 
   pub fn get_line_number(&self, opcode_position: usize) -> LineNumber {
     self.lines.get(opcode_position)
+  }
+
+  pub fn merge(&mut self, chunk: &Chunk) -> usize {
+    let offset = self.code.len();
+    self.code.extend_from_slice(&chunk.code);
+    self.lines.lines.extend_from_slice(&chunk.lines.lines);
+    offset
   }
 }
