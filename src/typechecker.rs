@@ -11,6 +11,8 @@ use crate::{
   },
   Diagnostic,
 };
+use ahash::AHashMap as HashMap;
+use std::collections::hash_map::Entry as HashMapEntry;
 
 enum Error {
   ExpectedType,
@@ -40,6 +42,7 @@ impl Error {
 }
 
 type TypeIndex = usize;
+type Restriction<'s> = (&'s str, TypeIndex);
 
 const NULL: TypeIndex = 0;
 const NUMBER: TypeIndex = 1;
@@ -51,6 +54,7 @@ const ANY: TypeIndex = 6;
 const NEVER: TypeIndex = 7;
 const NUMBER_OR_STRING: TypeIndex = 8;
 
+#[derive(Debug, Clone, Copy)]
 struct Variable<'s> {
   name: &'s str,
   depth: u8,
@@ -231,7 +235,7 @@ impl<'s> Typechecker<'s> {
           && a_args
             .iter()
             .zip(b_args.iter())
-            .all(|(a, b)| self.matches(*a, *b))
+            .all(|(a, b)| self.matches(*b, *a))
       }
       (a, b) => a == b,
     }
@@ -256,9 +260,8 @@ impl<'s> Typechecker<'s> {
   fn narrow(&mut self, a: TypeIndex, b: TypeIndex) -> TypeIndex {
     let types = self
       .flatten(a)
-      .iter()
-      .filter(|t| !self.matches(**t, b))
-      .cloned()
+      .into_iter()
+      .filter(|t| !self.matches(*t, b))
       .collect::<Vec<_>>();
 
     match types.len() {
@@ -330,6 +333,19 @@ impl<'s> Typechecker<'s> {
     }
   }
 
+  fn resolve_statement_with_restrictions(
+    &mut self,
+    statement: &mut Statement<'s>,
+    restrictions: &[Restriction<'s>],
+  ) {
+    self.begin_scope();
+    for (variable, restriction) in restrictions {
+      self.define(variable, *restriction);
+    }
+    self.resolve_statement(statement);
+    self.end_scope();
+  }
+
   fn resolve_statement(&mut self, statement: &mut Statement<'s>) {
     let span = statement.span;
 
@@ -361,15 +377,20 @@ impl<'s> Typechecker<'s> {
         condition,
       } => {
         self.resolve_expression(condition);
-        self.resolve_statement(then);
+
+        let restrictions = self.get_restrictions(condition);
+        self.resolve_statement_with_restrictions(then, &restrictions);
 
         if let Some(otherwise) = otherwise {
-          self.resolve_statement(otherwise);
+          let restrictions = self.inverse_restrictions(&restrictions);
+          self.resolve_statement_with_restrictions(otherwise, &restrictions);
         }
       }
       Stmt::While { condition, body } => {
         self.resolve_expression(condition);
-        self.resolve_statement(body);
+
+        let restrictions = self.get_restrictions(condition);
+        self.resolve_statement_with_restrictions(body, &restrictions);
       }
       Stmt::Block { body, .. } => {
         self.begin_scope();
@@ -448,7 +469,7 @@ impl<'s> Typechecker<'s> {
             NUMBER
           }
           BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            self.assert_type(l, r, span);
+            self.assert_type(r, l, span);
             BOOLEAN
           }
           BinaryOperator::Greater
@@ -488,7 +509,7 @@ impl<'s> Typechecker<'s> {
         let variable = self
           .variables
           .iter()
-          .find(|local| local.name == *identifier);
+          .rfind(|local| local.name == *identifier);
 
         let variable_type = if let Some(variable) = variable {
           variable.type_
@@ -507,7 +528,7 @@ impl<'s> Typechecker<'s> {
         variable_type
       }
       Expr::Variable { name } => {
-        let variable = self.variables.iter().find(|local| local.name == *name);
+        let variable = self.variables.iter().rfind(|local| local.name == *name);
 
         if let Some(variable) = variable {
           variable.type_
@@ -640,6 +661,102 @@ impl<'s> Typechecker<'s> {
     };
 
     self.call(expression_type, &arguments, right.span)
+  }
+
+  fn get_restrictions(&mut self, expression: &mut Expression<'s>) -> Vec<Restriction<'s>> {
+    match &mut expression.expr {
+      Expr::Group { expression } => self.get_restrictions(expression),
+      Expr::Binary {
+        operator: BinaryOperator::And,
+        left,
+        right,
+      } => {
+        let l = self.get_restrictions(left);
+        let r = self.get_restrictions(right);
+
+        let mut restrictions = HashMap::<&'s str, TypeIndex>::from_iter(l.into_iter());
+        for (name, restriction) in r {
+          if let HashMapEntry::Occupied(mut entry) = restrictions.entry(name) {
+            let t = self.narrow(restriction, *entry.get());
+            entry.insert(t);
+          } else {
+            restrictions.insert(name, restriction);
+          }
+        }
+
+        restrictions.into_iter().collect::<Vec<_>>()
+      }
+      Expr::Binary {
+        operator: BinaryOperator::Or,
+        left,
+        right,
+      } => {
+        let mut l = self.get_restrictions(left);
+        let mut r = self.get_restrictions(right);
+
+        // If different variables are on each side of the OR we can't make a decision
+        let all_same_name =
+          l.iter().all(|(name, _)| *name == l[0].0) && r.iter().all(|(name, _)| *name == l[0].0);
+        if !all_same_name {
+          return Vec::new();
+        }
+
+        l.append(&mut r);
+
+        vec![(
+          l[0].0,
+          self.union(
+            &l.into_iter()
+              .map(|(_, restriction)| restriction)
+              .collect::<Vec<_>>(),
+          ),
+        )]
+      }
+      Expr::Binary {
+        operator: BinaryOperator::Equal,
+        left,
+        right,
+      } => {
+        let r = self.resolve_expression(right);
+
+        if let Expr::Variable { name } = &mut left.expr {
+          vec![(name, r)]
+        } else {
+          Vec::new()
+        }
+      }
+      Expr::Binary {
+        operator: BinaryOperator::NotEqual,
+        left,
+        right,
+      } => {
+        let l = self.resolve_expression(left);
+        let r = self.resolve_expression(right);
+
+        if let Expr::Variable { name } = &mut left.expr {
+          vec![(name, self.narrow(l, r))]
+        } else {
+          Vec::new()
+        }
+      }
+      _ => Vec::new(),
+    }
+  }
+
+  fn inverse_restrictions(&mut self, restrictions: &[Restriction<'s>]) -> Vec<Restriction<'s>> {
+    restrictions
+      .iter()
+      .map(|(name, not_type)| {
+        let current_type = self
+          .variables
+          .iter()
+          .rfind(|local| local.name == *name)
+          .expect("variable to exist as previously found")
+          .type_;
+
+        (*name, self.narrow(current_type, *not_type))
+      })
+      .collect()
   }
 }
 
@@ -958,13 +1075,22 @@ let d: boolean = not(3.5)
 
   #[test]
   fn functions() {
-    assert!(
-      typecheck("let func: (number, number) -> number = (a: number, b: number) => a + b").is_ok()
-    );
+    let result =
+      typecheck("let func: (number, number) -> number = (a: number, b: number) => a + b");
+    assert!(result.is_ok());
 
     assert_expression_type("print", "((any) -> null) | ((any) -> string)");
     assert_expression_type("type", "((any) -> null) | ((any) -> string)");
     assert!(typecheck("let p: (any) -> null = print\nlet t: (any) -> string = type\n",).is_ok());
+
+    let result = typecheck(
+      "let func: (number | string) -> number | string = (a: number | string | boolean) => 7",
+    );
+    assert!(result.is_ok());
+
+    let result =
+      typecheck("let func: (number, string) -> number  = (a: number, b: string) => a || b");
+    assert!(result.is_err());
   }
 
   #[test]
@@ -1049,5 +1175,114 @@ let multiply = (a: number, b: number) => a * b
     ",
       "number",
     );
+  }
+
+  #[test]
+  fn redefined_variables() {
+    let result = typecheck(
+      "
+let a = false
+  let a = 5
+  a = -a
+",
+    );
+    assert!(result.is_ok());
+  }
+
+  mod narrowing {
+    use super::*;
+
+    #[test]
+    fn not_equals() {
+      let result = typecheck(
+        "
+let func = (a: number?) ->
+  if (a != null) -a
+",
+      );
+      assert!(result.is_ok());
+    }
+
+    #[test]
+    fn equals() {
+      let result = typecheck(
+        "
+let boolean = (b: boolean) => b
+let func = (a: boolean?) ->
+  if (a == true) boolean(a)
+
+",
+      );
+      assert!(result.is_ok());
+    }
+
+    #[test]
+    fn or() {
+      let result = typecheck(
+        "
+let boolean = (b: boolean) => b
+let func = (a: boolean?) ->
+  if (a == true || a == false) boolean(a)
+
+",
+      );
+      assert!(result.is_ok());
+    }
+
+    #[test]
+    fn and() {
+      let result = typecheck(
+        "
+let boolean = (b: boolean) => b
+let func = (a: boolean?) ->
+  if (a == true && a == false) boolean(a)
+
+",
+      );
+      assert!(result.is_ok());
+    }
+
+    #[test]
+    fn multiple_and() {
+      let result = typecheck(
+        "
+let boolean = (b: boolean) => b
+let func = (a: boolean?, b: boolean?) ->
+  if (a == true && b == false)
+    boolean(a)
+    boolean(b)
+",
+      );
+      assert!(result.is_ok());
+    }
+
+    #[test]
+    fn multiple_or() {
+      let result = typecheck(
+        "
+let boolean = (b: boolean) => b
+let func = (a: boolean?, b: boolean?) ->
+  if (a == true || b == false)
+    boolean(a)
+    boolean(b)
+",
+      );
+      assert!(result.is_err());
+    }
+
+    #[test]
+    fn else_() {
+      let result = typecheck(
+        "
+let boolean = (b: boolean) => b
+let n = (n: null) => null
+
+let func = (a: boolean?) ->
+  if (a == true || a == false) boolean(a)
+  else n(a)
+",
+      );
+      assert!(result.is_ok());
+    }
   }
 }
