@@ -112,7 +112,7 @@ impl Type {
 struct Typechecker<'s> {
   source: &'s str,
 
-  functions: Vec<TypeIndex>,
+  function_stack: Vec<TypeIndex>,
   variables: Vec<Variable<'s>>,
   scope_depth: u8,
 
@@ -125,7 +125,7 @@ impl<'s> Typechecker<'s> {
       source,
 
       variables: Vec::new(),
-      functions: Vec::new(),
+      function_stack: Vec::new(),
       scope_depth: 0,
 
       errors: Vec::new(),
@@ -335,7 +335,7 @@ impl<'s> Typechecker<'s> {
 
   fn resolve_statement_with_restrictions(
     &mut self,
-    statement: &mut Statement<'s>,
+    statement: &Statement<'s>,
     restrictions: &[Restriction<'s>],
   ) {
     self.begin_scope();
@@ -346,10 +346,10 @@ impl<'s> Typechecker<'s> {
     self.end_scope();
   }
 
-  fn resolve_statement(&mut self, statement: &mut Statement<'s>) {
+  fn resolve_statement(&mut self, statement: &Statement<'s>) {
     let span = statement.span;
 
-    match &mut statement.stmt {
+    match &statement.stmt {
       Stmt::Declaration {
         identifier,
         expression,
@@ -407,16 +407,16 @@ impl<'s> Typechecker<'s> {
       Stmt::Return { expression } => {
         if let Some(expression) = expression {
           let expression_type = self.resolve_expression(expression);
-          self.assert_type(expression_type, *self.functions.last().unwrap(), span);
+          self.assert_type(expression_type, *self.function_stack.last().unwrap(), span);
         }
       }
     }
   }
 
-  fn resolve_expression(&mut self, expression: &mut Expression<'s>) -> TypeIndex {
+  fn resolve_expression(&mut self, expression: &Expression<'s>) -> TypeIndex {
     let span = expression.span;
 
-    let type_ = match &mut expression.expr {
+    let type_ = match &expression.expr {
       Expr::Literal { type_, .. } => match type_ {
         LiteralType::String => STRING,
         LiteralType::Number => NUMBER,
@@ -449,9 +449,7 @@ impl<'s> Typechecker<'s> {
         right,
       } => {
         if let BinaryOperator::Pipeline = operator {
-          let type_ = self.pipeline(left, right);
-          expression.type_ = Some(type_);
-          return type_;
+          return self.pipeline(left, right);
         }
 
         let l = self.resolve_expression(left);
@@ -546,7 +544,7 @@ impl<'s> Typechecker<'s> {
       } => {
         let expression_type = self.resolve_expression(expression);
         let arguments = arguments
-          .iter_mut()
+          .iter()
           .map(|e| self.resolve_expression(e))
           .collect::<Vec<_>>();
 
@@ -573,7 +571,7 @@ impl<'s> Typechecker<'s> {
           self.type_from_annotation(return_type)
         } else if let Stmt::Return {
           expression: Some(expression),
-        } = &mut body.stmt
+        } = &body.stmt
         {
           self.resolve_expression(expression)
         } else {
@@ -587,9 +585,9 @@ impl<'s> Typechecker<'s> {
           self.define(name, function);
         }
 
-        self.functions.push(return_type);
+        self.function_stack.push(return_type);
         self.resolve_statement(body);
-        self.functions.pop();
+        self.function_stack.pop();
 
         self.end_scope();
         function
@@ -597,7 +595,6 @@ impl<'s> Typechecker<'s> {
       Expr::Comment { expression, .. } => self.resolve_expression(expression),
     };
 
-    expression.type_ = Some(type_);
     type_
   }
 
@@ -630,8 +627,8 @@ impl<'s> Typechecker<'s> {
     }
   }
 
-  fn pipeline(&mut self, left: &mut Expression<'s>, right: &mut Expression<'s>) -> usize {
-    let right = if let Expr::Comment { expression, .. } = &mut right.expr {
+  fn pipeline(&mut self, left: &Expression<'s>, right: &Expression<'s>) -> usize {
+    let right = if let Expr::Comment { expression, .. } = &right.expr {
       // If right is a comment, unwrap it
       expression
     } else {
@@ -642,11 +639,11 @@ impl<'s> Typechecker<'s> {
       expression,
       arguments,
       ..
-    } = &mut right.expr
+    } = &right.expr
     {
       let expression = self.resolve_expression(expression);
       let mut arguments = arguments
-        .iter_mut()
+        .iter()
         .map(|arg| self.resolve_expression(arg))
         .collect::<Vec<_>>();
 
@@ -663,8 +660,8 @@ impl<'s> Typechecker<'s> {
     self.call(expression_type, &arguments, right.span)
   }
 
-  fn get_restrictions(&mut self, expression: &mut Expression<'s>) -> Vec<Restriction<'s>> {
-    match &mut expression.expr {
+  fn get_restrictions(&mut self, expression: &Expression<'s>) -> Vec<Restriction<'s>> {
+    match &expression.expr {
       Expr::Group { expression } => self.get_restrictions(expression),
       Expr::Binary {
         operator: BinaryOperator::And,
@@ -719,7 +716,7 @@ impl<'s> Typechecker<'s> {
       } => {
         let r = self.resolve_expression(right);
 
-        if let Expr::Variable { name } = &mut left.expr {
+        if let Expr::Variable { name } = &left.expr {
           vec![(name, r)]
         } else {
           Vec::new()
@@ -733,7 +730,7 @@ impl<'s> Typechecker<'s> {
         let l = self.resolve_expression(left);
         let r = self.resolve_expression(right);
 
-        if let Expr::Variable { name } = &mut left.expr {
+        if let Expr::Variable { name } = &left.expr {
           vec![(name, self.narrow(l, r))]
         } else {
           Vec::new()
@@ -760,7 +757,7 @@ impl<'s> Typechecker<'s> {
   }
 }
 
-pub fn typecheck<'s>(source: &'s str, ast: &mut [Statement<'s>]) -> Vec<Diagnostic> {
+pub fn typecheck<'s>(source: &'s str, ast: &[Statement<'s>]) -> Vec<Diagnostic> {
   let mut typechecker = Typechecker::new(source);
 
   for statement in ast {
@@ -773,136 +770,94 @@ pub fn typecheck<'s>(source: &'s str, ast: &mut [Statement<'s>]) -> Vec<Diagnost
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::{ast::Span, parse, parser::parse_type, tokenize};
+  use crate::{parse, tokenize};
 
-  fn assert_expression_type(source: &str, expected: &str) {
+  fn assert_correct(source: &str) {
     let mut ast = parse(source, &tokenize(source)).unwrap();
-    let mut typechecker = Typechecker::new(source);
-    let expected_type = {
-      let type_ast = parse_type(expected, &tokenize(expected)).unwrap();
-      typechecker.type_from_annotation(&type_ast)
-    };
+    let result = typecheck(source, &mut ast);
 
-    for statement in &mut ast {
-      typechecker.resolve_statement(statement);
-    }
-
-    if let Stmt::Expression { expression } = &ast.last().unwrap().stmt {
-      let type_ = &expression.type_.unwrap();
-      typechecker.assert_type(*type_, expected_type, Span { start: 0, end: 0 });
-    } else {
-      panic!("Expected Expression");
-    }
-
-    if !typechecker.errors.is_empty() {
-      panic!("Types Don't Match");
-    }
+    assert!(result.is_empty(), "{result:?}");
   }
 
-  fn typecheck(source: &str) -> Result<(), ()> {
+  fn assert_fails(source: &str) {
     let mut ast = parse(source, &tokenize(source)).unwrap();
-    let mut typechecker = Typechecker::new(source);
+    let result = typecheck(source, &mut ast);
 
-    for statement in &mut ast {
-      typechecker.resolve_statement(statement);
-    }
-
-    if typechecker.errors.is_empty() {
-      Ok(())
-    } else {
-      Err(())
-    }
+    assert!(result.len() > 0, "Test Passes");
   }
 
   #[test]
   fn literals() {
-    assert_expression_type("'Hello, World!'", "string");
-    assert_expression_type("42", "number");
-    assert_expression_type("true", "boolean");
-    assert_expression_type("false", "boolean");
-    assert_expression_type("null", "null");
+    assert_correct("let a: string = 'Hello, World!'");
+    assert_correct("let a: number = 42");
+    assert_correct("let a: boolean = true");
+    assert_correct("let a: boolean = false");
+    assert_correct("let a: null = null");
   }
 
   #[test]
   fn declarations() {
-    assert_expression_type("let a = 42\na\n", "number");
-    assert_expression_type("let a = true\na\n", "boolean");
-    assert_expression_type("let a = null\na\n", "null");
-    assert_expression_type("let a\na\n", "null");
+    assert_correct("let a = 42\nlet b: number = a\n");
+    assert_correct("let a = true\nlet b: boolean = a\n");
+    assert_correct("let a = null\nlet b: null = a\n");
+    assert_correct("let a\nlet b: null = a\n");
   }
 
   #[test]
   fn typed_declarations() {
-    assert_expression_type("let a: number = 42\na\n", "number");
-    assert_expression_type("let a: boolean = true\na\n", "boolean");
-    assert_expression_type("let a: null = null\na\n", "null");
-    assert_expression_type("let a: null\na\n", "null");
-    assert_expression_type("let a: null | null\na\n", "null");
-    assert_expression_type("let a: null?\na\n", "null");
-    assert!(typecheck("let a: null | number\na = 5\na = null").is_ok());
-    assert!(typecheck("let a: null | number\na = 5 && null\n").is_ok());
-
-    let result = typecheck("let a: number = true");
-    assert!(result.is_err())
+    assert_correct("let a: number = 42\nlet b: number = a\n");
+    assert_correct("let a: boolean = true\nlet b: boolean = a\n");
+    assert_correct("let a: null = null\nlet b: null = a\n");
+    assert_correct("let a: null\nlet b: null = a\n");
+    assert_correct("let a: null | null\nlet b: null = a\n");
+    assert_correct("let a: null?\nlet b: null = a\n");
+    assert_correct("let a: null | number\na = 5\na = null");
+    assert_correct("let a: null | number\na = 5 && null\n");
+    assert_fails("let a: number = true");
   }
 
   #[test]
   fn variable_not_defined() {
-    let result = typecheck("a\n");
-    assert!(result.is_err());
-
-    let result = typecheck("let a\nb\n");
-    assert!(result.is_err());
+    assert_fails("a\n");
+    assert_fails("let a\nb\n");
   }
 
   #[test]
   fn grouping() {
-    assert_expression_type("(42)", "number");
-    assert_expression_type("(true)", "boolean");
-    assert_expression_type("('string')", "string");
+    assert_correct("let a: number = (42)");
+    assert_correct("let a: boolean = (true)");
+    assert_correct("let a: string = ('string')");
   }
 
   #[test]
   fn unary() {
-    assert_expression_type("-42", "number");
-    assert_expression_type("!true", "boolean");
-    assert_expression_type("!false", "boolean");
-    assert_expression_type("!'string'", "boolean");
-    assert_expression_type("!7", "boolean");
+    assert_correct("let a: number = -42");
+    assert_correct("let a: boolean = !true");
+    assert_correct("let a: boolean = !false");
+    assert_correct("let a: boolean = !'string'");
+    assert_correct("let a: boolean = !7");
 
-    let result = typecheck("-true");
-    assert!(result.is_err());
-
-    let result = typecheck("-'hello'");
-    assert!(result.is_err());
-
-    let result = typecheck("-null");
-    assert!(result.is_err());
+    assert_fails("-true");
+    assert_fails("-'hello'");
+    assert_fails("-null");
   }
 
   #[test]
   fn assignment() {
-    assert_expression_type("let a = 42\na = 5\n", "number");
-    assert_expression_type("let a = true\na = false\n", "boolean");
-    assert_expression_type("let a = null\na = null\n", "null");
-    assert_expression_type("let a\na = null\n", "null");
+    assert_correct("let a = 42\nlet b: number = a = 5\n");
+    assert_correct("let a = true\nlet b: boolean = a = false\n");
+    assert_correct("let a = null\nlet b: null = a = null\n");
+    assert_correct("let a\nlet b: null = a = null\n");
 
-    let result = typecheck("b = 5\n");
-    assert!(result.is_err());
-
-    let result = typecheck("let a = 42\na = false\n");
-    assert!(result.is_err());
-
-    let result = typecheck("let a = false\na = 42\n");
-    assert!(result.is_err());
-
-    let result = typecheck("let a = 'hello'\na = 15\n");
-    assert!(result.is_err());
+    assert_fails("b = 5\n");
+    assert_fails("let a = 42\na = false\n");
+    assert_fails("let a = false\na = 42\n");
+    assert_fails("let a = 'hello'\na = 15\n");
   }
 
   #[test]
   fn if_and_while() {
-    assert_expression_type(
+    assert_correct(
       "
 let a = 5
 if (a)
@@ -910,22 +865,19 @@ if (a)
 else
   a = 20
 
-a
+let b: number  = a
 ",
-      "number",
     );
-    assert_expression_type(
+    assert_correct(
       "
 let a = 5
 while (a)
   a = 0
 
-a
+let b: number = a
 ",
-      "number",
     );
-
-    let result = typecheck(
+    assert_fails(
       "
 let a = 5
 if (b)
@@ -934,122 +886,94 @@ if (b)
 let b: number = a
 ",
     );
-    assert!(result.is_err());
   }
 
   #[test]
   fn binary() {
-    assert_expression_type("5 - 5", "number");
-    assert_expression_type("5 / 5", "number");
-    assert_expression_type("5 * 5", "number");
-    assert_expression_type("5 == 5", "boolean");
-    assert_expression_type("5 != 5", "boolean");
-    assert_expression_type("'hello' == 'world'", "boolean");
-    assert_expression_type("'hello' != 'world'", "boolean");
-    assert_expression_type("5 > 5", "boolean");
-    assert_expression_type("5 < 5", "boolean");
-    assert_expression_type("'a' >= 'b'", "boolean");
+    assert_correct("let a: number = 5 - 5");
+    assert_correct("let a: number = 5 / 5");
+    assert_correct("let a: number = 5 * 5");
+    assert_correct("let a: boolean = 5 == 5");
+    assert_correct("let a: boolean = 5 != 5");
+    assert_correct("let a: boolean = 'hello' == 'world'");
+    assert_correct("let a: boolean = 'hello' != 'world'");
+    assert_correct("let a: boolean = 5 > 5");
+    assert_correct("let a: boolean = 5 < 5");
+    assert_correct("let a: boolean = 'a' >= 'b'");
   }
 
   #[test]
   fn plus() {
-    assert_expression_type("5 + 5", "number");
-    assert_expression_type("'hello' + 'world'", "string");
-    assert!(typecheck("let a = 'hello' && 5\nlet b: number | string = a + a\n").is_ok());
-
-    let result = typecheck("5 + ''");
-    assert!(result.is_err());
-
-    let result = typecheck("'' + 5");
-    assert!(result.is_err());
-
-    let result = typecheck("5 + false");
-    assert!(result.is_err());
-
-    let result = typecheck("null + 5");
-    assert!(result.is_err());
-
-    let result = typecheck("null + true");
-    assert!(result.is_err());
+    assert_correct("let a: number = 5 + 5");
+    assert_correct("let a: string = 'hello' + 'world'");
+    assert_correct("let a = 'hello' && 5\nlet b: number | string = a + a\n");
+    assert_fails("5 + ''");
+    assert_fails("'' + 5");
+    assert_fails("5 + false");
+    assert_fails("null + 5");
+    assert_fails("null + true");
   }
 
   #[test]
 
   fn minus() {
-    let result = typecheck("'a' - 8");
-    assert!(result.is_err());
-
-    let result = typecheck("8 - 'a'");
-    assert!(result.is_err());
-
-    let result = typecheck("false - null");
-    assert!(result.is_err());
+    assert_fails("'a' - 8");
+    assert_fails("8 - 'a'");
+    assert_fails("false - null");
   }
 
   #[test]
   fn comparison() {
-    let result = typecheck("5 == 'a'");
-    assert!(result.is_err());
-
-    let result = typecheck("null != false");
-    assert!(result.is_err());
-
-    let result = typecheck("5 == false");
-    assert!(result.is_err());
+    assert_fails("5 == 'a'");
+    assert_fails("null != false");
+    assert_fails("5 == false");
   }
 
   #[test]
   fn nullish_coelesing() {
-    assert_expression_type("null ?? false", "boolean");
-    assert_expression_type("'hello' ?? null", "string");
-    assert_expression_type("5 ?? ''", "number");
-    assert_expression_type("null ?? null", "null");
-    assert!(typecheck("let a: number = 5 ?? 6").is_ok());
-    assert!(typecheck("let a: number  = 5 ?? null").is_ok());
-    assert!(typecheck("let a: number = null ?? 5").is_ok());
-    assert!(typecheck("let a: number = 5 ?? false").is_ok());
+    assert_correct("let a: boolean = null ?? false");
+    assert_correct("let a: string = 'hello' ?? null");
+    assert_correct("let a: number = 5 ?? ''");
+    assert_correct("let a: null = null ?? null");
+    assert_correct("let a: number = 5 ?? 6");
+    assert_correct("let a: number  = 5 ?? null");
+    assert_correct("let a: number = null ?? 5");
+    assert_correct("let a: number = 5 ?? false");
   }
 
   #[test]
   fn and() {
-    assert!(typecheck("let a: number = 5 && 6").is_ok());
-    assert!(typecheck("let a: number | null = 5 && null").is_ok());
-    assert!(typecheck("let a: number? = 5 && null").is_ok());
-    assert!(typecheck("let a: null = null && 5").is_ok());
-    assert!(typecheck("let a: number | boolean = 5 && false").is_ok());
-    assert!(typecheck("let a: boolean  = false && 5").is_ok());
+    assert_correct("let a: number = 5 && 6");
+    assert_correct("let a: number | null = 5 && null");
+    assert_correct("let a: number? = 5 && null");
+    assert_correct("let a: null = null && 5");
+    assert_correct("let a: number | boolean = 5 && false");
+    assert_correct("let a: boolean  = false && 5");
   }
 
   #[test]
   fn or() {
-    assert!(typecheck("let a: number = 5 || 6").is_ok());
-    assert!(typecheck("let a: number | null = 5 || null").is_ok());
-    assert!(typecheck("let a: number = null || 5").is_ok());
-    assert!(typecheck("let a: number | boolean = 5 || false").is_ok());
-    assert!(typecheck("let a: number  = false || 5").is_ok());
+    assert_correct("let a: number = 5 || 6");
+    assert_correct("let a: number | null = 5 || null");
+    assert_correct("let a: number = null || 5");
+    assert_correct("let a: number | boolean = 5 || false");
+    assert_correct("let a: number  = false || 5");
   }
 
   #[test]
   fn call_not_callable() {
-    let result = typecheck("5()");
-    assert!(result.is_err());
-
-    let result = typecheck("'hello'()");
-    assert!(result.is_err());
-
-    let result = typecheck("true()");
-    assert!(result.is_err());
-
-    let result = typecheck("null()");
-    assert!(result.is_err());
+    assert_fails("5()");
+    assert_fails("'hello'()");
+    assert_fails("true()");
+    assert_fails("null()");
   }
 
   #[test]
   fn call() {
-    assert_expression_type("(() => null)()", "null");
-    assert_expression_type("(() => 'hello')()", "string");
-    assert_expression_type("((a: number, b: number) => a + b)(7, 8)", "number");
-    assert!(typecheck(
+    assert_correct("let a: null = (() => null)()");
+    assert_correct("let b: string = (() => 'hello')()");
+    assert_correct("let c: number = ((a: number, b: number) => a + b)(7, 8)");
+    assert_correct(
       "
 let not = (x: any) => !x
 let a: boolean = not(true)
@@ -1057,45 +981,28 @@ let b: boolean = not(false)
 let c: boolean = not(null)
 let d: boolean = not(3.5)
       ",
-    )
-    .is_ok());
-
-    let result = typecheck("((a: number, b: number) => a + b)(7)");
-    assert!(result.is_err());
-
-    let result = typecheck("((a: number, b: number) => a + b)(7, 8, 9)");
-    assert!(result.is_err());
-
-    let result = typecheck("((a: number, b: number) => a + b)(7, false)");
-    assert!(result.is_err());
-
-    let result = typecheck("((a: number, b: number) => a + b)(7, null)");
-    assert!(result.is_err());
+    );
+    assert_fails("((a: number, b: number) => a + b)(7)");
+    assert_fails("((a: number, b: number) => a + b)(7, 8, 9)");
+    assert_fails("((a: number, b: number) => a + b)(7, false)");
+    assert_fails("((a: number, b: number) => a + b)(7, null)");
   }
 
   #[test]
   fn functions() {
-    let result =
-      typecheck("let func: (number, number) -> number = (a: number, b: number) => a + b");
-    assert!(result.is_ok());
-
-    assert_expression_type("print", "((any) -> null) | ((any) -> string)");
-    assert_expression_type("type", "((any) -> null) | ((any) -> string)");
-    assert!(typecheck("let p: (any) -> null = print\nlet t: (any) -> string = type\n",).is_ok());
-
-    let result = typecheck(
+    assert_correct("let func: (number, number) -> number = (a: number, b: number) => a + b");
+    assert_correct("let a: ((any) -> null) | ((any) -> string) = print");
+    assert_correct("let a: ((any) -> null) | ((any) -> string) = type");
+    assert_correct("let p: (any) -> null = print\nlet t: (any) -> string = type\n");
+    assert_correct(
       "let func: (number | string) -> number | string = (a: number | string | boolean) => 7",
     );
-    assert!(result.is_ok());
-
-    let result =
-      typecheck("let func: (number, string) -> number  = (a: number, b: string) => a || b");
-    assert!(result.is_err());
+    assert_fails("let func: (number, string) -> number  = (a: number, b: string) => a || b");
   }
 
   #[test]
   fn recursive() {
-    assert_expression_type(
+    assert_correct(
       "
 let fib_recursive = (n: number) -> number
   if (n <= 2)
@@ -1103,15 +1010,14 @@ let fib_recursive = (n: number) -> number
     return n - 1
   else return fib_recursive(n - 1) + fib_recursive(n - 2)
 
-fib_recursive(25)
+let a: number = fib_recursive(25)
 ",
-      "number",
     );
   }
 
   #[test]
   fn returns() {
-    assert_expression_type(
+    assert_correct(
       "
 let numbers = (n: number) -> number
   if (n <= 2)
@@ -1119,22 +1025,18 @@ let numbers = (n: number) -> number
     return n - 1
   else return n * 5
 
-numbers(25)
+let a: number = numbers(25)
 ",
-      "number",
     );
-
-    assert_expression_type(
+    assert_correct(
       "
 let x = (n: number) ->
   let a = 7
 
-x(6)
+let a: null = x(6)
 ",
-      "null",
     );
-
-    let result = typecheck(
+    assert_fails(
       "
 let numbers = (n: number) -> number
   if (n <= 2)
@@ -1145,48 +1047,43 @@ let numbers = (n: number) -> number
 numbers(25)
   ",
     );
-    assert!(result.is_err());
   }
 
   #[test]
   fn pipeline() {
-    assert_expression_type(
+    assert_correct(
       "
 let add_one = (a: number) => a + 1
 
-3 >> add_one
+let a:number = 3 >> add_one
 ",
-      "number",
     );
-    assert_expression_type(
+    assert_correct(
       "
 let add_one = (a: number) => a + 1
 
-3 >> add_one()
+let a:number = 3 >> add_one()
 ",
-      "number",
     );
-    assert_expression_type(
+    assert_correct(
       "
 let add = (a: number, b: number) => a + b
 let multiply = (a: number, b: number) => a * b
 
-3 >> add(4) >> multiply(5)
+let a:number = 3 >> add(4) >> multiply(5)
     ",
-      "number",
     );
   }
 
   #[test]
   fn redefined_variables() {
-    let result = typecheck(
+    assert_correct(
       "
 let a = false
   let a = 5
   a = -a
 ",
     );
-    assert!(result.is_ok());
   }
 
   mod narrowing {
@@ -1194,18 +1091,17 @@ let a = false
 
     #[test]
     fn not_equals() {
-      let result = typecheck(
+      assert_correct(
         "
 let func = (a: number?) ->
   if (a != null) -a
 ",
       );
-      assert!(result.is_ok());
     }
 
     #[test]
     fn equals() {
-      let result = typecheck(
+      assert_correct(
         "
 let boolean = (b: boolean) => b
 let func = (a: boolean?) ->
@@ -1213,12 +1109,11 @@ let func = (a: boolean?) ->
 
 ",
       );
-      assert!(result.is_ok());
     }
 
     #[test]
     fn or() {
-      let result = typecheck(
+      assert_correct(
         "
 let boolean = (b: boolean) => b
 let func = (a: boolean?) ->
@@ -1226,12 +1121,11 @@ let func = (a: boolean?) ->
 
 ",
       );
-      assert!(result.is_ok());
     }
 
     #[test]
     fn and() {
-      let result = typecheck(
+      assert_correct(
         "
 let boolean = (b: boolean) => b
 let func = (a: boolean?) ->
@@ -1239,12 +1133,11 @@ let func = (a: boolean?) ->
 
 ",
       );
-      assert!(result.is_ok());
     }
 
     #[test]
     fn multiple_and() {
-      let result = typecheck(
+      assert_correct(
         "
 let boolean = (b: boolean) => b
 let func = (a: boolean?, b: boolean?) ->
@@ -1253,12 +1146,11 @@ let func = (a: boolean?, b: boolean?) ->
     boolean(b)
 ",
       );
-      assert!(result.is_ok());
     }
 
     #[test]
     fn multiple_or() {
-      let result = typecheck(
+      assert_fails(
         "
 let boolean = (b: boolean) => b
 let func = (a: boolean?, b: boolean?) ->
@@ -1267,12 +1159,11 @@ let func = (a: boolean?, b: boolean?) ->
     boolean(b)
 ",
       );
-      assert!(result.is_err());
     }
 
     #[test]
     fn else_() {
-      let result = typecheck(
+      assert_correct(
         "
 let boolean = (b: boolean) => b
 let n = (n: null) => null
@@ -1282,7 +1173,6 @@ let func = (a: boolean?) ->
   else n(a)
 ",
       );
-      assert!(result.is_ok());
     }
   }
 }

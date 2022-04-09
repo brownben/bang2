@@ -456,7 +456,6 @@ impl<'source> Parser<'source, '_> {
             return_type,
           },
           span: expression.span,
-          type_: None,
         }
       }
 
@@ -940,21 +939,6 @@ pub fn parse<'source, 'tokens>(
   }
 
   Ok(statements)
-}
-
-#[cfg(test)]
-pub(crate) fn parse_type<'source, 'tokens>(
-  source: &'source str,
-  tokens: &'tokens [Token],
-) -> Result<TypeExpression<'source>, Diagnostic> {
-  let mut parser = Parser::new(source, tokens);
-
-  match parser.types() {
-    Ok(type_) => Ok(type_),
-    Err(err) => {
-      return Err(err.get_diagnostic(source, parser.current()));
-    }
-  }
 }
 
 pub(crate) fn parse_number(string: &str) -> f64 {

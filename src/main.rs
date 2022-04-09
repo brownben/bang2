@@ -163,8 +163,8 @@ fn main() {
         Err(details) => print::error(filename, &source, details),
       },
       "typecheck" => match bang::parse(&source, &tokens) {
-        Ok(mut ast) => {
-          for error in bang::typecheck(&source, &mut ast) {
+        Ok(ast) => {
+          for error in bang::typecheck(&source, &ast) {
             print::error(filename, &source, error);
           }
         }

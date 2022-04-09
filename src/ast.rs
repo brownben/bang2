@@ -67,7 +67,6 @@ pub mod expression {
   pub struct Expression<'s> {
     pub expr: Expr<'s>,
     pub span: Span,
-    pub type_: Option<usize>,
   }
   impl<'s> Deref for Expression<'s> {
     type Target = Expr<'s>;
@@ -84,7 +83,6 @@ pub mod expression {
       Expression {
         expr: Expr::$type $struct,
         span: Span { start: start.start, end: end.end  },
-        type_: None
       }
     }};
 
