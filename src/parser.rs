@@ -85,7 +85,7 @@ impl Error {
       Self::ExpectedOpeningBrace => "Expected '{'",
       Self::ExpectedClosingBrace => "Expected '}'",
       Self::ExpectedExpression => "Expected Expression",
-      Self::ExpectedFunctionArrow => "Expected Funtion Arrow (-> / =>)",
+      Self::ExpectedFunctionArrow => "Expected Function Arrow (-> / =>)",
       Self::ExpectedNewLine => "Expected New Line",
       Self::ExpectedIdentifier => "Expected Identifier",
       Self::InvalidAssignmentTarget => "Invalid Assignment Target",
