@@ -94,15 +94,15 @@ impl Type {
         names.join(" | ")
       }
       Self::Function(return_type, args) => {
-        let mut names = args
+        let mut args = args
           .iter()
           .map(|t| types[*t].get_name(types))
           .collect::<Vec<_>>();
-        names.sort();
+        args.sort();
         format!(
           "({}) -> {}",
+          args.join(", "),
           types[*return_type].get_name(types),
-          names.join(", ")
         )
       }
     }
@@ -180,6 +180,10 @@ impl<'s> Typechecker<'s> {
       depth: self.scope_depth,
       type_,
     });
+  }
+
+  fn lookup(&self, name: &'s str) -> Option<&Variable> {
+    self.variables.iter().rfind(|local| local.name == name)
   }
 
   fn error(&mut self, error: Error, message: String, span: Span) -> TypeIndex {
@@ -504,10 +508,7 @@ impl<'s> Typechecker<'s> {
         expression,
       } => {
         let type_ = self.resolve_expression(expression);
-        let variable = self
-          .variables
-          .iter()
-          .rfind(|local| local.name == *identifier);
+        let variable = self.lookup(identifier);
 
         let variable_type = if let Some(variable) = variable {
           variable.type_
@@ -526,7 +527,7 @@ impl<'s> Typechecker<'s> {
         variable_type
       }
       Expr::Variable { name } => {
-        let variable = self.variables.iter().rfind(|local| local.name == *name);
+        let variable = self.lookup(name);
 
         if let Some(variable) = variable {
           variable.type_
@@ -1016,6 +1017,37 @@ let a: number = fib_recursive(25)
   }
 
   #[test]
+  #[should_panic]
+  fn corecursive() {
+    assert_correct(
+      "
+let a = (n: number) -> number
+  if (n > 0)
+    return b(n)
+  return n
+
+let b = (n: number) -> number
+  return a(n-1)
+
+let c: number = b(5)
+",
+    );
+  }
+
+  #[test]
+  #[should_panic]
+  fn imports() {
+    assert_correct("from string import {{ trim }}\nlet a: (string) -> string = trim");
+    assert_correct("from string import {{ toNumber }}\nlet a: (string) -> number? = toNumber");
+    assert_correct(
+      "from string import {{ includes }}\nlet a: (string, string) -> boolean = includes",
+    );
+
+    assert_correct("from maths import {{ pow }}\nlet a: (number, number) -> number = pow");
+    assert_correct("from maths import {{ sin }}\nlet a: (number) -> number = sin");
+  }
+
+  #[test]
   fn returns() {
     assert_correct(
       "
@@ -1153,10 +1185,13 @@ let func = (a: boolean?, b: boolean?) ->
       assert_fails(
         "
 let boolean = (b: boolean) => b
+
 let func = (a: boolean?, b: boolean?) ->
   if (a == true || b == false)
     boolean(a)
     boolean(b)
+
+func(true, false)
 ",
       );
     }
