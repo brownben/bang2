@@ -82,7 +82,6 @@ enum Error {
   EmptyStatement,
   ExpectedImportKeyword,
   ExpectedType,
-  ExpectedColon,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -101,7 +100,6 @@ impl Error {
       Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
       Self::ExpectedImportKeyword => "Expected 'import' keyword",
       Self::ExpectedType => "Expected Type",
-      Self::ExpectedColon => "Expected ':'",
     }
   }
 
@@ -116,8 +114,7 @@ impl Error {
       | Self::ExpectedNewLine
       | Self::ExpectedIdentifier
       | Self::ExpectedImportKeyword
-      | Self::ExpectedType
-      | Self::ExpectedColon => format!("but recieved '{}'", token.get_value(source)),
+      | Self::ExpectedType => format!("but recieved '{}'", token.get_value(source)),
       Self::UnexpectedCharacter => format!("Unknown character '{}'", token.get_value(source)),
       Self::UnterminatedString => {
         format!("Missing closing quote {}", &token.get_value(source)[0..1])
@@ -631,8 +628,11 @@ impl<'source> Parser<'source, '_> {
       }
 
       let parameter = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
-      self.consume(TokenType::Colon, Error::ExpectedColon)?;
-      let type_ = self.optional_types()?;
+      let type_ = if self.matches(TokenType::Colon) {
+        Some(self.types()?)
+      } else {
+        None
+      };
 
       parameters.push(Parameter {
         name: parameter.get_value(self.source),
