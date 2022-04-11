@@ -370,7 +370,7 @@ impl VM {
   }
 
   pub fn define_global(&mut self, name: &str, value: Value) {
-    self.globals.insert(Rc::from(name.to_string()), value);
+    self.globals.insert(Rc::from(name), value);
   }
 
   #[cfg(feature = "debug")]

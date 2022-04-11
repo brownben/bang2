@@ -7,17 +7,13 @@ pub struct Function {
 }
 
 pub struct NativeFunction {
-  pub name: String,
+  pub name: &'static str,
   pub arity: u8,
   pub func: fn(args: &[Value]) -> Value,
 }
 impl NativeFunction {
-  pub fn create(name: &str, arity: u8, func: fn(args: &[Value]) -> Value) -> Value {
-    Value::from(Self {
-      name: name.to_string(),
-      arity,
-      func,
-    })
+  pub fn create(name: &'static str, arity: u8, func: fn(args: &[Value]) -> Value) -> Value {
+    Value::from(Self { name, arity, func })
   }
 }
 
@@ -116,7 +112,7 @@ impl From<String> for Value {
 }
 impl From<&str> for Value {
   fn from(value: &str) -> Self {
-    Self::String(Rc::from(String::from(value)))
+    Self::String(Rc::from(value))
   }
 }
 impl From<Function> for Value {
