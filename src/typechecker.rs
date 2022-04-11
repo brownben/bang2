@@ -562,9 +562,14 @@ impl<'s> Typechecker<'s> {
         let args = parameters
           .iter()
           .map(|parameter| {
-            let type_ = self.type_from_annotation(&parameter.type_);
-            self.define(parameter.name, type_);
-            type_
+            if let Some(t) = &parameter.type_ {
+              let type_ = self.type_from_annotation(t);
+              self.define(parameter.name, type_);
+              type_
+            } else {
+              self.define(parameter.name, NULL);
+              NULL
+            }
           })
           .collect::<Vec<_>>();
 

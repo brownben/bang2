@@ -315,7 +315,7 @@ pub mod expression {
   pub struct Parameter<'s> {
     pub name: &'s str,
     pub span: Span,
-    pub type_: TypeExpression<'s>,
+    pub type_: Option<TypeExpression<'s>>,
   }
 }
 

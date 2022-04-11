@@ -2,8 +2,8 @@ use bang::{parse, tokenize, typecheck};
 
 macro_rules! assert_correct {
   ($source:expr) => {
-    let mut ast = parse($source, &tokenize($source)).unwrap();
-    let result = typecheck($source, &mut ast);
+    let ast = parse($source, &tokenize($source)).unwrap();
+    let result = typecheck($source, &ast);
 
     assert!(result.is_empty(), "{result:?}");
   };
@@ -11,8 +11,8 @@ macro_rules! assert_correct {
 
 macro_rules! assert_fails {
   ($source:expr) => {
-    let mut ast = parse($source, &tokenize($source)).unwrap();
-    let result = typecheck($source, &mut ast);
+    let ast = parse($source, &tokenize($source)).unwrap();
+    let result = typecheck($source, &ast);
 
     assert!(result.len() > 0, "Test Passes");
   };

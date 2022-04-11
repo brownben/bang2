@@ -230,8 +230,13 @@ impl<'source> Formatter<'source> {
           parameters,
           |param| self.line(&param.span),
           &mut |f, parameter, _| {
-            write!(f, "{}: ", parameter.name)?;
-            self.fmt_type(&parameter.type_, f)
+            write!(f, "{}", parameter.name)?;
+
+            if let Some(type_) = &parameter.type_ {
+              write!(f, ": ")?;
+              self.fmt_type(&type_, f)?;
+            }
+            Ok(())
           },
           self.line(&span),
           indentation,

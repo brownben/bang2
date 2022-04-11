@@ -632,7 +632,7 @@ impl<'source> Parser<'source, '_> {
 
       let parameter = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
       self.consume(TokenType::Colon, Error::ExpectedColon)?;
-      let type_ = self.types()?;
+      let type_ = self.optional_types()?;
 
       parameters.push(Parameter {
         name: parameter.get_value(self.source),
@@ -840,7 +840,10 @@ impl<'source> Parser<'source, '_> {
 // Types
 impl<'source> Parser<'source, '_> {
   fn optional_types(&mut self) -> Result<Option<TypeExpression<'source>>, Error> {
-    if self.current().ttype == TokenType::EndOfLine {
+    if matches!(
+      self.current().ttype,
+      TokenType::EndOfLine | TokenType::Comma
+    ) {
       Ok(None)
     } else {
       Ok(Some(self.types()?))
