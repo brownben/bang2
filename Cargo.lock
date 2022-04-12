@@ -35,6 +35,7 @@ name = "bang"
 version = "0.1.0"
 dependencies = [
  "bang_language",
+ "bang_tools",
  "clap",
  "rustyline",
 ]
@@ -44,6 +45,14 @@ name = "bang_language"
 version = "0.1.0"
 dependencies = [
  "ahash",
+]
+
+[[package]]
+name = "bang_tools"
+version = "0.1.0"
+dependencies = [
+ "ahash",
+ "bang_language",
 ]
 
 [[package]]

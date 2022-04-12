@@ -2,7 +2,8 @@
 // - Doesn't support imports
 // - Doesn't support corecursion, or accessing globals before they are defined
 
-use crate::{
+use ahash::AHashMap as HashMap;
+use bang_language::{
   ast::{
     expression::{BinaryOperator, Expr, Expression, LiteralType, UnaryOperator},
     statement::{Statement, Stmt},
@@ -11,7 +12,6 @@ use crate::{
   },
   Diagnostic,
 };
-use ahash::AHashMap as HashMap;
 use std::collections::hash_map::Entry as HashMapEntry;
 
 enum Error {

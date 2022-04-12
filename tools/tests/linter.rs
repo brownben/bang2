@@ -1,4 +1,5 @@
-pub use bang_language::{lint, parse, tokenize};
+use bang_language::{parse, tokenize};
+use bang_tools::lint;
 
 macro_rules! bang_lint {
   ($name:ident $code:literal $($rule:literal [$($num:literal)*])*) => {

@@ -4,9 +4,9 @@ use rustyline::Editor;
 use std::fs;
 
 use bang_language::{
-  compile as compile_ast, format, lint, parse, print, run, tokenize, typecheck, Chunk, Diagnostic,
-  VMGlobals, VM,
+  compile as compile_ast, parse, print, run, tokenize, Chunk, Diagnostic, VMGlobals, VM,
 };
+use bang_tools::{format, lint, typecheck};
 
 mod print_diagnostic;
 use print_diagnostic::{error as print_error, warning as print_warning};

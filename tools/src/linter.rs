@@ -1,11 +1,10 @@
-use crate::{
+use bang_language::{
   ast::{
     expression::{BinaryOperator, Expr, Expression},
     statement::{Statement, Stmt},
     Span, Visitor,
   },
-  diagnostic::Diagnostic,
-  parser::parse_number,
+  parse_number, Diagnostic,
 };
 
 trait LintRule {

@@ -2,17 +2,14 @@
 use ahash::AHashMap as HashMap;
 use std::rc::Rc;
 
-mod ast;
+pub mod ast;
 mod builtins;
 mod chunk;
 mod compiler;
 mod diagnostic;
-mod formatter;
-mod linter;
 mod parser;
 pub mod print;
 mod tokens;
-mod typechecker;
 mod value;
 mod vm;
 
@@ -20,20 +17,10 @@ mod vm;
 pub use diagnostic::Diagnostic;
 
 // Tokenise a source string
-pub use tokens::{tokenize, Token};
+pub use tokens::{tokenize, LineNumber, Token};
 
 // Parse a slice of tokens into an AST
-pub use ast::{expression, statement, types};
-pub use parser::parse;
-
-// Check an AST for common problems
-pub use linter::lint;
-
-// Format an AST in a opinionated manner
-pub use formatter::format;
-
-// Typecheck the code
-pub use typechecker::typecheck;
+pub use parser::{parse, parse_number};
 
 // Compile an AST into a chunk of bytecode
 pub use chunk::Chunk;

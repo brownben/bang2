@@ -1,12 +1,11 @@
-use crate::{
+use bang_language::{
   ast::{
     expression::{AssignmentOperator, Expr, Expression, LiteralType},
     statement::{Statement, Stmt},
     types::{Type, TypeExpression},
     Span,
   },
-  parser::parse_number,
-  tokens::LineNumber,
+  parse_number, LineNumber,
 };
 
 const INDENTATION: &str = "  ";

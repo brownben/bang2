@@ -944,7 +944,7 @@ pub fn parse<'source, 'tokens>(
   Ok(statements)
 }
 
-pub(crate) fn parse_number(string: &str) -> f64 {
+pub fn parse_number(string: &str) -> f64 {
   string
     .replace('_', "")
     .parse()
