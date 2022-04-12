@@ -21,6 +21,8 @@ macro_rules! bang_benchmark {
       include_str!(concat!(
         "..",
         file_separator!(),
+        "..",
+        file_separator!(),
         "examples",
         file_separator!(),
         $file
