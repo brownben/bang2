@@ -46,7 +46,8 @@ pub use vm::{run, VM};
 pub use value::Value;
 
 // Interpret a string of code
-pub fn interpret(source: &str) -> Result<HashMap<Rc<str>, Value>, Diagnostic> {
+pub type VMGlobals = HashMap<Rc<str>, Value>;
+pub fn interpret(source: &str) -> Result<VMGlobals, Diagnostic> {
   let tokens = tokens::tokenize(source);
   let ast = parser::parse(source, &tokens)?;
   let chunk = compiler::compile(source, &ast)?;

@@ -1,10 +1,15 @@
-use bang::print;
-
-use ahash::AHashMap as HashMap;
 use clap::{Arg, Command};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
-use std::{fs, rc::Rc};
+use std::fs;
+
+use bang_language::{
+  compile as compile_ast, format, lint, parse, print, run, tokenize, typecheck, Chunk, Diagnostic,
+  VMGlobals, VM,
+};
+
+mod print_diagnostic;
+use print_diagnostic::{error as print_error, warning as print_warning};
 
 fn read_file(filename: &str) -> String {
   if let Ok(file) = fs::read_to_string(filename) {
@@ -15,22 +20,22 @@ fn read_file(filename: &str) -> String {
   }
 }
 
-fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
-  let tokens = bang::tokenize(source);
-  let ast = bang::parse(source, &tokens)?;
+fn compile(source: &str) -> Result<Chunk, Diagnostic> {
+  let tokens = tokenize(source);
+  let ast = parse(source, &tokens)?;
 
-  bang::compile(source, &ast)
+  compile_ast(source, &ast)
 }
 
-fn interpret(source: &str) -> Result<HashMap<Rc<str>, bang::Value>, bang::Diagnostic> {
+fn interpret(source: &str) -> Result<VMGlobals, Diagnostic> {
   let chunk = compile(source)?;
 
-  bang::run(chunk)
+  run(chunk)
 }
 
 fn repl() {
   let mut rl = Editor::<()>::new();
-  let mut vm = bang::VM::new();
+  let mut vm = VM::new();
 
   loop {
     let readline = rl.readline("> ");
@@ -41,9 +46,9 @@ fn repl() {
         match compile(&format!("{}\n", line)) {
           Ok(chunk) => match vm.run(chunk) {
             Ok(_) => {}
-            Err(error) => print::error("REPL", &line, error),
+            Err(error) => print_error("REPL", &line, error),
           },
-          Err(details) => print::error("REPL", &line, details),
+          Err(details) => print_error("REPL", &line, details),
         }
       }
       Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
@@ -120,7 +125,7 @@ fn main() {
   {
     let filename = subcommand.value_of("file").unwrap();
     let source = read_file(filename);
-    let tokens = bang::tokenize(&source);
+    let tokens = tokenize(&source);
 
     if source.is_empty() {
       return;
@@ -129,28 +134,28 @@ fn main() {
     match command {
       "run" => match interpret(&source) {
         Ok(_) => {}
-        Err(details) => print::error(filename, &source, details),
+        Err(details) => print_error(filename, &source, details),
       },
-      "lint" => match bang::parse(&source, &tokens) {
+      "lint" => match parse(&source, &tokens) {
         Ok(ast) => {
-          for lint in bang::lint(&source, &ast) {
-            print::warning(filename, &source, lint);
+          for lint in lint(&source, &ast) {
+            print_warning(filename, &source, lint);
           }
         }
-        Err(details) => print::error(filename, &source, details),
+        Err(details) => print_error(filename, &source, details),
       },
       "tokens" => print::tokens(&source, &tokens),
-      "ast" => match bang::parse(&source, &tokens) {
+      "ast" => match parse(&source, &tokens) {
         Ok(ast) => print::ast(&source, &ast),
-        Err(details) => print::error(filename, &source, details),
+        Err(details) => print_error(filename, &source, details),
       },
       "bytecode" => match compile(&source) {
         Ok(chunk) => print::chunk(&chunk),
-        Err(details) => print::error(filename, &source, details),
+        Err(details) => print_error(filename, &source, details),
       },
-      "format" => match bang::parse(&source, &tokens) {
+      "format" => match parse(&source, &tokens) {
         Ok(ast) => {
-          let new_source = bang::format(&source, &ast);
+          let new_source = format(&source, &ast);
 
           if subcommand.is_present("dryrun") {
             println!("{}", new_source);
@@ -160,15 +165,15 @@ fn main() {
             println!("'{}' already matches the Bang format style!", filename);
           }
         }
-        Err(details) => print::error(filename, &source, details),
+        Err(details) => print_error(filename, &source, details),
       },
-      "typecheck" => match bang::parse(&source, &tokens) {
+      "typecheck" => match parse(&source, &tokens) {
         Ok(ast) => {
-          for error in bang::typecheck(&source, &ast) {
-            print::error(filename, &source, error);
+          for error in typecheck(&source, &ast) {
+            print_error(filename, &source, error);
           }
         }
-        Err(details) => print::error(filename, &source, details),
+        Err(details) => print_error(filename, &source, details),
       },
       _ => unreachable!(),
     }

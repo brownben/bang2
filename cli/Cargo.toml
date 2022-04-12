@@ -1,0 +1,9 @@
+[package]
+name = "bang"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bang_language = { path = "../language" }
+clap = "3.1.0"
+rustyline = "9.0.0"

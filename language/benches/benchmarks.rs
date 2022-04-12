@@ -33,7 +33,7 @@ macro_rules! bang_benchmark {
   ($name:ident, $source:expr) => {
     mod $name {
       extern crate test;
-      use bang;
+      pub use bang_language as bang;
       use test::Bencher;
 
       const SOURCE: &'static str = $source;

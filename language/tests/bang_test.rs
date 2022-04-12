@@ -1,5 +1,5 @@
 use ahash::AHashMap as HashMap;
-pub use bang;
+pub use bang_language as bang;
 pub use std::rc::Rc;
 
 #[derive(Debug, PartialEq)]

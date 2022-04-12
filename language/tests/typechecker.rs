@@ -1,4 +1,4 @@
-use bang::{parse, tokenize, typecheck};
+use bang_language::{parse, tokenize, typecheck};
 
 macro_rules! assert_correct {
   ($source:expr) => {

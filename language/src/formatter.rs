@@ -234,7 +234,7 @@ impl<'source> Formatter<'source> {
 
             if let Some(type_) = &parameter.type_ {
               write!(f, ": ")?;
-              self.fmt_type(&type_, f)?;
+              self.fmt_type(type_, f)?;
             }
             Ok(())
           },

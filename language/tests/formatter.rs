@@ -1,4 +1,4 @@
-use bang::{format, parse, tokenize};
+use bang_language::{format, parse, tokenize};
 
 macro_rules! assert_format {
   ($source:expr) => {

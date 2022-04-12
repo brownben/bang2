@@ -1,13 +1,12 @@
-use bang;
+pub use bang_language::{lint, parse, tokenize};
 
 macro_rules! bang_lint {
   ($name:ident $code:literal $($rule:literal [$($num:literal)*])*) => {
     #[test]
     fn $name() {
-      let tokens = bang::tokenize($code);
-      match bang::parse($code, &tokens) {
+      match parse($code, &tokenize($code)) {
         Ok(ast) => {
-          let warnings = bang::lint($code, &ast);
+          let warnings = lint($code, &ast);
           $({
             let warning = warnings.iter().find(|warning| warning.title == $rule).unwrap();
             assert_eq!(warning.lines, vec![$($num),*]);

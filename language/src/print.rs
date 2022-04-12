@@ -1,21 +1,4 @@
-use crate::{
-  diagnostic::Diagnostic,
-  tokens::{LineNumber, Token, TokenType},
-};
-
-mod format {
-  pub fn red(text: &str) -> String {
-    format!("\u{001b}[31m{}\u{001b}[0m", text)
-  }
-
-  pub fn yellow(text: &str) -> String {
-    format!("\u{001b}[33m{}\u{001b}[0m", text)
-  }
-
-  pub fn bold(text: &str) -> String {
-    format!("\u{001b}[1m{}\u{001b}[0m", text)
-  }
-}
+use crate::tokens::{Token, TokenType};
 
 fn remove_carriage_returns(value: &str) -> String {
   str::replace(value, "\r", "")
@@ -324,51 +307,5 @@ mod chunk {
 
     println!("{} {}", name, i32::from(jump) * i32::from(direction));
     position + 3
-  }
-}
-
-fn code_frame(file: &str, source: &str, line_number: LineNumber) {
-  eprintln!("    ╭─[{}]", file);
-  if line_number > 2 {
-    eprintln!("    ·");
-  } else {
-    eprintln!("    │");
-  }
-
-  let start = if line_number <= 2 { 0 } else { line_number - 2 };
-  for i in start..=line_number {
-    if let Some(line) = source.lines().nth(i as usize) {
-      eprintln!("{:>3} │ {}", i + 1, line);
-    }
-  }
-  if (line_number as usize) < (source.lines().count() - 1) {
-    eprintln!("    ·");
-  }
-  eprintln!("────╯");
-}
-
-pub fn error(filename: &str, source: &str, diagnostic: Diagnostic) {
-  eprintln!(
-    "{} {}\n{}\n",
-    format::bold(&format::red("Error:")),
-    format::bold(&diagnostic.title),
-    remove_carriage_returns(&diagnostic.message)
-  );
-
-  for line_number in diagnostic.lines {
-    code_frame(filename, source, line_number);
-  }
-}
-
-pub fn warning(filename: &str, source: &str, diagnostic: Diagnostic) {
-  eprintln!(
-    "{} {}\n{}\n",
-    format::bold(&format::yellow("Warning:")),
-    format::bold(&diagnostic.title),
-    diagnostic.message
-  );
-
-  for line_number in diagnostic.lines {
-    code_frame(filename, source, line_number);
   }
 }
