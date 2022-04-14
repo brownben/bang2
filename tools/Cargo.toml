@@ -1,8 +1,8 @@
 [package]
-name = "bang_tools"
+name = "bang-tools"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bang_language = { path = "../language" }
+bang-language = { path = "../language" }
 ahash = "0.7.6"

@@ -34,25 +34,25 @@ checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 name = "bang"
 version = "0.1.0"
 dependencies = [
- "bang_language",
- "bang_tools",
+ "bang-language",
+ "bang-tools",
  "clap",
  "rustyline",
 ]
 
 [[package]]
-name = "bang_language"
+name = "bang-language"
 version = "0.1.0"
 dependencies = [
  "ahash",
 ]
 
 [[package]]
-name = "bang_tools"
+name = "bang-tools"
 version = "0.1.0"
 dependencies = [
  "ahash",
- "bang_language",
+ "bang-language",
 ]
 
 [[package]]
