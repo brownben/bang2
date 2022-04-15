@@ -199,7 +199,7 @@ impl<'s> Compiler<'s> {
     self.error = Some(error.get_diagnostic(value, span, self.source));
   }
 
-  fn compile_statement(&mut self, statement: &'s Statement) {
+  fn compile_statement(&mut self, statement: &Statement<'s>) {
     let span = statement.span;
 
     match &statement.stmt {
@@ -299,7 +299,7 @@ impl<'s> Compiler<'s> {
     }
   }
 
-  fn compile_expression(&mut self, expression: &'s Expression) {
+  fn compile_expression(&mut self, expression: &Expression<'s>) {
     let span = expression.span;
 
     match &expression.expr {
@@ -467,7 +467,7 @@ impl<'s> Compiler<'s> {
       self.emit_constant_string(span, identifier);
     }
   }
-  fn and(&mut self, span: Span, left: &'s Expression, right: &'s Expression) {
+  fn and(&mut self, span: Span, left: &Expression<'s>, right: &Expression<'s>) {
     self.compile_expression(left);
     let jump = self.emit_jump(span, OpCode::JumpIfFalse);
     self.emit_opcode(span, OpCode::Pop);
@@ -475,7 +475,7 @@ impl<'s> Compiler<'s> {
     self.patch_jump(span, jump);
   }
 
-  fn or(&mut self, span: Span, left: &'s Expression, right: &'s Expression) {
+  fn or(&mut self, span: Span, left: &Expression<'s>, right: &Expression<'s>) {
     self.compile_expression(left);
     let else_jump = self.emit_jump(span, OpCode::JumpIfFalse);
     let end_jump = self.emit_jump(span, OpCode::Jump);
@@ -487,7 +487,7 @@ impl<'s> Compiler<'s> {
     self.patch_jump(span, end_jump);
   }
 
-  fn nullish(&mut self, span: Span, left: &'s Expression, right: &'s Expression) {
+  fn nullish(&mut self, span: Span, left: &Expression<'s>, right: &Expression<'s>) {
     self.compile_expression(left);
     let else_jump = self.emit_jump(span, OpCode::JumpIfNull);
     let end_jump = self.emit_jump(span, OpCode::Jump);
@@ -499,7 +499,7 @@ impl<'s> Compiler<'s> {
     self.patch_jump(span, end_jump);
   }
 
-  fn pipeline(&mut self, span: Span, left: &'s Expression, right: &'s Expression) {
+  fn pipeline(&mut self, span: Span, left: &Expression<'s>, right: &Expression<'s>) {
     let mut right = right;
 
     // If right is a comment, unwrap it
