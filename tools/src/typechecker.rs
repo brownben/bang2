@@ -4,9 +4,9 @@
 // paper "Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism"
 //
 // It doesn't yet support all features of bang. The current known issues are:
-// - Doesn't support imports
 // - Doesn't support corecursion, or accessing globals before they are defined
 
+use crate::builtins::{define_globals, get_builtin_module_type};
 use ahash::AHashMap as HashMap;
 use bang_language::{
   ast::{
@@ -134,6 +134,7 @@ enum Error {
   WrongNumberArguments,
   UnknownType,
   UnknownVariable,
+  BuiltinNotFound,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -143,6 +144,7 @@ impl Error {
       Self::WrongNumberArguments => "Wrong Number of Arguments",
       Self::UnknownType => "Unknown Type",
       Self::UnknownVariable => "Unknown Variable",
+      Self::BuiltinNotFound => "Builtin Not Found",
     }
   }
 
@@ -181,20 +183,6 @@ impl<'s> Typechecker<'s> {
       variables: Vec::new(),
       existentials: Vec::new(),
     }
-  }
-
-  fn define_builtin_globals(&mut self) {
-    self.define(
-      "print",
-      Type::Function(vec![Type::Any], Box::new(Type::Literal(LiteralType::Null))),
-    );
-    self.define(
-      "type",
-      Type::Function(
-        vec![Type::Any],
-        Box::new(Type::Literal(LiteralType::String)),
-      ),
-    );
   }
 
   fn error(&mut self, error: Error, message: String, span: Span) -> Type {
@@ -245,7 +233,7 @@ impl<'s> Typechecker<'s> {
     self.scope += 1;
   }
 
-  fn define(&mut self, name: &'s str, type_: Type) {
+  pub(crate) fn define(&mut self, name: &'s str, type_: Type) {
     self.variables.push(Variable {
       name,
       type_: self.apply_context(&type_),
@@ -522,7 +510,24 @@ impl<'s> Typechecker<'s> {
         None
       }
       Stmt::Comment { .. } => None,
-      Stmt::Import { .. } => unimplemented!(),
+      Stmt::Import { module, items } => {
+        for item in items {
+          if let Some(type_) = get_builtin_module_type(module, item.name) {
+            if let Some(alias) = item.alias {
+              self.define(alias, type_);
+            } else {
+              self.define(item.name, type_);
+            }
+          } else {
+            self.error(
+              Error::BuiltinNotFound,
+              format!("Couldn't find '{}' in module '{module}'", item.name),
+              item.span,
+            );
+          }
+        }
+        None
+      }
       Stmt::Return { expression } => {
         if let Some(expression) = expression {
           Some(self.synthesize_expression(expression))
@@ -907,7 +912,7 @@ impl<'s> Typechecker<'s> {
 
 pub fn typecheck<'s>(_source: &'s str, ast: &[Statement]) -> Vec<Diagnostic> {
   let mut typechecker = Typechecker::new(_source);
-  typechecker.define_builtin_globals();
+  define_globals(&mut typechecker);
 
   for statement in ast {
     typechecker.synthesize_statement(statement);

@@ -1,8 +1,9 @@
 #![feature(let_chains, box_patterns)]
 
+mod builtins;
 mod formatter;
 mod linter;
-mod typechecker;
+pub(crate) mod typechecker;
 
 // Check an AST for common problems
 pub use linter::lint;

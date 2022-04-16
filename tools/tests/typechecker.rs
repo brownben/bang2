@@ -290,7 +290,6 @@ let c: number = b(5)
 }
 
 #[test]
-#[should_panic]
 fn imports() {
   assert_correct!(
     r"
