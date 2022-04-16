@@ -1,6 +1,6 @@
 use crate::tokens::LineNumber;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Diagnostic {
   pub title: String,
   pub message: String,

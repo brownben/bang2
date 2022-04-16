@@ -50,6 +50,11 @@ fn typed_declarations() {
 }
 
 #[test]
+fn unknown_type() {
+  assert_fails!("let a: unknownType\n");
+}
+
+#[test]
 fn variable_not_defined() {
   assert_fails!("a\n");
   assert_fails!("let a\nb\n");
@@ -215,6 +220,24 @@ let c: boolean = not(null)
 let d: boolean = not(3.5)
       "
   );
+  assert_correct!(
+    "
+let not = (x) => !x
+let a: boolean = not(true)
+let b: boolean = not(false)
+let c: boolean = not(null)
+let d: boolean = not(3.5)
+      "
+  );
+  assert_correct!(
+    "
+let identity = (x) => x
+let a: boolean = identity(true)
+let b: boolean = identity(false)
+let c: null = identity(null)
+let d: number = identity(3.5)
+      "
+  );
   assert_fails!("((a: number, b: number) => a + b)(7)");
   assert_fails!("((a: number, b: number) => a + b)(7, 8, 9)");
   assert_fails!("((a: number, b: number) => a + b)(7, false)");
@@ -269,14 +292,35 @@ let c: number = b(5)
 #[test]
 #[should_panic]
 fn imports() {
-  assert_correct!("from string import {{ trim }}\nlet a: (string) -> string = trim");
-  assert_correct!("from string import {{ toNumber }}\nlet a: (string) -> number? = toNumber");
   assert_correct!(
-    "from string import {{ includes }}\nlet a: (string, string) -> boolean = includes"
+    r"
+from string import { trim }
+let a: (string) -> string = trim"
+  );
+  assert_correct!(
+    r"
+from string import { toNumber }
+let a: (string) -> number? = toNumber"
+  );
+  assert_correct!(
+    r"
+from string import { includes }
+let a: (string, string) -> boolean = includes
+"
   );
 
-  assert_correct!("from maths import {{ pow }}\nlet a: (number, number) -> number = pow");
-  assert_correct!("from maths import {{ sin }}\nlet a: (number) -> number = sin");
+  assert_correct!(
+    r"
+from maths import { pow }
+let a: (number, number) -> number = pow
+"
+  );
+  assert_correct!(
+    r"
+from maths import { sin }
+let a: (number) -> number = sin
+"
+  );
 }
 
 #[test]
@@ -284,6 +328,17 @@ fn returns() {
   assert_correct!(
     "
 let numbers = (n: number) -> number
+  if (n <= 2)
+    if (n == 0) return 0
+    return n - 1
+  else return n * 5
+
+let a: number = numbers(25)
+"
+  );
+  assert_correct!(
+    "
+let numbers = (n: number) ->
   if (n <= 2)
     if (n == 0) return 0
     return n - 1
@@ -361,6 +416,13 @@ let func = (a: number?) ->
   if (a != null) -a
 "
     );
+    assert_correct!(
+      "
+let s = (b: string) => b
+let func = (a: string) ->
+  if (a != '') s(a)
+  "
+    );
   }
 
   #[test]
@@ -370,8 +432,14 @@ let func = (a: number?) ->
 let boolean = (b: boolean) => b
 let func = (a: boolean?) ->
   if (a == true) boolean(a)
-
 "
+    );
+    assert_correct!(
+      "
+let s = (b: string) => b
+let func = (a: string?) ->
+  if (a == '') s(a)
+  "
     );
   }
 
@@ -422,8 +490,6 @@ let func = (a: boolean?, b: boolean?) ->
   if (a == true || b == false)
     boolean(a)
     boolean(b)
-
-func(true, false)
 "
     );
   }

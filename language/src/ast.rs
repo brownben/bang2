@@ -1,5 +1,5 @@
 use crate::tokens::{CharacterPosition, LineNumber, Token};
-use std::ops::Range;
+use std::ops;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Span {
@@ -39,8 +39,8 @@ impl Span {
     unreachable!()
   }
 }
-impl From<Range<CharacterPosition>> for Span {
-  fn from(range: Range<CharacterPosition>) -> Self {
+impl From<ops::Range<CharacterPosition>> for Span {
+  fn from(range: ops::Range<CharacterPosition>) -> Self {
     Span {
       start: range.start,
       end: range.end,
@@ -61,14 +61,14 @@ pub mod expression {
   use super::types::TypeExpression;
   use super::Span;
   use crate::tokens::TokenType;
-  use std::ops::Deref;
+  use std::{fmt, ops};
 
   #[derive(Clone, Debug)]
   pub struct Expression<'s> {
     pub expr: Expr<'s>,
     pub span: Span,
   }
-  impl<'s> Deref for Expression<'s> {
+  impl<'s> ops::Deref for Expression<'s> {
     type Target = Expr<'s>;
     fn deref(&self) -> &Expr<'s> {
       &self.expr
@@ -186,6 +186,17 @@ pub mod expression {
         TokenType::False => Self::False,
         TokenType::Null => Self::Null,
         _ => unreachable!(),
+      }
+    }
+  }
+  impl fmt::Display for LiteralType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+      match self {
+        Self::String => write!(f, "string"),
+        Self::Number => write!(f, "number"),
+        Self::True => write!(f, "true"),
+        Self::False => write!(f, "false"),
+        Self::Null => write!(f, "null"),
       }
     }
   }
@@ -323,14 +334,14 @@ pub mod statement {
   use super::expression::*;
   use super::types::*;
   use super::Span;
-  use std::ops::Deref;
+  use std::ops;
 
   #[derive(Clone, Debug)]
   pub struct Statement<'s> {
     pub stmt: Stmt<'s>,
     pub span: Span,
   }
-  impl<'s> Deref for Statement<'s> {
+  impl<'s> ops::Deref for Statement<'s> {
     type Target = Stmt<'s>;
     fn deref(&self) -> &Stmt<'s> {
       &self.stmt
@@ -398,14 +409,14 @@ pub mod statement {
 
 pub mod types {
   use super::Span;
-  use std::ops::Deref;
+  use std::ops;
 
   #[derive(Clone, Debug)]
   pub struct TypeExpression<'s> {
     pub type_: Type<'s>,
     pub span: Span,
   }
-  impl<'s> Deref for TypeExpression<'s> {
+  impl<'s> ops::Deref for TypeExpression<'s> {
     type Target = Type<'s>;
     fn deref(&self) -> &Type<'s> {
       &self.type_

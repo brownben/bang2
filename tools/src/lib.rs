@@ -1,4 +1,4 @@
-#![feature(let_chains)]
+#![feature(let_chains, box_patterns)]
 
 mod formatter;
 mod linter;

@@ -1,4 +1,9 @@
-// Known Problems in Typechecker:
+// Bidirectional Typechecker for Bang
+//
+// Based on https://github.com/JDemler/BidirectionalTypechecking, which implements the
+// paper "Complete and Easy Bidirectional Typechecking for Higher-Rank Polymorphism"
+//
+// It doesn't yet support all features of bang. The current known issues are:
 // - Doesn't support imports
 // - Doesn't support corecursion, or accessing globals before they are defined
 
@@ -13,6 +18,115 @@ use bang_language::{
   Diagnostic,
 };
 use std::collections::hash_map::Entry as HashMapEntry;
+use std::fmt;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Type {
+  Literal(LiteralType),
+  Boolean,
+  Any,
+  Never,
+  Existential(Existential),
+  Function(Vec<Type>, Box<Type>),
+  Union(Box<Type>, Box<Type>),
+}
+impl Type {
+  fn includes(&self, alpha: Existential) -> bool {
+    match self {
+      Self::Any | Self::Boolean | Self::Literal(_) | Self::Never => false,
+      Self::Function(parameters, return_type) => {
+        parameters.iter().any(|parameter| parameter.includes(alpha)) || return_type.includes(alpha)
+      }
+      Self::Existential(var) => *var == alpha,
+      Self::Union(a, b) => a.includes(alpha) || b.includes(alpha),
+    }
+  }
+
+  fn is_truthy(&self) -> bool {
+    match self {
+      Self::Literal(LiteralType::True) => true,
+      Self::Function(_, _) => true,
+      Self::Union(a, b) => a.is_truthy() && b.is_truthy(),
+      _ => false,
+    }
+  }
+
+  fn is_falsy(&self) -> bool {
+    match self {
+      Self::Literal(LiteralType::False) => true,
+      Self::Literal(LiteralType::Null) => true,
+      Self::Union(a, b) => a.is_falsy() && b.is_falsy(),
+      _ => false,
+    }
+  }
+
+  fn uplevel_literal_booleans(self) -> Self {
+    if let Self::Literal(LiteralType::True | LiteralType::False) = self {
+      Self::Boolean
+    } else {
+      self
+    }
+  }
+
+  fn union(a: Self, b: Self) -> Self {
+    match (a, b) {
+      (Self::Never, Self::Never) => Self::Never,
+      (a, Self::Never) => a,
+      (Self::Never, b) => b,
+      (a, b) => Self::Union(Box::new(a), Box::new(b)),
+    }
+  }
+
+  fn narrow(self, type_: &Type) -> Self {
+    match (self, type_) {
+      (a, b) if a == *b => Self::Never,
+      (Self::Union(a, b), Self::Union(c, d)) => {
+        Self::union(a.narrow(c).narrow(d), b.narrow(c).narrow(d))
+      }
+      (Self::Union(a, b), type_) => Self::union(a.narrow(type_), b.narrow(type_)),
+      (Self::Boolean, Self::Literal(LiteralType::True)) => Self::Literal(LiteralType::False),
+      (Self::Boolean, Self::Literal(LiteralType::False)) => Self::Literal(LiteralType::True),
+      (x, _) => x,
+    }
+  }
+}
+impl fmt::Display for Type {
+  fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    match self {
+      Self::Any => write!(f, "any"),
+      Self::Never => write!(f, "never"),
+      Self::Boolean => write!(f, "boolean"),
+      Self::Literal(lit) => write!(f, "{lit}"),
+      Self::Existential(ex) => write!(f, "^{ex}"),
+      Self::Union(a, b) => write!(f, "{a} | {b}"),
+      Self::Function(arguments, return_type) => write!(f, "({arguments:?}) -> {return_type}"),
+    }
+  }
+}
+
+type Existential = u32;
+
+#[derive(Clone, Debug)]
+struct Solved {
+  existential: Existential,
+  type_: Type,
+  scope: u8,
+}
+
+#[derive(Clone)]
+struct Variable<'s> {
+  name: &'s str,
+  type_: Type,
+  scope: u8,
+}
+impl fmt::Debug for Variable<'_> {
+  fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    write!(f, "({name}: {type_})", name = self.name, type_ = self.type_,)
+  }
+}
+
+#[derive(Clone, Debug)]
+struct Restriction<'s>(&'s str, Type);
 
 enum Error {
   ExpectedType,
@@ -41,496 +155,413 @@ impl Error {
   }
 }
 
-type TypeIndex = usize;
-type Restriction<'s> = (&'s str, TypeIndex);
-
-const NULL: TypeIndex = 0;
-const NUMBER: TypeIndex = 1;
-const STRING: TypeIndex = 2;
-const TRUE: TypeIndex = 3;
-const FALSE: TypeIndex = 4;
-const BOOLEAN: TypeIndex = 5;
-const ANY: TypeIndex = 6;
-const NEVER: TypeIndex = 7;
-const NUMBER_OR_STRING: TypeIndex = 8;
-
-#[derive(Debug, Clone, Copy)]
-struct Variable<'s> {
-  name: &'s str,
-  depth: u8,
-  type_: TypeIndex,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-
-enum Type {
-  String,
-  Number,
-  True,
-  False,
-  Null,
-
-  Any,
-  Never,
-  Union(Vec<TypeIndex>),
-  Function(TypeIndex, Vec<TypeIndex>),
-}
-impl Type {
-  fn get_name(&self, types: &[Type]) -> String {
-    match self {
-      Self::String => "string".to_string(),
-      Self::Number => "number".to_string(),
-      Self::True => "true".to_string(),
-      Self::False => "false".to_string(),
-      Self::Null => "null".to_string(),
-      Self::Any => "any".to_string(),
-      Self::Never => "never".to_string(),
-      Self::Union(parts) => {
-        let mut names = parts
-          .iter()
-          .map(|t| types[*t].get_name(types))
-          .collect::<Vec<_>>();
-        names.sort();
-        names.join(" | ")
-      }
-      Self::Function(return_type, args) => {
-        let mut args = args
-          .iter()
-          .map(|t| types[*t].get_name(types))
-          .collect::<Vec<_>>();
-        args.sort();
-        format!(
-          "({}) -> {}",
-          args.join(", "),
-          types[*return_type].get_name(types),
-        )
-      }
-    }
-  }
-}
-
-struct Typechecker<'s> {
-  source: &'s str,
-
-  function_stack: Vec<TypeIndex>,
-  variables: Vec<Variable<'s>>,
-  scope_depth: u8,
-
-  types: Vec<Type>,
+pub struct Typechecker<'source> {
+  source: &'source str,
   errors: Vec<Diagnostic>,
+
+  scope: u8,
+  solved_scope: u8,
+  existential_id: Existential,
+
+  solved: Vec<Solved>,
+  variables: Vec<Variable<'source>>,
+  existentials: Vec<Existential>,
 }
 impl<'s> Typechecker<'s> {
-  fn new(source: &'s str) -> Self {
-    let mut checker = Self {
+  pub fn new(source: &'s str) -> Self {
+    Self {
       source,
-
-      variables: Vec::new(),
-      function_stack: Vec::new(),
-      scope_depth: 0,
-
       errors: Vec::new(),
-      types: vec![
-        Type::Null,
-        Type::Number,
-        Type::String,
-        Type::True,
-        Type::False,
-        Type::Union(vec![TRUE, FALSE]),
-        Type::Any,
-        Type::Never,
-        Type::Union(vec![STRING, NUMBER]),
-      ],
-    };
 
-    checker.define_globals();
-    checker
-  }
+      scope: 0,
+      solved_scope: 0,
+      existential_id: 0,
 
-  fn define_globals(&mut self) {
-    let print = self.add_type(Type::Function(NULL, vec![ANY]));
-    let type_ = self.add_type(Type::Function(STRING, vec![ANY]));
-
-    self.define("print", print);
-    self.define("type", type_);
-  }
-
-  fn add_type(&mut self, type_: Type) -> usize {
-    let index = self.types.len();
-    self.types.push(type_);
-    index
-  }
-
-  fn begin_scope(&mut self) {
-    self.scope_depth += 1;
-  }
-
-  fn end_scope(&mut self) {
-    while let Some(Variable {depth, ..}) = self.variables.last()
-      && depth == &self.scope_depth
-    {
-      self.variables.pop();
+      solved: Vec::new(),
+      variables: Vec::new(),
+      existentials: Vec::new(),
     }
-
-    self.scope_depth -= 1;
   }
 
-  fn define(&mut self, name: &'s str, type_: TypeIndex) {
-    self.variables.push(Variable {
-      name,
-      depth: self.scope_depth,
-      type_,
-    });
+  fn define_builtin_globals(&mut self) {
+    self.define(
+      "print",
+      Type::Function(vec![Type::Any], Box::new(Type::Literal(LiteralType::Null))),
+    );
+    self.define(
+      "type",
+      Type::Function(
+        vec![Type::Any],
+        Box::new(Type::Literal(LiteralType::String)),
+      ),
+    );
   }
 
-  fn lookup(&self, name: &'s str) -> Option<&Variable> {
-    self.variables.iter().rfind(|local| local.name == name)
-  }
-
-  fn error(&mut self, error: Error, message: String, span: Span) -> TypeIndex {
+  fn error(&mut self, error: Error, message: String, span: Span) -> Type {
     self
       .errors
       .push(error.as_diagnostic(message, span, self.source));
-    NEVER
+
+    Type::Never
   }
 
-  fn uplevel(&self, t: TypeIndex) -> TypeIndex {
-    match t {
-      FALSE => BOOLEAN,
-      TRUE => BOOLEAN,
-      _ => t,
-    }
-  }
-
-  fn flatten(&self, t: TypeIndex) -> Vec<TypeIndex> {
-    match &self.types[t] {
-      Type::Union(parts) => self.flatten_union_members(parts),
-      _ => return vec![t],
-    }
-  }
-
-  fn flatten_union_members(&self, parts: &[TypeIndex]) -> Vec<TypeIndex> {
-    let mut type_: Vec<Vec<TypeIndex>> = vec![];
-    for t in parts {
-      type_.push(self.flatten(*t));
-    }
-    let mut type_ = type_.concat();
-    type_.dedup();
-    type_
-  }
-
-  fn matches(&self, a_id: TypeIndex, b_id: TypeIndex) -> bool {
-    let a = &self.types[a_id];
-    let b = &self.types[b_id];
-
-    if *b == Type::Any {
-      return true;
-    }
-    if *b == Type::Never {
-      return false;
-    }
-
-    match (a, b) {
-      (Type::Union(a), Type::Union(_)) => a.iter().all(|item| self.matches(*item, b_id)),
-      (Type::Union(a), _) => a.len() == 1 && self.matches(a[0], b_id),
-      (_, Type::Union(b)) => b.iter().any(|part| self.matches(a_id, *part)),
-      (Type::Function(a, a_args), Type::Function(b, b_args)) => {
-        self.matches(*a, *b)
-          && a_args.len() == b_args.len()
-          && a_args
-            .iter()
-            .zip(b_args.iter())
-            .all(|(a, b)| self.matches(*b, *a))
-      }
-      (a, b) => a == b,
-    }
-  }
-
-  fn is_truthy(&self, t: TypeIndex) -> bool {
-    let types = self.flatten(t);
-
-    types
-      .iter()
-      .all(|t| matches!(self.types[*t], Type::True | Type::Function(_, _)))
-  }
-
-  fn is_falsy(&self, t: TypeIndex) -> bool {
-    let types = self.flatten(t);
-
-    types
-      .iter()
-      .all(|t| matches!(self.types[*t], Type::False | Type::Null))
-  }
-
-  fn narrow(&mut self, a: TypeIndex, b: TypeIndex) -> TypeIndex {
-    let types = self
-      .flatten(a)
-      .into_iter()
-      .filter(|t| !self.matches(*t, b))
-      .collect::<Vec<_>>();
-
-    match types.len() {
-      0 => NEVER,
-      1 => types[0],
-      _ => self.add_type(Type::Union(types)),
-    }
-  }
-
-  fn union(&mut self, types: &[TypeIndex]) -> TypeIndex {
-    let types = types
-      .iter()
-      .filter(|t| **t != NEVER)
-      .cloned()
-      .collect::<Vec<_>>();
-
-    match types.len() {
-      0 => NEVER,
-      1 => types[0],
-      _ => self.add_type(Type::Union(self.flatten_union_members(&types))),
-    }
-  }
-
-  fn assert_type(&mut self, got: TypeIndex, expected: TypeIndex, span: Span) {
-    if !self.matches(got, expected) {
-      let got_type = &self.types[got].get_name(&self.types);
-      let expected_type = &self.types[expected].get_name(&self.types);
-
-      self.error(
-        Error::ExpectedType,
-        format!("Expected type '{expected_type}' but received '{got_type}'"),
-        span,
-      );
-    }
-  }
-
-  fn type_from_annotation(&mut self, t: &TypeExpression) -> TypeIndex {
-    match &t.type_ {
+  fn type_from_annotation(&mut self, annotation: &TypeExpression) -> Type {
+    match &annotation.type_ {
       TypeItem::Named(name) => match *name {
-        "string" => STRING,
-        "number" => NUMBER,
-        "boolean" => BOOLEAN,
-        "null" => NULL,
-        "false" => FALSE,
-        "true" => TRUE,
-        "any" => ANY,
-        _ => self.error(Error::UnknownType, format!("Unknown type {name}"), t.span),
+        "string" => Type::Literal(LiteralType::String),
+        "number" => Type::Literal(LiteralType::Number),
+        "null" => Type::Literal(LiteralType::Null),
+        "false" => Type::Literal(LiteralType::False),
+        "true" => Type::Literal(LiteralType::True),
+        "boolean" => Type::Boolean,
+        "any" => Type::Any,
+        _ => self.error(
+          Error::UnknownType,
+          format!("Unknown type '{name}'"),
+          annotation.span,
+        ),
       },
-      TypeItem::Union(a, b) => {
-        let a = self.type_from_annotation(a);
-        let b = self.type_from_annotation(b);
-
-        self.union(&[a, b])
-      }
-      TypeItem::Function(return_type, parameters) => {
+      TypeItem::Group(box t) => self.type_from_annotation(t),
+      TypeItem::Function(box return_type, parameters) => {
         let return_type = self.type_from_annotation(return_type);
         let parameters = parameters
           .iter()
           .map(|p| self.type_from_annotation(p))
           .collect::<Vec<_>>();
 
-        self.add_type(Type::Function(return_type, parameters))
+        Type::Function(parameters, Box::new(return_type))
       }
-      TypeItem::Optional(t) => {
-        let t = self.type_from_annotation(t);
-        self.union(&[t, NULL])
+      TypeItem::Union(box a, box b) => {
+        Type::union(self.type_from_annotation(a), self.type_from_annotation(b))
       }
-      TypeItem::Group(t) => self.type_from_annotation(t),
+      TypeItem::Optional(box t) => Type::union(
+        Type::Literal(LiteralType::Null),
+        self.type_from_annotation(t),
+      ),
     }
   }
 
-  fn resolve_statement_with_restrictions(
+  fn begin_scope(&mut self) {
+    self.scope += 1;
+  }
+
+  fn define(&mut self, name: &'s str, type_: Type) {
+    self.variables.push(Variable {
+      name,
+      type_: self.apply_context(&type_),
+      scope: self.scope,
+    });
+  }
+
+  fn get_variable(&self, x: &str) -> Option<&Type> {
+    for variable in self.variables.iter().rev() {
+      if variable.name == x {
+        return Some(&variable.type_);
+      }
+    }
+    None
+  }
+
+  fn end_scope(&mut self) {
+    loop {
+      if self.variables.last().is_some() && self.variables.last().unwrap().scope == self.scope {
+        self.variables.pop();
+      } else {
+        break;
+      }
+    }
+
+    self.scope -= 1;
+  }
+
+  fn begin_solved_scope(&mut self) {
+    self.solved_scope += 1;
+  }
+
+  fn define_existential(&mut self, existential: Existential, type_: Type) {
+    self.solved.push(Solved {
+      existential,
+      type_,
+      scope: self.scope,
+    })
+  }
+
+  fn get_solved(&self, alpha: Existential) -> Option<&Type> {
+    self
+      .solved
+      .iter()
+      .rfind(|solved| solved.existential == alpha)
+      .map(|solved| &solved.type_)
+  }
+
+  fn end_solved_scope(&mut self) {
+    loop {
+      if self.solved.last().is_some() && self.solved.last().unwrap().scope == self.scope {
+        self.solved.pop();
+      } else {
+        break;
+      }
+    }
+
+    self.solved_scope -= 1;
+  }
+
+  fn new_existential(&mut self) -> Existential {
+    self.existential_id += 1;
+    self.existentials.push(self.existential_id);
+    self.existential_id
+  }
+
+  fn create_existentials_for_function(
     &mut self,
-    statement: &Statement<'s>,
-    restrictions: &[Restriction<'s>],
-  ) {
-    self.begin_scope();
-    for (variable, restriction) in restrictions {
-      self.define(variable, *restriction);
-    }
-    self.resolve_statement(statement);
-    self.end_scope();
+    alpha: Existential,
+    arguments_length: usize,
+  ) -> (Vec<Existential>, Existential) {
+    let arguments: Vec<Existential> = (0..arguments_length)
+      .map(|_| self.new_existential())
+      .collect();
+    let return_type = self.new_existential();
+
+    self.define_existential(
+      alpha,
+      Type::Function(
+        arguments
+          .iter()
+          .map(|arg| Type::Existential(*arg))
+          .collect(),
+        Box::new(Type::Existential(return_type)),
+      ),
+    );
+
+    (arguments, return_type)
   }
 
-  fn resolve_statement(&mut self, statement: &Statement<'s>) {
-    let span = statement.span;
+  pub fn apply_context(&self, type_: &Type) -> Type {
+    match type_ {
+      Type::Never => Type::Never,
+      Type::Any => Type::Any,
+      Type::Boolean => Type::Boolean,
+      Type::Literal(_) => type_.clone(),
+      Type::Existential(alpha) => {
+        if let Some(tau) = self.get_solved(*alpha) {
+          self.apply_context(tau)
+        } else {
+          type_.clone()
+        }
+      }
+      Type::Function(parameters, return_type) => Type::Function(
+        parameters
+          .iter()
+          .map(|parameter| self.apply_context(parameter))
+          .collect(),
+        Box::new(self.apply_context(return_type)),
+      ),
+      Type::Union(a, b) => Type::union(self.apply_context(a), self.apply_context(b)),
+    }
+  }
 
-    match &statement.stmt {
+  fn subtype(&mut self, a: &Type, b: &Type) -> bool {
+    match (a, b) {
+      (_, Type::Never) => false,
+      (_, Type::Any) => true,
+      (Type::Literal(a), Type::Literal(b)) => a == b,
+      (Type::Literal(a), Type::Boolean) => *a == LiteralType::True || *a == LiteralType::False,
+      (Type::Boolean, Type::Boolean) => true,
+      (Type::Union(a, b), Type::Boolean) => {
+        self.subtype(a, &Type::Boolean) && self.subtype(b, &Type::Boolean)
+      }
+      (Type::Union(a, b), x) if a == b => self.subtype(a, x),
+      (Type::Union(a, b), Type::Union(a1, b1)) => {
+        (self.subtype(a, a1) && self.subtype(b, b1)) || (self.subtype(a, b1) && self.subtype(b, a1))
+      }
+      (Type::Existential(alpha), b @ Type::Union(_, _)) => {
+        if !b.includes(*alpha) {
+          self.define_existential(*alpha, b.clone());
+          true
+        } else {
+          false
+        }
+      }
+      (x, Type::Union(a, b)) => self.subtype(x, a) || self.subtype(x, b),
+      (Type::Function(a_params, a_return), Type::Function(b_params, b_return)) => {
+        if a_params.len() != b_params.len() {
+          return false;
+        }
+
+        if !a_params
+          .iter()
+          .zip(b_params.iter())
+          .all(|(a, b)| self.subtype(b, a))
+        {
+          return false;
+        }
+
+        self.subtype(&self.apply_context(a_return), &self.apply_context(b_return))
+      }
+      (Type::Existential(exist1), Type::Existential(exist2)) if exist1 == exist2 => true,
+      (Type::Existential(alpha), _) => {
+        if !b.includes(*alpha) {
+          self.define_existential(*alpha, b.clone());
+          true
+        } else {
+          false
+        }
+      }
+      (_, Type::Existential(alpha)) => {
+        if !a.includes(*alpha) {
+          self.define_existential(*alpha, a.clone());
+          true
+        } else {
+          false
+        }
+      }
+      _ => false,
+    }
+  }
+
+  fn check_statement(&mut self, stmt: &Statement<'s>, type_: &Type) {
+    let stmt_type = match self.synthesize_statement(stmt) {
+      Some(ty) => self.apply_context(&ty),
+      None => Type::Literal(LiteralType::Null),
+    };
+
+    if !self.subtype(&stmt_type, type_) {
+      self.error(
+        Error::ExpectedType,
+        format!("Expected type {type_}, but recieved {stmt_type}"),
+        stmt.span,
+      );
+    }
+  }
+
+  fn check_expression(&mut self, expr: &Expression<'s>, type_: &Type) {
+    let expression_type = self.synthesize_expression(expr);
+    let expression_type = self.apply_context(&expression_type);
+    let type_ = self.apply_context(type_);
+
+    if !self.subtype(&expression_type, &type_) {
+      self.error(
+        Error::ExpectedType,
+        format!("Expected type {type_}, but recieved {expression_type}"),
+        expr.span,
+      );
+    }
+  }
+
+  pub fn synthesize_statement(&mut self, stmt: &Statement<'s>) -> Option<Type> {
+    match &stmt.stmt {
       Stmt::Declaration {
         identifier,
         expression,
         type_,
       } => {
         let expression_type = if let Some(expression) = expression {
-          let expression_type = self.resolve_expression(expression);
-          self.uplevel(expression_type)
+          self.synthesize_expression(expression)
         } else {
-          NULL
+          Type::Literal(LiteralType::Null)
         };
 
-        let annotated_type = if let Some(annotation) = type_ {
+        let annotation = if let Some(annotation) = type_ {
           self.type_from_annotation(annotation)
         } else {
-          expression_type
+          expression_type.uplevel_literal_booleans()
         };
 
-        self.assert_type(expression_type, annotated_type, span);
-        self.define(identifier, annotated_type)
+        if let Some(expression) = expression {
+          self.check_expression(expression, &annotation);
+        }
+
+        self.define(identifier, annotation.clone());
+
+        None
       }
       Stmt::If {
+        condition,
         then,
         otherwise,
-        condition,
       } => {
-        self.resolve_expression(condition);
-
+        self.synthesize_expression(condition);
         let restrictions = self.get_restrictions(condition);
-        self.resolve_statement_with_restrictions(then, &restrictions);
+        let x = self.synthesize_statement_with_restriction(then, restrictions);
 
         if let Some(otherwise) = otherwise {
-          let restrictions = self.inverse_restrictions(&restrictions);
-          self.resolve_statement_with_restrictions(otherwise, &restrictions);
+          let restrictions = self.get_inverse_restrictions(condition);
+          let y = self.synthesize_statement_with_restriction(otherwise, restrictions);
+
+          match (x, y) {
+            (Some(x), Some(y)) if x == y => Some(x),
+            (Some(x), Some(y)) => Some(Type::union(x, y)),
+            (Some(x), None) => Some(x),
+            (None, Some(y)) => Some(y),
+            (None, None) => None,
+          }
+        } else {
+          x
         }
       }
       Stmt::While { condition, body } => {
-        self.resolve_expression(condition);
-
         let restrictions = self.get_restrictions(condition);
-        self.resolve_statement_with_restrictions(body, &restrictions);
+        self.synthesize_expression(condition);
+        self.synthesize_statement_with_restriction(body, restrictions)
       }
       Stmt::Block { body, .. } => {
         self.begin_scope();
         for statement in body {
-          self.resolve_statement(statement);
+          let returns = self.synthesize_statement(statement);
+
+          if returns.is_some() {
+            self.end_scope();
+            return returns;
+          }
         }
         self.end_scope();
+        None
       }
       Stmt::Expression { expression, .. } => {
-        self.resolve_expression(expression);
+        self.synthesize_expression(expression);
+        None
       }
-      Stmt::Comment { .. } => {}
+      Stmt::Comment { .. } => None,
       Stmt::Import { .. } => unimplemented!(),
       Stmt::Return { expression } => {
         if let Some(expression) = expression {
-          let expression_type = self.resolve_expression(expression);
-          self.assert_type(expression_type, *self.function_stack.last().unwrap(), span);
+          Some(self.synthesize_expression(expression))
+        } else {
+          Some(Type::Literal(LiteralType::Null))
         }
       }
     }
   }
 
-  fn resolve_expression(&mut self, expression: &Expression<'s>) -> TypeIndex {
-    let span = expression.span;
+  fn synthesize_statement_with_restriction(
+    &mut self,
+    statement: &Statement<'s>,
+    restrictions: Vec<Restriction<'s>>,
+  ) -> Option<Type> {
+    self.begin_scope();
+    self.begin_solved_scope();
 
-    let type_ = match &expression.expr {
-      Expr::Literal { type_, .. } => match type_ {
-        LiteralType::String => STRING,
-        LiteralType::Number => NUMBER,
-        LiteralType::True => TRUE,
-        LiteralType::False => FALSE,
-        LiteralType::Null => NULL,
-      },
-      Expr::Group { expression, .. } => self.resolve_expression(expression),
-      Expr::Unary {
-        operator,
-        expression,
-        ..
-      } => {
-        let type_ = self.resolve_expression(expression);
-        match operator {
-          UnaryOperator::Minus => {
-            self.assert_type(type_, NUMBER, span);
-            NUMBER
-          }
-          UnaryOperator::Not => match type_ {
-            type_ if self.is_truthy(type_) => FALSE,
-            type_ if self.is_falsy(type_) => TRUE,
-            _ => BOOLEAN,
-          },
-        }
-      }
-      Expr::Binary {
-        operator,
-        left,
-        right,
-      } => {
-        if let BinaryOperator::Pipeline = operator {
-          return self.pipeline(left, right);
-        }
+    for Restriction(name, type_) in restrictions {
+      self.define(name, type_);
+    }
+    let returns = self.synthesize_statement(statement);
 
-        let l = self.resolve_expression(left);
-        let r = self.resolve_expression(right);
+    self.end_scope();
+    self.end_solved_scope();
+    returns
+  }
 
-        match operator {
-          BinaryOperator::Plus => {
-            self.assert_type(l, NUMBER_OR_STRING, span);
-            self.assert_type(r, l, span);
-            l
-          }
-          BinaryOperator::Minus | BinaryOperator::Multiply | BinaryOperator::Divide => {
-            self.assert_type(l, NUMBER, span);
-            self.assert_type(r, NUMBER, span);
-            NUMBER
-          }
-          BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            self.assert_type(r, l, span);
-            BOOLEAN
-          }
-          BinaryOperator::Greater
-          | BinaryOperator::Less
-          | BinaryOperator::GreaterEqual
-          | BinaryOperator::LessEqual => {
-            self.assert_type(l, NUMBER_OR_STRING, span);
-            self.assert_type(r, l, span);
-            BOOLEAN
-          }
-          BinaryOperator::And => match l {
-            type_ if self.is_falsy(type_) => l,
-            type_ if self.is_truthy(type_) => r,
-            _ => self.union(&[l, r]),
-          },
-          BinaryOperator::Or => match l {
-            type_ if self.is_falsy(type_) => r,
-            type_ if self.is_truthy(type_) => l,
-            _ => self.union(&[l, r]),
-          },
-          BinaryOperator::Nullish => {
-            if self.matches(NULL, l) {
-              let l = self.narrow(l, NULL);
-              self.union(&[l, r])
-            } else {
-              l
-            }
-          }
-          BinaryOperator::Pipeline => unreachable!(),
-        }
-      }
-      Expr::Assignment {
-        identifier,
-        expression,
-      } => {
-        let type_ = self.resolve_expression(expression);
-        let variable = self.lookup(identifier);
+  pub fn synthesize_expression(&mut self, expr: &Expression<'s>) -> Type {
+    let span = expr.span;
 
-        let variable_type = if let Some(variable) = variable {
-          variable.type_
-        } else {
-          self.error(
-            Error::UnknownVariable,
-            format!("Variable '{identifier}' is undefined"),
-            span,
-          )
-        };
-
-        if variable_type != NEVER {
-          self.assert_type(type_, variable_type, span);
-        }
-
-        variable_type
+    match &expr.expr {
+      Expr::Literal { type_, .. } => Type::Literal(*type_),
+      Expr::Comment { expression, .. } | Expr::Group { expression } => {
+        self.synthesize_expression(expression)
       }
       Expr::Variable { name } => {
-        let variable = self.lookup(name);
-
-        if let Some(variable) = variable {
-          variable.type_
+        if let Some(type_) = self.get_variable(name) {
+          type_.clone()
         } else {
           self.error(
             Error::UnknownVariable,
@@ -539,101 +570,169 @@ impl<'s> Typechecker<'s> {
           )
         }
       }
-      Expr::Call {
+      Expr::Assignment {
+        identifier,
         expression,
-        arguments,
+        ..
       } => {
-        let expression_type = self.resolve_expression(expression);
-        let arguments = arguments
-          .iter()
-          .map(|e| self.resolve_expression(e))
-          .collect::<Vec<_>>();
-
-        self.call(expression_type, &arguments, span)
+        if let Some(type_) = self.get_variable(identifier) {
+          let t = type_.clone();
+          self.check_expression(expression, &t);
+          t
+        } else {
+          self.error(
+            Error::UnknownVariable,
+            format!("Variable '{identifier}' is undefined"),
+            span,
+          )
+        }
       }
+
       Expr::Function {
         parameters,
-        return_type,
         body,
+        return_type,
         name,
       } => {
-        self.begin_scope();
-
-        let args = parameters
+        let return_type = if let Some(rt) = return_type {
+          self.type_from_annotation(rt)
+        } else {
+          Type::Existential(self.new_existential())
+        };
+        let arg_types = parameters
           .iter()
-          .map(|parameter| {
-            if let Some(t) = &parameter.type_ {
-              let type_ = self.type_from_annotation(t);
-              self.define(parameter.name, type_);
-              type_
+          .map(|param| {
+            if let Some(ty) = &param.type_ {
+              self.type_from_annotation(ty)
             } else {
-              self.define(parameter.name, NULL);
-              NULL
+              Type::Existential(self.new_existential())
             }
           })
           .collect::<Vec<_>>();
 
-        let return_type = if let Some(return_type) = &return_type {
-          self.type_from_annotation(return_type)
-        } else if let Stmt::Return {
-          expression: Some(expression),
-        } = &body.stmt
-        {
-          self.resolve_expression(expression)
-        } else {
-          NULL
-        };
-
-        let function = self.add_type(Type::Function(return_type, args));
-
+        self.begin_scope();
+        for (type_, param) in arg_types.iter().zip(parameters.iter()) {
+          self.define(param.name, type_.clone());
+        }
         if let Some(name) = name {
-          // If it has a name, it could be recursive so add it to the enviroment
+          let function = Type::Function(
+            arg_types.clone(),
+            Box::new(self.apply_context(&return_type)),
+          );
           self.define(name, function);
+        };
+        self.check_statement(&*body, &return_type);
+        self.end_scope();
+
+        Type::Function(
+          arg_types
+            .iter()
+            .map(|type_| self.apply_context(type_))
+            .collect(),
+          Box::new(self.apply_context(&return_type)),
+        )
+      }
+
+      Expr::Call {
+        expression,
+        arguments,
+      } => {
+        let expression = self.synthesize_expression(expression);
+        let return_type = self.synthesize_application(&expression, arguments, span);
+
+        self.apply_context(&return_type)
+      }
+
+      Expr::Unary {
+        operator,
+        expression,
+        ..
+      } => {
+        let type_ = self.synthesize_expression(expression);
+        match operator {
+          UnaryOperator::Minus => {
+            self.check_expression(expression, &Type::Literal(LiteralType::Number));
+            Type::Literal(LiteralType::Number)
+          }
+          UnaryOperator::Not => match type_ {
+            type_ if type_.is_truthy() => Type::Literal(LiteralType::False),
+            type_ if type_.is_falsy() => Type::Literal(LiteralType::True),
+            _ => Type::Boolean,
+          },
+        }
+      }
+
+      Expr::Binary {
+        operator,
+        left,
+        right,
+      } => {
+        if let BinaryOperator::Pipeline = operator {
+          return self.synthesize_pipeline(left, right);
         }
 
-        self.function_stack.push(return_type);
-        self.resolve_statement(body);
-        self.function_stack.pop();
+        let l = self.synthesize_expression(left);
+        let r = self.synthesize_expression(right);
 
-        self.end_scope();
-        function
+        match operator {
+          BinaryOperator::Plus => {
+            self.check_expression(
+              left,
+              &Type::Union(
+                Box::new(Type::Literal(LiteralType::Number)),
+                Box::new(Type::Literal(LiteralType::String)),
+              ),
+            );
+            self.check_expression(right, &l);
+            l
+          }
+          BinaryOperator::Minus | BinaryOperator::Multiply | BinaryOperator::Divide => {
+            self.check_expression(left, &Type::Literal(LiteralType::Number));
+            self.check_expression(right, &Type::Literal(LiteralType::Number));
+            Type::Literal(LiteralType::Number)
+          }
+          BinaryOperator::Equal | BinaryOperator::NotEqual => {
+            self.check_expression(right, &l);
+            Type::Boolean
+          }
+          BinaryOperator::Greater
+          | BinaryOperator::Less
+          | BinaryOperator::GreaterEqual
+          | BinaryOperator::LessEqual => {
+            self.check_expression(
+              left,
+              &Type::Union(
+                Box::new(Type::Literal(LiteralType::Number)),
+                Box::new(Type::Literal(LiteralType::String)),
+              ),
+            );
+            self.check_expression(right, &l);
+            Type::Boolean
+          }
+          BinaryOperator::And => match &l {
+            type_ if type_.is_falsy() => l,
+            type_ if type_.is_truthy() => r,
+            _ => Type::union(l, r),
+          },
+          BinaryOperator::Or => match &l {
+            type_ if type_.is_falsy() => r,
+            type_ if type_.is_truthy() => l,
+            _ => Type::union(l, r),
+          },
+          BinaryOperator::Nullish => {
+            if self.subtype(&Type::Literal(LiteralType::Null), &l) {
+              Type::union(l.narrow(&Type::Literal(LiteralType::Null)), r)
+            } else {
+              l
+            }
+          }
+          BinaryOperator::Pipeline => unreachable!(),
+        }
       }
-      Expr::Comment { expression, .. } => self.resolve_expression(expression),
-    };
-
-    type_
-  }
-
-  fn call(&mut self, expression: TypeIndex, arguments: &[TypeIndex], span: Span) -> TypeIndex {
-    if let Type::Function(return_type, parameters) = self.types[expression].clone() {
-      if parameters.len() != arguments.len() {
-        return self.error(
-          Error::WrongNumberArguments,
-          format!(
-            "Expected {} arguments, got {}",
-            parameters.len(),
-            arguments.len()
-          ),
-          span,
-        );
-      }
-
-      for (index, argument) in arguments.iter().enumerate() {
-        self.assert_type(*argument, parameters[index], span);
-      }
-
-      return_type
-    } else {
-      let type_name = self.types[expression].get_name(&self.types);
-      self.error(
-        Error::NotCallable,
-        format!("Type '{type_name}' is not callable"),
-        span,
-      )
     }
   }
 
-  fn pipeline(&mut self, left: &Expression<'s>, right: &Expression<'s>) -> usize {
+  fn synthesize_pipeline(&mut self, left: &Expression<'s>, right: &Expression<'s>) -> Type {
     let right = if let Expr::Comment { expression, .. } = &right.expr {
       // If right is a comment, unwrap it
       expression
@@ -641,34 +740,100 @@ impl<'s> Typechecker<'s> {
       right
     };
 
-    let (expression_type, arguments) = if let Expr::Call {
-      expression,
+    let (expression, arguments) = if let Expr::Call {
+      box expression,
       arguments,
       ..
     } = &right.expr
     {
-      let expression = self.resolve_expression(expression);
-      let mut arguments = arguments
-        .iter()
-        .map(|arg| self.resolve_expression(arg))
-        .collect::<Vec<_>>();
+      let mut arguments = arguments.clone();
+      arguments.insert(0, left.clone());
 
-      arguments.insert(0, self.resolve_expression(left));
-
-      (expression, arguments)
+      (self.synthesize_expression(expression), arguments)
     } else {
-      (
-        self.resolve_expression(right),
-        vec![self.resolve_expression(left)],
-      )
+      (self.synthesize_expression(right), vec![left.clone()])
     };
 
-    self.call(expression_type, &arguments, right.span)
+    let return_type = self.synthesize_application(&expression, &arguments, left.span);
+    self.apply_context(&return_type)
+  }
+
+  fn synthesize_application(
+    &mut self,
+    expression: &Type,
+    arguments: &[Expression<'s>],
+    span: Span,
+  ) -> Type {
+    self.begin_solved_scope();
+
+    let type_ = match expression {
+      Type::Existential(alpha) => {
+        let (alpha_args, return_type) =
+          self.create_existentials_for_function(*alpha, arguments.len());
+
+        for (alpha, expression) in alpha_args.iter().zip(arguments.iter()) {
+          self.check_expression(expression, &Type::Existential(*alpha));
+        }
+
+        Type::Existential(return_type)
+      }
+      Type::Function(args, return_type) => {
+        if args.len() != arguments.len() {
+          return self.error(
+            Error::WrongNumberArguments,
+            format!("Expected {} arguments, got {}", args.len(), arguments.len()),
+            span,
+          );
+        }
+
+        for (arg, e) in args.iter().zip(arguments.iter()) {
+          self.check_expression(e, arg);
+        }
+
+        *return_type.clone()
+      }
+      _ => self.error(
+        Error::NotCallable,
+        format!("Type '{expression}' is not callable"),
+        span,
+      ),
+    };
+
+    let type_ = self.apply_context(&type_);
+    self.end_solved_scope();
+    type_
   }
 
   fn get_restrictions(&mut self, expression: &Expression<'s>) -> Vec<Restriction<'s>> {
     match &expression.expr {
-      Expr::Group { expression } => self.get_restrictions(expression),
+      Expr::Group { expression } | Expr::Comment { expression, .. } => {
+        return self.get_restrictions(expression);
+      }
+      Expr::Binary {
+        operator: BinaryOperator::Equal,
+        left,
+        right,
+      } => {
+        let r = self.synthesize_expression(right);
+
+        if let Expr::Variable { name } = &left.expr {
+          return vec![Restriction(name, r)];
+        }
+      }
+      Expr::Binary {
+        operator: BinaryOperator::NotEqual,
+        left,
+        right,
+      } => {
+        let l = self.synthesize_expression(left);
+        let r = self.synthesize_expression(right);
+
+        if let Expr::Variable { name } = &left.expr &&
+          let Type::Literal(LiteralType::Null | LiteralType::True | LiteralType::False) = &r
+        {
+          return vec![Restriction(name, l.narrow(&r))];
+        }
+      }
       Expr::Binary {
         operator: BinaryOperator::And,
         left,
@@ -677,98 +842,77 @@ impl<'s> Typechecker<'s> {
         let l = self.get_restrictions(left);
         let r = self.get_restrictions(right);
 
-        let mut restrictions = HashMap::<&'s str, TypeIndex>::from_iter(l.into_iter());
-        for (name, restriction) in r {
+        let mut restrictions = HashMap::<&'s str, Type>::from_iter(
+          l.into_iter().map(|Restriction(name, type_)| (name, type_)),
+        );
+        for Restriction(name, restriction) in r {
           if let HashMapEntry::Occupied(mut entry) = restrictions.entry(name) {
-            let t = self.narrow(restriction, *entry.get());
-            entry.insert(t);
+            entry.insert(restriction.narrow(entry.get()));
           } else {
             restrictions.insert(name, restriction);
           }
         }
 
-        restrictions.into_iter().collect::<Vec<_>>()
+        return restrictions
+          .into_iter()
+          .map(|(name, restriction)| Restriction(name, restriction))
+          .collect::<Vec<_>>();
       }
       Expr::Binary {
         operator: BinaryOperator::Or,
         left,
         right,
       } => {
-        let mut l = self.get_restrictions(left);
-        let mut r = self.get_restrictions(right);
+        let mut restrictions = self.get_restrictions(left);
+        restrictions.append(&mut self.get_restrictions(right));
 
         // If different variables are on each side of the OR we can't make a decision
-        let all_same_name =
-          l.iter().all(|(name, _)| *name == l[0].0) && r.iter().all(|(name, _)| *name == l[0].0);
-        if !all_same_name {
-          return Vec::new();
-        }
+        let first_name = restrictions[0].0;
+        let all_same_name = restrictions
+          .iter()
+          .all(|Restriction(name, _)| *name == first_name);
 
-        l.append(&mut r);
-
-        vec![(
-          l[0].0,
-          self.union(
-            &l.into_iter()
-              .map(|(_, restriction)| restriction)
-              .collect::<Vec<_>>(),
-          ),
-        )]
-      }
-      Expr::Binary {
-        operator: BinaryOperator::Equal,
-        left,
-        right,
-      } => {
-        let r = self.resolve_expression(right);
-
-        if let Expr::Variable { name } = &left.expr {
-          vec![(name, r)]
-        } else {
-          Vec::new()
+        if all_same_name {
+          return vec![Restriction(
+            first_name,
+            restrictions
+              .iter()
+              .map(|Restriction(_, t)| t)
+              .fold(Type::Never, |accum, x| Type::union(accum, x.clone())),
+          )];
         }
       }
-      Expr::Binary {
-        operator: BinaryOperator::NotEqual,
-        left,
-        right,
-      } => {
-        let l = self.resolve_expression(left);
-        let r = self.resolve_expression(right);
-
-        if let Expr::Variable { name } = &left.expr {
-          vec![(name, self.narrow(l, r))]
-        } else {
-          Vec::new()
-        }
-      }
-      _ => Vec::new(),
+      _ => {}
     }
+
+    Vec::new()
   }
 
-  fn inverse_restrictions(&mut self, restrictions: &[Restriction<'s>]) -> Vec<Restriction<'s>> {
-    restrictions
-      .iter()
-      .map(|(name, not_type)| {
-        let current_type = self
-          .variables
-          .iter()
-          .rfind(|local| local.name == *name)
-          .expect("variable to exist as previously found")
-          .type_;
+  fn get_inverse_restrictions(&mut self, expression: &Expression<'s>) -> Vec<Restriction<'s>> {
+    let restrictions = self.get_restrictions(expression);
 
-        (*name, self.narrow(current_type, *not_type))
+    restrictions
+      .into_iter()
+      .map(|Restriction(name, not_type)| {
+        let current_type = self
+          .get_variable(name)
+          .expect("variable to exist as previously found")
+          .clone();
+
+        Restriction(name, current_type.narrow(&not_type))
       })
       .collect()
   }
 }
 
-pub fn typecheck<'s>(source: &'s str, ast: &[Statement<'s>]) -> Vec<Diagnostic> {
-  let mut typechecker = Typechecker::new(source);
+pub fn typecheck<'s>(_source: &'s str, ast: &[Statement]) -> Vec<Diagnostic> {
+  let mut typechecker = Typechecker::new(_source);
+  typechecker.define_builtin_globals();
 
   for statement in ast {
-    typechecker.resolve_statement(statement);
+    typechecker.synthesize_statement(statement);
   }
 
+  typechecker.errors.dedup();
   typechecker.errors
 }
