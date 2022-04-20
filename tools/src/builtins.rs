@@ -8,8 +8,8 @@ pub fn define_globals(typechecker: &mut Typechecker) {
     Box::new(Type::Literal(LiteralType::String)),
   );
 
-  typechecker.define("print", print);
-  typechecker.define("type", type_);
+  typechecker.define("print", &print);
+  typechecker.define("type", &type_);
 }
 
 macro_rules! type_ {

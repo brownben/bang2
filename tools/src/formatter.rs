@@ -20,11 +20,11 @@ impl<'source> Formatter<'source> {
     Self { source, ast }
   }
 
-  fn line(&self, span: &Span) -> LineNumber {
+  fn line(&self, span: Span) -> LineNumber {
     span.get_line_number(self.source)
   }
 
-  fn line_end(&self, span: &Span) -> LineNumber {
+  fn line_end(&self, span: Span) -> LineNumber {
     span.get_line_number_end(self.source)
   }
 
@@ -35,7 +35,7 @@ impl<'source> Formatter<'source> {
     f: &mut std::fmt::Formatter,
   ) -> std::fmt::Result {
     write!(f, "(")?;
-    if self.line(&expression.span) == self.line_end(&expression.span) {
+    if self.line(expression.span) == self.line_end(expression.span) {
       self.fmt_expression(expression, indentation + 1, f)?;
       write!(f, ")")?;
     } else {
@@ -77,7 +77,6 @@ impl<'source> Formatter<'source> {
   }
 
   fn write_list<Item>(
-    &self,
     items: &[Item],
     get_line: impl Fn(&Item) -> LineNumber,
     write_item: &mut dyn FnMut(&mut std::fmt::Formatter, &Item, usize) -> std::fmt::Result,
@@ -199,11 +198,11 @@ impl<'source> Formatter<'source> {
         self.fmt_expression(expression, indentation, f)?;
 
         write!(f, "(")?;
-        self.write_list(
+        Self::write_list(
           arguments,
-          |arg| self.line(&arg.span),
+          |arg| self.line(arg.span),
           &mut |f, arg, i| self.fmt_expression(arg, i, f),
-          self.line(&expression.span),
+          self.line(expression.span),
           indentation,
           false,
           f,
@@ -225,9 +224,9 @@ impl<'source> Formatter<'source> {
         ..
       } => {
         write!(f, "(")?;
-        self.write_list(
+        Self::write_list(
           parameters,
-          |param| self.line(&param.span),
+          |param| self.line(param.span),
           &mut |f, parameter, _| {
             write!(f, "{}", parameter.name)?;
 
@@ -237,7 +236,7 @@ impl<'source> Formatter<'source> {
             }
             Ok(())
           },
-          self.line(&span),
+          self.line(span),
           indentation,
           false,
           f,
@@ -355,9 +354,9 @@ impl<'source> Formatter<'source> {
       }
       Stmt::Import { module, items, .. } => {
         write!(f, "from {module} import {{")?;
-        self.write_list(
+        Self::write_list(
           items,
-          |item| self.line(&item.span),
+          |item| self.line(item.span),
           &mut |f, item, _| {
             write!(f, "{}", item.name)?;
             if let Some(alias) = &item.alias {
@@ -365,7 +364,7 @@ impl<'source> Formatter<'source> {
             }
             Ok(())
           },
-          self.line(&span),
+          self.line(span),
           indentation,
           true,
           f,
@@ -403,7 +402,7 @@ impl std::fmt::Display for Formatter<'_> {
 
     let mut prev = &self.ast[0];
     for stmt in self.ast {
-      if self.line(&prev.span) + 1 < self.line(&stmt.span) {
+      if self.line(prev.span) + 1 < self.line(stmt.span) {
         writeln!(f)?;
       }
 

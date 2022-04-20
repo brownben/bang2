@@ -3,7 +3,7 @@
 mod builtins;
 mod formatter;
 mod linter;
-pub(crate) mod typechecker;
+mod typechecker;
 
 // Check an AST for common problems
 pub use linter::lint;

@@ -21,7 +21,7 @@ pub fn run(source: &str) -> (RunResult, HashMap<Rc<str>, bang::Value>) {
     Err(_) => return (RunResult::CompileError, HashMap::new()),
   };
 
-  match bang::run(chunk) {
+  match bang::run(&chunk) {
     Ok(vars) => (RunResult::Success, vars),
     Err(_) => (RunResult::RuntimeError, HashMap::new()),
   }
@@ -39,7 +39,8 @@ macro_rules! bang_test {
         {
           let variable = globals.get(stringify!($var)).unwrap();
           let expected = bang::Value::from($expected);
-          assert!(variable == &expected);
+
+          assert!(variable == &expected, "Expected {expected}, got {variable}");
         };
       )*
     }

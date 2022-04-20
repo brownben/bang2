@@ -44,12 +44,7 @@ lint_rule! {
   visitor: {
     fn exit_statement(&mut self, statement: &Statement) {
       match &statement.stmt {
-        Stmt::If { condition, .. } => {
-          if condition.is_constant() {
-            self.issues.push(statement.span);
-          }
-        }
-        Stmt::While { condition, .. } => {
+        Stmt::If { condition, .. } | Stmt::While { condition, .. } => {
           if condition.is_constant() {
             self.issues.push(statement.span);
           }

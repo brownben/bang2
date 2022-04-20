@@ -1,6 +1,6 @@
 pub type LineNumber = u16;
 pub type CharacterPosition = u32;
-pub type TokenLength = u16;
+type TokenLength = usize;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenType {
@@ -76,33 +76,33 @@ impl TokenType {
   pub fn is_assignment_operator(self) -> bool {
     matches!(
       self,
-      TokenType::PlusEqual | TokenType::MinusEqual | TokenType::StarEqual | TokenType::SlashEqual
+      Self::PlusEqual | Self::MinusEqual | Self::StarEqual | Self::SlashEqual
     )
   }
 
   pub fn is_illegal_line_start(self) -> bool {
     matches!(
       self,
-      TokenType::Plus
-        | TokenType::Minus
-        | TokenType::Slash
-        | TokenType::Star
-        | TokenType::Bang
-        | TokenType::And
-        | TokenType::Or
-        | TokenType::QuestionQuestion
-        | TokenType::BangEqual
-        | TokenType::Equal
-        | TokenType::EqualEqual
-        | TokenType::Greater
-        | TokenType::GreaterEqual
-        | TokenType::Less
-        | TokenType::LessEqual
-        | TokenType::PlusEqual
-        | TokenType::MinusEqual
-        | TokenType::StarEqual
-        | TokenType::SlashEqual
-        | TokenType::RightRight
+      Self::Plus
+        | Self::Minus
+        | Self::Slash
+        | Self::Star
+        | Self::Bang
+        | Self::And
+        | Self::Or
+        | Self::QuestionQuestion
+        | Self::BangEqual
+        | Self::Equal
+        | Self::EqualEqual
+        | Self::Greater
+        | Self::GreaterEqual
+        | Self::Less
+        | Self::LessEqual
+        | Self::PlusEqual
+        | Self::MinusEqual
+        | Self::StarEqual
+        | Self::SlashEqual
+        | Self::RightRight
     )
   }
 }
@@ -149,15 +149,19 @@ impl<'source> Tokeniser<'source> {
   pub fn next_token(&mut self) -> Token {
     let (ttype, len) = self.next_token_type();
 
+    #[allow(
+      clippy::cast_possible_truncation,
+      reason = "assume files are less than 2^32 characters"
+    )]
     let token = Token {
       ttype,
 
       start: self.position as CharacterPosition,
-      end: self.position as u32 + len as u32,
+      end: (self.position + len) as CharacterPosition,
       line: self.line,
     };
 
-    self.position += len as usize;
+    self.position += len;
     if token.ttype == TokenType::EndOfLine {
       self.line += 1;
     }
@@ -166,8 +170,8 @@ impl<'source> Tokeniser<'source> {
   }
 
   fn next_token_type(&mut self) -> (TokenType, TokenLength) {
-    let character = &self.source[self.position as usize];
-    let next_character = self.source.get((self.position + 1) as usize);
+    let character = &self.source[self.position];
+    let next_character = self.source.get(self.position + 1);
 
     if let Some(token_type) = self.two_character_token() {
       return (token_type, 2);
@@ -236,10 +240,7 @@ impl<'source> Tokeniser<'source> {
       position += 1;
     }
 
-    (
-      TokenType::Whitespace,
-      (position - self.position) as TokenLength,
-    )
+    (TokenType::Whitespace, position - self.position)
   }
 
   fn comment(&self) -> (TokenType, TokenLength) {
@@ -249,10 +250,7 @@ impl<'source> Tokeniser<'source> {
       position += 1;
     }
 
-    (
-      TokenType::Comment,
-      (position - self.position) as TokenLength,
-    )
+    (TokenType::Comment, position - self.position)
   }
 
   fn string(&mut self, quote: u8) -> (TokenType, TokenLength) {
@@ -267,12 +265,9 @@ impl<'source> Tokeniser<'source> {
     }
 
     if self.at_end(position) {
-      (TokenType::String, (position - self.position) as TokenLength)
+      (TokenType::String, position - self.position)
     } else {
-      (
-        TokenType::String,
-        (position - self.position + 1) as TokenLength,
-      )
+      (TokenType::String, position - self.position + 1)
     }
   }
 
@@ -294,7 +289,7 @@ impl<'source> Tokeniser<'source> {
       position += 1;
     }
 
-    (TokenType::Number, (position - self.position) as TokenLength)
+    (TokenType::Number, position - self.position)
   }
 
   fn identifier(&self) -> (TokenType, TokenLength) {
@@ -306,8 +301,8 @@ impl<'source> Tokeniser<'source> {
       position += 1;
     }
 
-    let length = (position - self.position + 1) as TokenLength;
-    (self.identifier_type(length), length as TokenLength)
+    let length = position - self.position + 1;
+    (self.identifier_type(length), length)
   }
 
   fn identifier_type(&self, length: TokenLength) -> TokenType {
@@ -344,7 +339,7 @@ impl<'source> Tokeniser<'source> {
     keyword: &'static str,
     token_type: TokenType,
   ) -> TokenType {
-    let end = self.position + length as usize;
+    let end = self.position + length;
     if &self.source[self.position..end] == keyword.as_bytes() {
       token_type
     } else {

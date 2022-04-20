@@ -52,7 +52,7 @@ macro_rules! bang_benchmark {
       #[bench]
       fn vm(b: &mut Bencher) {
         let chunk = compile().unwrap();
-        b.iter(|| bang::run(chunk.clone()));
+        b.iter(|| bang::run(&chunk));
       }
 
       #[bench]

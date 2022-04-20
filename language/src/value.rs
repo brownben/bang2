@@ -97,11 +97,15 @@ impl From<f64> for Value {
 }
 impl From<i32> for Value {
   fn from(value: i32) -> Self {
-    Self::Number(value as f64)
+    Self::Number(f64::from(value))
   }
 }
 impl From<usize> for Value {
   fn from(value: usize) -> Self {
+    #[allow(
+      clippy::cast_precision_loss,
+      reason = "used by builtins for lengths, if larger allow rounding as that is to be expected with number type"
+    )]
     Self::Number(value as f64)
   }
 }

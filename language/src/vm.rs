@@ -91,7 +91,7 @@ impl VM {
     self.stack.push(value);
   }
 
-  pub fn run(&mut self, chunk: Chunk) -> Result<(), Diagnostic> {
+  pub fn run(&mut self, chunk: &Chunk) -> Result<(), Diagnostic> {
     let mut ip: usize = 0;
     let mut offset: usize = 0;
 
@@ -375,15 +375,24 @@ impl VM {
 
   #[cfg(feature = "debug")]
   fn print_stack(&self, ip: usize) {
-    print!("{:0>4} │ ", ip);
-    for item in &self.stack {
-      print!("{}, ", item);
-    }
-    println!();
+    println!(
+      "{ip:0>4} │ {}",
+      self
+        .stack
+        .iter()
+        .map(|item| item.to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
+    );
+  }
+}
+impl Default for VM {
+  fn default() -> Self {
+    Self::new()
   }
 }
 
-pub fn run(chunk: Chunk) -> Result<VMGlobals, Diagnostic> {
+pub fn run(chunk: &Chunk) -> Result<VMGlobals, Diagnostic> {
   let mut vm = VM::new();
 
   vm.run(chunk)?;

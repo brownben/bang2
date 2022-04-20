@@ -8,7 +8,7 @@ pub struct Span {
 }
 impl Span {
   pub fn get_line_number(&self, source: &str) -> LineNumber {
-    let mut line = 1;
+    let mut line: LineNumber = 1;
 
     for (i, byte) in source.as_bytes().iter().enumerate() {
       if *byte == b'\n' {
@@ -16,7 +16,7 @@ impl Span {
       }
 
       if i == self.start as usize {
-        return line as LineNumber;
+        return line;
       }
     }
 
@@ -24,7 +24,7 @@ impl Span {
   }
 
   pub fn get_line_number_end(&self, source: &str) -> LineNumber {
-    let mut line = 1;
+    let mut line: LineNumber = 1;
 
     for (i, byte) in source.as_bytes().iter().enumerate() {
       if *byte == b'\n' {
@@ -32,7 +32,7 @@ impl Span {
       }
 
       if i == self.end as usize {
-        return line as LineNumber;
+        return line;
       }
     }
 
@@ -41,7 +41,7 @@ impl Span {
 }
 impl From<ops::Range<CharacterPosition>> for Span {
   fn from(range: ops::Range<CharacterPosition>) -> Self {
-    Span {
+    Self {
       start: range.start,
       end: range.end,
     }
@@ -49,7 +49,7 @@ impl From<ops::Range<CharacterPosition>> for Span {
 }
 impl From<&Token> for Span {
   fn from(token: &Token) -> Self {
-    Span {
+    Self {
       start: token.start,
       end: token.end,
     }
@@ -331,8 +331,8 @@ pub mod expression {
 }
 
 pub mod statement {
-  use super::expression::*;
-  use super::types::*;
+  use super::expression::Expression;
+  use super::types::TypeExpression;
   use super::Span;
   use std::ops;
 

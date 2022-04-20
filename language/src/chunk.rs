@@ -32,33 +32,33 @@ pub enum OpCode {
 impl From<u8> for OpCode {
   fn from(code: u8) -> Self {
     match code {
-      0 => OpCode::Constant,
-      1 => OpCode::ConstantLong,
-      2 => OpCode::Null,
-      3 => OpCode::True,
-      4 => OpCode::False,
-      5 => OpCode::Add,
-      6 => OpCode::Subtract,
-      7 => OpCode::Multiply,
-      8 => OpCode::Divide,
-      9 => OpCode::Negate,
-      10 => OpCode::Not,
-      11 => OpCode::Equal,
-      12 => OpCode::Greater,
-      13 => OpCode::Less,
-      14 => OpCode::Pop,
-      15 => OpCode::DefineGlobal,
-      16 => OpCode::GetGlobal,
-      17 => OpCode::SetGlobal,
-      18 => OpCode::Jump,
-      19 => OpCode::JumpIfFalse,
-      20 => OpCode::JumpIfNull,
-      21 => OpCode::Loop,
-      22 => OpCode::GetLocal,
-      23 => OpCode::SetLocal,
-      24 => OpCode::Return,
-      25 => OpCode::Call,
-      _ => OpCode::Unknown,
+      0 => Self::Constant,
+      1 => Self::ConstantLong,
+      2 => Self::Null,
+      3 => Self::True,
+      4 => Self::False,
+      5 => Self::Add,
+      6 => Self::Subtract,
+      7 => Self::Multiply,
+      8 => Self::Divide,
+      9 => Self::Negate,
+      10 => Self::Not,
+      11 => Self::Equal,
+      12 => Self::Greater,
+      13 => Self::Less,
+      14 => Self::Pop,
+      15 => Self::DefineGlobal,
+      16 => Self::GetGlobal,
+      17 => Self::SetGlobal,
+      18 => Self::Jump,
+      19 => Self::JumpIfFalse,
+      20 => Self::JumpIfNull,
+      21 => Self::Loop,
+      22 => Self::GetLocal,
+      23 => Self::SetLocal,
+      24 => Self::Return,
+      25 => Self::Call,
+      _ => Self::Unknown,
     }
   }
 }
@@ -128,12 +128,12 @@ impl LineInfo {
   }
 }
 
-pub struct ChunkBuilder {
+pub struct Builder {
   code: Vec<u8>,
   constants: Vec<Value>,
   lines: LineInfoBuilder,
 }
-impl ChunkBuilder {
+impl Builder {
   pub fn new() -> Self {
     Self {
       code: Vec::new(),
@@ -156,9 +156,10 @@ impl ChunkBuilder {
   }
 
   pub fn write_long_value(&mut self, code: u16, line: LineNumber) {
-    self.code.push((code >> 8) as u8);
+    let [a, b] = u16::to_be_bytes(code);
+    self.code.push(a);
     self.lines.add(line);
-    self.code.push(code as u8);
+    self.code.push(b);
     self.lines.add(line);
   }
 
@@ -179,8 +180,9 @@ impl ChunkBuilder {
   }
 
   pub fn set_long_value(&mut self, offset: usize, value: u16) {
-    self.code[offset] = (value >> 8) as u8;
-    self.code[offset + 1] = value as u8;
+    let [first_byte, second_byte] = u16::to_be_bytes(value);
+    self.code[offset] = first_byte;
+    self.code[offset + 1] = second_byte;
   }
 
   pub fn finalize(self) -> Chunk {
@@ -208,10 +210,7 @@ impl Chunk {
   }
 
   pub fn get_long_value(&self, position: usize) -> u16 {
-    let first_byte = u16::from(self.get_value(position));
-    let second_byte = u16::from(self.get_value(position + 1));
-
-    (first_byte << 8) + second_byte
+    u16::from_be_bytes([self.get_value(position), self.get_value(position + 1)])
   }
 
   pub fn get_constant(&self, pointer: usize) -> Value {
@@ -222,7 +221,7 @@ impl Chunk {
     self.lines.get(opcode_position)
   }
 
-  pub fn merge(&mut self, chunk: &Chunk) -> usize {
+  pub fn merge(&mut self, chunk: &Self) -> usize {
     let offset = self.code.len();
     self.code.extend_from_slice(&chunk.code);
     self.lines.lines.extend_from_slice(&chunk.lines.lines);

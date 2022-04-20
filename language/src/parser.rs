@@ -248,14 +248,10 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
   }
 
   fn skip_newline_if_illegal_line_start(&mut self) {
-    if self.next().ttype == TokenType::EndOfLine {
-      if !self.next().ttype.is_illegal_line_start() {
-        self.back();
-      }
-      self.back();
-    } else {
+    if self.next().ttype == TokenType::EndOfLine && !self.next().ttype.is_illegal_line_start() {
       self.back();
     }
+    self.back();
   }
 
   fn is_function_bracket(&self) -> bool {
@@ -372,9 +368,7 @@ impl<'source> Parser<'source, '_> {
   }
 
   fn statement(&mut self) -> StatementResult<'source> {
-    while self.current().ttype == TokenType::EndOfLine {
-      self.next();
-    }
+    self.ignore_newline();
 
     let last = if self.position >= 1 {
       self.position - 1
@@ -397,11 +391,10 @@ impl<'source> Parser<'source, '_> {
     {
       if Parser::block_depth(last_token.get_value(self.source)) > depth {
         statements.push(self.statement()?);
-        last_token = self.get(self.position - 1);
       } else {
         statements.push(self.stmt()?);
-        last_token = self.get(self.position - 1);
       }
+      last_token = self.get(self.position - 1);
     }
 
     Ok(statement!(
@@ -864,7 +857,7 @@ impl<'source> Parser<'source, '_> {
 
     match self.current().ttype {
       TokenType::Pipe => self.type_union(t?),
-      TokenType::Question => self.type_optional(t?),
+      TokenType::Question => Ok(self.type_optional(t?)),
       _ => t,
     }
   }
@@ -879,10 +872,10 @@ impl<'source> Parser<'source, '_> {
     ))
   }
 
-  fn type_optional(&mut self, left: TypeExpression<'source>) -> TypeResult<'source> {
+  fn type_optional(&mut self, left: TypeExpression<'source>) -> TypeExpression<'source> {
     let token = self.current_advance();
 
-    Ok(types!(Optional(Box::new(left)), (left.span, token)))
+    types!(Optional(Box::new(left)), (left.span, token))
   }
 
   fn type_group(&mut self) -> TypeResult<'source> {

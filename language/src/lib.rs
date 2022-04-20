@@ -1,4 +1,4 @@
-#![feature(box_patterns, let_chains)]
+#![feature(box_patterns, let_chains, lint_reasons)]
 use ahash::AHashMap as HashMap;
 use std::rc::Rc;
 
@@ -39,5 +39,5 @@ pub fn interpret(source: &str) -> Result<VMGlobals, Diagnostic> {
   let ast = parser::parse(source, &tokens)?;
   let chunk = compiler::compile(source, &ast)?;
 
-  vm::run(chunk)
+  vm::run(&chunk)
 }

@@ -44,8 +44,7 @@ impl Type {
 
   fn is_truthy(&self) -> bool {
     match self {
-      Self::Literal(LiteralType::True) => true,
-      Self::Function(_, _) => true,
+      Self::Literal(LiteralType::True) | Self::Function(_, _) => true,
       Self::Union(a, b) => a.is_truthy() && b.is_truthy(),
       _ => false,
     }
@@ -53,8 +52,7 @@ impl Type {
 
   fn is_falsy(&self) -> bool {
     match self {
-      Self::Literal(LiteralType::False) => true,
-      Self::Literal(LiteralType::Null) => true,
+      Self::Literal(LiteralType::False | LiteralType::Null) => true,
       Self::Union(a, b) => a.is_falsy() && b.is_falsy(),
       _ => false,
     }
@@ -77,7 +75,7 @@ impl Type {
     }
   }
 
-  fn narrow(self, type_: &Type) -> Self {
+  fn narrow(self, type_: &Self) -> Self {
     match (self, type_) {
       (a, b) if a == *b => Self::Never,
       (Self::Union(a, b), Self::Union(c, d)) => {
@@ -148,7 +146,7 @@ impl Error {
     }
   }
 
-  fn as_diagnostic(&self, message: String, span: Span, source: &str) -> Diagnostic {
+  fn into_diagnostic(self, message: String, span: Span, source: &str) -> Diagnostic {
     Diagnostic {
       title: self.get_title().to_string(),
       message,
@@ -188,7 +186,7 @@ impl<'s> Typechecker<'s> {
   fn error(&mut self, error: Error, message: String, span: Span) -> Type {
     self
       .errors
-      .push(error.as_diagnostic(message, span, self.source));
+      .push(error.into_diagnostic(message, span, self.source));
 
     Type::Never
   }
@@ -233,10 +231,10 @@ impl<'s> Typechecker<'s> {
     self.scope += 1;
   }
 
-  pub(crate) fn define(&mut self, name: &'s str, type_: Type) {
+  pub(crate) fn define(&mut self, name: &'s str, type_: &Type) {
     self.variables.push(Variable {
       name,
-      type_: self.apply_context(&type_),
+      type_: self.apply_context(type_),
       scope: self.scope,
     });
   }
@@ -271,7 +269,7 @@ impl<'s> Typechecker<'s> {
       existential,
       type_,
       scope: self.scope,
-    })
+    });
   }
 
   fn get_solved(&self, alpha: Existential) -> Option<&Type> {
@@ -352,9 +350,8 @@ impl<'s> Typechecker<'s> {
     match (a, b) {
       (_, Type::Never) => false,
       (_, Type::Any) => true,
-      (Type::Literal(a), Type::Literal(b)) => a == b,
+      (a, b) if a == b => true,
       (Type::Literal(a), Type::Boolean) => *a == LiteralType::True || *a == LiteralType::False,
-      (Type::Boolean, Type::Boolean) => true,
       (Type::Union(a, b), Type::Boolean) => {
         self.subtype(a, &Type::Boolean) && self.subtype(b, &Type::Boolean)
       }
@@ -363,11 +360,11 @@ impl<'s> Typechecker<'s> {
         (self.subtype(a, a1) && self.subtype(b, b1)) || (self.subtype(a, b1) && self.subtype(b, a1))
       }
       (Type::Existential(alpha), b @ Type::Union(_, _)) => {
-        if !b.includes(*alpha) {
+        if b.includes(*alpha) {
+          false
+        } else {
           self.define_existential(*alpha, b.clone());
           true
-        } else {
-          false
         }
       }
       (x, Type::Union(a, b)) => self.subtype(x, a) || self.subtype(x, b),
@@ -388,19 +385,19 @@ impl<'s> Typechecker<'s> {
       }
       (Type::Existential(exist1), Type::Existential(exist2)) if exist1 == exist2 => true,
       (Type::Existential(alpha), _) => {
-        if !b.includes(*alpha) {
+        if b.includes(*alpha) {
+          false
+        } else {
           self.define_existential(*alpha, b.clone());
           true
-        } else {
-          false
         }
       }
       (_, Type::Existential(alpha)) => {
-        if !a.includes(*alpha) {
+        if a.includes(*alpha) {
+          false
+        } else {
           self.define_existential(*alpha, a.clone());
           true
-        } else {
-          false
         }
       }
       _ => false,
@@ -459,7 +456,7 @@ impl<'s> Typechecker<'s> {
           self.check_expression(expression, &annotation);
         }
 
-        self.define(identifier, annotation.clone());
+        self.define(identifier, &annotation);
 
         None
       }
@@ -514,9 +511,9 @@ impl<'s> Typechecker<'s> {
         for item in items {
           if let Some(type_) = get_builtin_module_type(module, item.name) {
             if let Some(alias) = item.alias {
-              self.define(alias, type_);
+              self.define(alias, &type_);
             } else {
-              self.define(item.name, type_);
+              self.define(item.name, &type_);
             }
           } else {
             self.error(
@@ -547,7 +544,7 @@ impl<'s> Typechecker<'s> {
     self.begin_solved_scope();
 
     for Restriction(name, type_) in restrictions {
-      self.define(name, type_);
+      self.define(name, &type_);
     }
     let returns = self.synthesize_statement(statement);
 
@@ -617,14 +614,14 @@ impl<'s> Typechecker<'s> {
 
         self.begin_scope();
         for (type_, param) in arg_types.iter().zip(parameters.iter()) {
-          self.define(param.name, type_.clone());
+          self.define(param.name, type_);
         }
         if let Some(name) = name {
           let function = Type::Function(
             arg_types.clone(),
             Box::new(self.apply_context(&return_type)),
           );
-          self.define(name, function);
+          self.define(name, &function);
         };
         self.check_statement(&*body, &return_type);
         self.end_scope();
@@ -847,9 +844,11 @@ impl<'s> Typechecker<'s> {
         let l = self.get_restrictions(left);
         let r = self.get_restrictions(right);
 
-        let mut restrictions = HashMap::<&'s str, Type>::from_iter(
-          l.into_iter().map(|Restriction(name, type_)| (name, type_)),
-        );
+        let mut restrictions = l
+          .into_iter()
+          .map(|Restriction(name, type_)| (name, type_))
+          .collect::<HashMap<_, _>>();
+
         for Restriction(name, restriction) in r {
           if let HashMapEntry::Occupied(mut entry) = restrictions.entry(name) {
             entry.insert(restriction.narrow(entry.get()));
@@ -910,8 +909,8 @@ impl<'s> Typechecker<'s> {
   }
 }
 
-pub fn typecheck<'s>(_source: &'s str, ast: &[Statement]) -> Vec<Diagnostic> {
-  let mut typechecker = Typechecker::new(_source);
+pub fn typecheck<'s>(source: &'s str, ast: &[Statement]) -> Vec<Diagnostic> {
+  let mut typechecker = Typechecker::new(source);
   define_globals(&mut typechecker);
 
   for statement in ast {

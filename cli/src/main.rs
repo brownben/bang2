@@ -30,7 +30,7 @@ fn compile(source: &str) -> Result<Chunk, Diagnostic> {
 fn interpret(source: &str) -> Result<VMGlobals, Diagnostic> {
   let chunk = compile(source)?;
 
-  run(chunk)
+  run(&chunk)
 }
 
 fn repl() {
@@ -44,7 +44,7 @@ fn repl() {
         rl.add_history_entry(&line);
 
         match compile(&format!("{}\n", line)) {
-          Ok(chunk) => match vm.run(chunk) {
+          Ok(chunk) => match vm.run(&chunk) {
             Ok(_) => {}
             Err(error) => print_error("REPL", &line, error),
           },

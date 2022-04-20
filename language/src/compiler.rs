@@ -7,7 +7,7 @@ use crate::{
     Span,
   },
   builtins::get_builtin_module_value,
-  chunk::{Chunk, ChunkBuilder, OpCode},
+  chunk::{Builder as ChunkBuilder, Chunk, OpCode},
   diagnostic::Diagnostic,
   parser::parse_number,
   value::{Function, Value},
@@ -18,6 +18,7 @@ enum Error {
   TooManyConstants,
   TooManyArguments,
   TooManyParameters,
+  TooManyLocals,
   VariableAlreadyExists,
   BuiltinNotFound,
 }
@@ -30,6 +31,7 @@ impl Error {
       Self::TooManyParameters => "Too Many Parameters",
       Self::VariableAlreadyExists => "Variable Already Exists",
       Self::BuiltinNotFound => "Builtin Not Found",
+      Self::TooManyLocals => "Too Many Local Variables",
     }
   }
 
@@ -41,12 +43,13 @@ impl Error {
       Self::TooManyArguments | Self::TooManyParameters => {
         "There is a limit of 255 arguments for a function".to_string()
       }
+      Self::TooManyLocals => "There is a limit of 255 local variables at once".to_string(),
       Self::VariableAlreadyExists => format!("Variable '{value}' has been defined already"),
       Self::BuiltinNotFound => format!("Could not find value in module '{value}'"),
     }
   }
 
-  fn get_diagnostic(&self, value: &str, span: Span, source: &str) -> Diagnostic {
+  fn into_diagnostic(self, value: &str, span: Span, source: &str) -> Diagnostic {
     Diagnostic {
       title: self.get_title().to_string(),
       message: self.get_message(value),
@@ -138,11 +141,11 @@ impl<'s> Compiler<'s> {
   fn patch_jump(&mut self, span: Span, offset: usize) {
     let jump = self.chunk.length() - offset;
 
-    if jump > u16::MAX as usize {
+    if let Ok(jump) = u16::try_from(jump) {
+      self.chunk.set_long_value(offset, jump);
+    } else {
       self.error(Error::TooBigJump, span, "");
     }
-
-    self.chunk.set_long_value(offset, jump as u16);
   }
 
   fn length(&self) -> usize {
@@ -168,13 +171,9 @@ impl<'s> Compiler<'s> {
   }
 
   fn end_scope(&mut self) {
-    loop {
-      if self.locals.last().is_some() && self.locals.last().unwrap().depth == self.scope_depth {
-        self.locals.pop();
-        self.emit_opcode_blank(OpCode::Pop);
-      } else {
-        break;
-      }
+    while let Some(last) = self.locals.last() && last.depth == self.scope_depth {
+      self.locals.pop();
+      self.emit_opcode_blank(OpCode::Pop);
     }
 
     self.scope_depth -= 1;
@@ -196,7 +195,7 @@ impl<'s> Compiler<'s> {
   }
 
   fn error(&mut self, error: Error, span: Span, value: &str) {
-    self.error = Some(error.get_diagnostic(value, span, self.source));
+    self.error = Some(error.into_diagnostic(value, span, self.source));
   }
 
   fn compile_statement(&mut self, statement: &Statement<'s>) {
@@ -267,10 +266,11 @@ impl<'s> Compiler<'s> {
         self.emit_opcode(span, OpCode::Loop);
 
         let offset = self.length() - loop_start;
-        if offset > u16::MAX as usize {
-          self.error(Error::TooBigJump, span, "");
+
+        if let Ok(offset) = u16::try_from(offset) {
+          self.emit_long_value(span, offset);
         } else {
-          self.emit_long_value(span, offset as u16);
+          self.error(Error::TooBigJump, span, "");
         }
 
         self.patch_jump(span, exit_jump);
@@ -375,9 +375,11 @@ impl<'s> Compiler<'s> {
 
         self.compile_expression(expression);
 
-        if let Some(index) = local_index {
+        if let Some(index) = local_index && let Ok(index) = u8::try_from(index) {
           self.emit_opcode(span, OpCode::SetLocal);
-          self.emit_value(span, index as u8);
+          self.emit_value(span, index);
+        } else if local_index.is_some() {
+          self.error(Error::TooManyLocals, span, "");
         } else {
           self.emit_opcode(span, OpCode::SetGlobal);
           self.emit_constant_string(span, identifier);
@@ -386,9 +388,11 @@ impl<'s> Compiler<'s> {
       Expr::Variable { name } => {
         let local_index = self.locals.iter().rposition(|local| local.name == *name);
 
-        if let Some(index) = local_index {
+        if let Some(index) = local_index && let Ok(index) = u8::try_from(index) {
           self.emit_opcode(span, OpCode::GetLocal);
-          self.emit_value(span, index as u8);
+          self.emit_value(span, index);
+        } else if local_index.is_some() {
+          self.error(Error::TooManyLocals, span, "");
         } else {
           self.emit_opcode(span, OpCode::GetGlobal);
           self.emit_constant_string(span, name);
@@ -401,16 +405,17 @@ impl<'s> Compiler<'s> {
       } => {
         self.compile_expression(expression);
 
-        if arguments.len() > 255 {
+        let arguments_length = u8::try_from(arguments.len()).unwrap_or_else(|_| {
           self.error(Error::TooManyArguments, span, "");
-        }
+          255
+        });
 
         for argument in arguments {
           self.compile_expression(argument);
         }
 
         self.emit_opcode(span, OpCode::Call);
-        self.emit_value(span, arguments.len() as u8);
+        self.emit_value(span, arguments_length);
       }
 
       Expr::Function {
@@ -419,9 +424,10 @@ impl<'s> Compiler<'s> {
         name,
         ..
       } => {
-        if parameters.len() > u8::MAX as usize {
+        let arity = u8::try_from(parameters.len()).unwrap_or_else(|_| {
           self.error(Error::TooManyParameters, span, "");
-        };
+          255
+        });
 
         self.new_chunk();
         for parameter in parameters {
@@ -439,7 +445,7 @@ impl<'s> Compiler<'s> {
           span,
           Value::from(Function {
             name: name.unwrap_or("").to_string(),
-            arity: parameters.len() as u8,
+            arity,
             start: chunk,
           }),
         );
@@ -460,7 +466,7 @@ impl<'s> Compiler<'s> {
         self.locals.push(Local {
           name: identifier,
           depth: self.scope_depth,
-        })
+        });
       }
     } else {
       self.emit_opcode(span, OpCode::DefineGlobal);
@@ -515,9 +521,12 @@ impl<'s> Compiler<'s> {
     {
       self.compile_expression(expression);
 
-      if arguments.len() > 254 {
+      let arguments_length = if let Ok(length) = u8::try_from(arguments.len()) && length < 255 {
+        length + 1
+      } else {
         self.error(Error::TooManyArguments, span, "");
-      }
+        255
+      };
 
       self.compile_expression(left);
       for argument in arguments {
@@ -525,7 +534,7 @@ impl<'s> Compiler<'s> {
       }
 
       self.emit_opcode(span, OpCode::Call);
-      self.emit_value(span, arguments.len() as u8 + 1);
+      self.emit_value(span, arguments_length);
     } else {
       self.compile_expression(right);
       self.compile_expression(left);
