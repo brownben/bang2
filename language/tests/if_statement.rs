@@ -134,3 +134,35 @@ if (identity)
   a == true
   b == true
 );
+
+bang_test!(if_statement_local_variables
+"
+let iffy = (n: number) ->
+  let i = 0
+  if (i < 3)
+    let temp = i + 1
+    temp *= 2
+
+  return i
+
+let x = iffy(9)
+"
+  x == 0
+);
+
+bang_test!(if_else_statement_local_variables
+"
+let iffy = (n: number) ->
+  let i = 0
+  if (i < 3)
+    let temp = i + 1
+    temp *= 2
+  else
+    let temp = i + 1
+    temp *= 4
+  return i
+
+let x = iffy(9)
+"
+  x == 0
+);

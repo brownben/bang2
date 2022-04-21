@@ -224,19 +224,19 @@ impl<'s> Compiler<'s> {
         self.compile_expression(condition);
 
         let then_jump = self.emit_jump(span, OpCode::JumpIfFalse);
+
         self.emit_opcode(span, OpCode::Pop);
         self.compile_statement(then);
+        let else_jump = self.emit_jump(span, OpCode::Jump);
+
+        self.patch_jump(span, then_jump);
+        self.emit_opcode(span, OpCode::Pop);
 
         if let Some(otherwise) = otherwise {
-          let else_jump = self.emit_jump(span, OpCode::Jump);
-          self.patch_jump(span, then_jump);
-          self.emit_opcode(span, OpCode::Pop);
           self.compile_statement(otherwise);
-          self.patch_jump(span, else_jump);
-        } else {
-          self.patch_jump(span, then_jump);
-          self.emit_opcode(span, OpCode::Pop);
         }
+
+        self.patch_jump(span, else_jump);
       }
       Stmt::Import { module, items, .. } => {
         for item in items {
