@@ -1,4 +1,5 @@
-pub use bang_language::{Diagnostic, LineNumber};
+use super::remove_carriage_returns;
+use bang_language::{Diagnostic, LineNumber};
 
 fn red(text: &str) -> String {
   format!("\u{001b}[31m{}\u{001b}[0m", text)
@@ -10,10 +11,6 @@ fn yellow(text: &str) -> String {
 
 fn bold(text: &str) -> String {
   format!("\u{001b}[1m{}\u{001b}[0m", text)
-}
-
-fn remove_carriage_returns(value: &str) -> String {
-  str::replace(value, "\r", "")
 }
 
 fn code_frame(file: &str, source: &str, line_number: LineNumber) {

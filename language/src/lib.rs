@@ -8,7 +8,6 @@ mod chunk;
 mod compiler;
 mod diagnostic;
 mod parser;
-pub mod print;
 mod tokens;
 mod value;
 mod vm;
@@ -17,13 +16,13 @@ mod vm;
 pub use diagnostic::Diagnostic;
 
 // Tokenise a source string
-pub use tokens::{tokenize, LineNumber, Token};
+pub use tokens::{tokenize, LineNumber, Token, TokenType};
 
 // Parse a slice of tokens into an AST
 pub use parser::{parse, parse_number};
 
 // Compile an AST into a chunk of bytecode
-pub use chunk::Chunk;
+pub use chunk::{Chunk, OpCode};
 pub use compiler::compile;
 
 // Run a chunk of bytecode

@@ -1,15 +1,13 @@
+use bang_language::{
+  compile as compile_ast, parse, run, tokenize, Chunk, Diagnostic, VMGlobals, VM,
+};
+use bang_tools::{format, lint, typecheck};
 use clap::{Arg, Command};
 use rustyline::error::ReadlineError;
 use rustyline::Editor;
 use std::fs;
 
-use bang_language::{
-  compile as compile_ast, parse, print, run, tokenize, Chunk, Diagnostic, VMGlobals, VM,
-};
-use bang_tools::{format, lint, typecheck};
-
-mod print_diagnostic;
-use print_diagnostic::{error as print_error, warning as print_warning};
+mod print;
 
 fn read_file(filename: &str) -> String {
   if let Ok(file) = fs::read_to_string(filename) {
@@ -46,9 +44,9 @@ fn repl() {
         match compile(&format!("{}\n", line)) {
           Ok(chunk) => match vm.run(&chunk) {
             Ok(_) => {}
-            Err(error) => print_error("REPL", &line, error),
+            Err(error) => print::error("REPL", &line, error),
           },
-          Err(details) => print_error("REPL", &line, details),
+          Err(details) => print::error("REPL", &line, details),
         }
       }
       Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
@@ -134,24 +132,24 @@ fn main() {
     match command {
       "run" => match interpret(&source) {
         Ok(_) => {}
-        Err(details) => print_error(filename, &source, details),
+        Err(details) => print::error(filename, &source, details),
       },
       "lint" => match parse(&source, &tokens) {
         Ok(ast) => {
           for lint in lint(&source, &ast) {
-            print_warning(filename, &source, lint);
+            print::warning(filename, &source, lint);
           }
         }
-        Err(details) => print_error(filename, &source, details),
+        Err(details) => print::error(filename, &source, details),
       },
       "tokens" => print::tokens(&source, &tokens),
       "ast" => match parse(&source, &tokens) {
         Ok(ast) => print::ast(&source, &ast),
-        Err(details) => print_error(filename, &source, details),
+        Err(details) => print::error(filename, &source, details),
       },
       "bytecode" => match compile(&source) {
         Ok(chunk) => print::chunk(&chunk),
-        Err(details) => print_error(filename, &source, details),
+        Err(details) => print::error(filename, &source, details),
       },
       "format" => match parse(&source, &tokens) {
         Ok(ast) => {
@@ -165,15 +163,15 @@ fn main() {
             println!("'{}' already matches the Bang format style!", filename);
           }
         }
-        Err(details) => print_error(filename, &source, details),
+        Err(details) => print::error(filename, &source, details),
       },
       "typecheck" => match parse(&source, &tokens) {
         Ok(ast) => {
           for error in typecheck(&source, &ast) {
-            print_error(filename, &source, error);
+            print::error(filename, &source, error);
           }
         }
-        Err(details) => print_error(filename, &source, details),
+        Err(details) => print::error(filename, &source, details),
       },
       _ => unreachable!(),
     }
