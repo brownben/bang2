@@ -349,18 +349,9 @@ impl<'s> Compiler<'s> {
           BinaryOperator::Equal => self.emit_opcode(span, OpCode::Equal),
           BinaryOperator::Greater => self.emit_opcode(span, OpCode::Greater),
           BinaryOperator::Less => self.emit_opcode(span, OpCode::Less),
-          BinaryOperator::NotEqual => {
-            self.emit_opcode(span, OpCode::Equal);
-            self.emit_opcode(span, OpCode::Not);
-          }
-          BinaryOperator::GreaterEqual => {
-            self.emit_opcode(span, OpCode::Less);
-            self.emit_opcode(span, OpCode::Not);
-          }
-          BinaryOperator::LessEqual => {
-            self.emit_opcode(span, OpCode::Greater);
-            self.emit_opcode(span, OpCode::Not);
-          }
+          BinaryOperator::NotEqual => self.emit_opcode(span, OpCode::NotEqual),
+          BinaryOperator::GreaterEqual => self.emit_opcode(span, OpCode::GreaterEqual),
+          BinaryOperator::LessEqual => self.emit_opcode(span, OpCode::LessEqual),
           _ => unreachable!(),
         }
       }
@@ -473,6 +464,7 @@ impl<'s> Compiler<'s> {
       self.emit_constant_string(span, identifier);
     }
   }
+
   fn and(&mut self, span: Span, left: &Expression<'s>, right: &Expression<'s>) {
     self.compile_expression(left);
     let jump = self.emit_jump(span, OpCode::JumpIfFalse);

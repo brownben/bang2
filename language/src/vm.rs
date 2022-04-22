@@ -40,6 +40,24 @@ macro_rules! numeric_expression {
   };
 }
 
+macro_rules! comparison_expression {
+  ($vm:expr, $token:tt,  $chunk:expr, $ip:expr) => {
+    let (right, left) = ($vm.pop(), $vm.pop());
+
+    match (left, right) {
+      (Value::Number(left), Value::Number(right)) => {
+        $vm.push(Value::Boolean(left $token right));
+      }
+      (Value::String(left), Value::String(right)) => {
+        $vm.push(Value::Boolean(left $token right));
+      }
+      _ => {
+        break runtime_error!(($vm, $chunk, $ip), "Operands must be two numbers or two strings.");
+      }
+    }
+  };
+}
+
 struct CallFrame {
   ip: usize,
   offset: usize,
@@ -180,44 +198,25 @@ impl VM {
           self.push(Value::Boolean(left == right));
           ip += 1;
         }
-        OpCode::Less => {
+        OpCode::NotEqual => {
           let (right, left) = (self.pop(), self.pop());
-
-          match (left, right) {
-            (Value::Number(left), Value::Number(right)) => {
-              self.push(Value::Boolean(left < right));
-            }
-            (Value::String(left), Value::String(right)) => {
-              self.push(Value::Boolean(left < right));
-            }
-            _ => {
-              break runtime_error!(
-                (self, chunk, ip),
-                "Operands must be two numbers or two strings.",
-              );
-            }
-          }
-
+          self.push(Value::Boolean(left != right));
+          ip += 1;
+        }
+        OpCode::Less => {
+          comparison_expression!(self, <, chunk, ip);
           ip += 1;
         }
         OpCode::Greater => {
-          let (right, left) = (self.pop(), self.pop());
-
-          match (left, right) {
-            (Value::Number(left), Value::Number(right)) => {
-              self.push(Value::Boolean(left > right));
-            }
-            (Value::String(left), Value::String(right)) => {
-              self.push(Value::Boolean(left > right));
-            }
-            _ => {
-              break runtime_error!(
-                (self, chunk, ip),
-                "Operands must be two numbers or two strings.",
-              );
-            }
-          }
-
+          comparison_expression!(self, >, chunk, ip);
+          ip += 1;
+        }
+        OpCode::LessEqual => {
+          comparison_expression!(self, <=, chunk, ip);
+          ip += 1;
+        }
+        OpCode::GreaterEqual => {
+          comparison_expression!(self, >=, chunk, ip);
           ip += 1;
         }
 
