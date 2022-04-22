@@ -5,8 +5,11 @@ use crate::{
 
 pub fn define_globals(vm: &mut VM) {
   let print = NativeFunction::create("print", 1, |args| {
-    println!("{}", args[0]);
-    Value::Null
+    match &args[0] {
+      Value::String(string) => println!("{}", string),
+      value => println!("{}", value),
+    }
+    args[0].clone()
   });
   let type_ = NativeFunction::create("type", 1, |args| Value::from(args[0].get_type()));
 

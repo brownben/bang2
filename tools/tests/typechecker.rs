@@ -247,9 +247,9 @@ let d: number = identity(3.5)
 #[test]
 fn functions() {
   assert_correct!("let func: (number, number) -> number = (a: number, b: number) => a + b");
-  assert_correct!("let a: ((any) -> null) | ((any) -> string) = print");
+  assert_correct!("let a: (string) -> string = print");
   assert_correct!("let a: ((any) -> null) | ((any) -> string) = type");
-  assert_correct!("let p: (any) -> null = print\nlet t: (any) -> string = type\n");
+  assert_correct!("let p: (any) -> any = print\nlet t: (any) -> string = type\n");
   assert_correct!(
     "let func: (number | string) -> number | string = (a: number | string | boolean) => 7"
   );

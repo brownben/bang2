@@ -207,9 +207,9 @@ let a = (
 
 bang_test!(call_trailing_comma
 "
-let a = print(1,) == null
+let a = print(1,)
 "
-  a == true
+  a == 1
 );
 
 bang_test!(blank_return_is_null

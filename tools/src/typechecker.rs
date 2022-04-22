@@ -292,7 +292,7 @@ impl<'s> Typechecker<'s> {
     self.solved_scope -= 1;
   }
 
-  fn new_existential(&mut self) -> Existential {
+  pub fn new_existential(&mut self) -> Existential {
     self.existential_id += 1;
     self.existentials.push(self.existential_id);
     self.existential_id

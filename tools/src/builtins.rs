@@ -2,7 +2,11 @@ use crate::typechecker::{Type, Typechecker};
 use bang_language::ast::expression::LiteralType;
 
 pub fn define_globals(typechecker: &mut Typechecker) {
-  let print = Type::Function(vec![Type::Any], Box::new(Type::Literal(LiteralType::Null)));
+  let print_arg_existential = typechecker.new_existential();
+  let print = Type::Function(
+    vec![Type::Existential(print_arg_existential)],
+    Box::new(Type::Existential(print_arg_existential)),
+  );
   let type_ = Type::Function(
     vec![Type::Any],
     Box::new(Type::Literal(LiteralType::String)),

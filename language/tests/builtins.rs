@@ -19,9 +19,8 @@ let e = type('hello')
 bang_test!(print
 "
 let a = print(3)
-let aIsNull = a == null
 "
-  aIsNull == true
+  a == 3
 );
 
 bang_test!(correct_number_of_arguments_builtin_function
