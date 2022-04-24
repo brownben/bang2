@@ -507,3 +507,12 @@ let func = (a: boolean?) ->
     );
   }
 }
+
+#[test]
+fn list() {
+  assert_correct!("[1, 2, 3]");
+  assert_correct!("[null, false, true]");
+  assert_correct!("let a: (number | string)[] = [1, 2, 3]");
+  assert_correct!("let a: (number | string)[] = [1, 'hello', 3]");
+  assert_fails!("let a: (number | string)[] = [1, null, 3]");
+}

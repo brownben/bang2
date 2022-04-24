@@ -166,3 +166,21 @@ let x = iffy(9)
 "
   x == 0
 );
+
+bang_test!(filled_list_truthy
+"
+let a
+if ([1, 2])
+    a = true
+"
+  a == true
+);
+
+bang_test!(empty_list_falsy
+"
+let a = false
+if ([])
+    a = true
+"
+  a == false
+);

@@ -72,6 +72,7 @@ enum Error {
   ExpectedClosingBracket,
   ExpectedOpeningBrace,
   ExpectedClosingBrace,
+  ExpectedClosingSquare,
   ExpectedExpression,
   ExpectedFunctionArrow,
   ExpectedNewLine,
@@ -90,6 +91,7 @@ impl Error {
       Self::ExpectedClosingBracket => "Expected ')'",
       Self::ExpectedOpeningBrace => "Expected '{'",
       Self::ExpectedClosingBrace => "Expected '}'",
+      Self::ExpectedClosingSquare => "Expected ']'",
       Self::ExpectedExpression => "Expected Expression",
       Self::ExpectedFunctionArrow => "Expected Function Arrow (-> / =>)",
       Self::ExpectedNewLine => "Expected New Line",
@@ -109,6 +111,7 @@ impl Error {
       | Self::ExpectedClosingBracket
       | Self::ExpectedOpeningBrace
       | Self::ExpectedClosingBrace
+      | Self::ExpectedClosingSquare
       | Self::ExpectedExpression
       | Self::ExpectedFunctionArrow
       | Self::ExpectedNewLine
@@ -320,6 +323,7 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
       | TokenType::True
       | TokenType::False
       | TokenType::Null => self.literal(),
+      TokenType::LeftSquare => self.list(),
       TokenType::Unknown => Err(Error::UnexpectedCharacter),
       _ => Err(Error::ExpectedExpression),
     }
@@ -727,6 +731,28 @@ impl<'source> Parser<'source, '_> {
     ))
   }
 
+  fn list(&mut self) -> ExpressionResult<'source> {
+    let start_token = self.current_advance();
+
+    let mut items = Vec::new();
+    let end_token = loop {
+      self.ignore_newline();
+      if self.current().ttype == TokenType::RightSquare {
+        break self.current();
+      }
+
+      items.push(self.expression()?);
+      self.next();
+
+      if !self.matches(TokenType::Comma) {
+        self.ignore_newline();
+        break self.expect(TokenType::RightSquare, Error::ExpectedClosingSquare)?;
+      }
+    };
+
+    Ok(expression!(List { items }, (start_token, end_token)))
+  }
+
   fn variable(&mut self, can_assign: bool) -> ExpressionResult<'source> {
     let identifier = self.current();
     let name = identifier.get_value(self.source);
@@ -857,6 +883,7 @@ impl<'source> Parser<'source, '_> {
 
     match self.current().ttype {
       TokenType::Pipe => self.type_union(t?),
+      TokenType::LeftSquare => self.type_list(t?),
       TokenType::Question => Ok(self.type_optional(t?)),
       _ => t,
     }
@@ -876,6 +903,14 @@ impl<'source> Parser<'source, '_> {
     let token = self.current_advance();
 
     types!(Optional(Box::new(left)), (left.span, token))
+  }
+
+  fn type_list(&mut self, left: TypeExpression<'source>) -> TypeResult<'source> {
+    self.current_advance();
+    let end_token = self.expect(TokenType::RightSquare, Error::ExpectedClosingSquare)?;
+    self.next();
+
+    Ok(types!(List(Box::new(left)), (left.span, end_token)))
   }
 
   fn type_group(&mut self) -> TypeResult<'source> {
@@ -1219,6 +1254,21 @@ mod tests {
       assert_eq!(body.len(), 3);
     } else {
       panic!("Expected block statement");
+    }
+  }
+
+  #[test]
+  fn should_parse_list() {
+    let source = "[44, null, 'hello']\n";
+    let tokens = tokenize(source);
+    let statements = super::parse(source, &tokens).unwrap();
+
+    if let Expr::List { items } = unwrap_expression(&statements[0]) {
+      assert_literal(&items[0], "44", LiteralType::Number);
+      assert_literal(&items[1], "null", LiteralType::Null);
+      assert_literal(&items[2], "hello", LiteralType::String);
+    } else {
+      panic!("Expected list");
     }
   }
 }

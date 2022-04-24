@@ -1,4 +1,4 @@
-use std::{fmt::Display, rc::Rc};
+use std::{cell::RefCell, fmt::Display, rc::Rc};
 
 pub struct Function {
   pub name: String,
@@ -25,6 +25,7 @@ pub enum Value {
   String(Rc<str>),
   Function(Rc<Function>),
   NativeFunction(Rc<NativeFunction>),
+  List(Rc<RefCell<Vec<Value>>>),
 }
 
 impl Value {
@@ -42,6 +43,7 @@ impl Value {
       Self::Number(value) => (value - 0.0).abs() < f64::EPSILON,
       Self::String(value) => value.is_empty(),
       Self::Function(_) | Self::NativeFunction(_) => false,
+      Self::List(value) => value.borrow().is_empty(),
     }
   }
 
@@ -52,6 +54,7 @@ impl Value {
       Self::Number(_) => "number",
       Self::Boolean(_) => "boolean",
       Self::Function(_) | Self::NativeFunction(_) => "function",
+      Self::List(_) => "list",
     }
   }
 }
@@ -67,6 +70,11 @@ impl PartialEq for Value {
       (Self::String(value), Self::String(other)) => value.eq(other),
       (Self::Function(value), Self::Function(other)) => Rc::ptr_eq(value, other),
       (Self::NativeFunction(value), Self::NativeFunction(other)) => Rc::ptr_eq(value, other),
+      (Self::List(value), Self::List(other)) => {
+        let a = value.borrow();
+        let b = other.borrow();
+        a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a == b)
+      }
       _ => false,
     }
   }
@@ -81,6 +89,16 @@ impl Display for Value {
       Self::String(value) => write!(f, "'{}'", value),
       Self::Function(value) => write!(f, "<function {}>", value.name),
       Self::NativeFunction(value) => write!(f, "<function {}>", value.name),
+      Self::List(value) => write!(
+        f,
+        "[{}]",
+        value
+          .borrow()
+          .iter()
+          .map(std::string::ToString::to_string)
+          .collect::<Vec<String>>()
+          .join(", ")
+      ),
     }
   }
 }
@@ -127,5 +145,10 @@ impl From<Function> for Value {
 impl From<NativeFunction> for Value {
   fn from(value: NativeFunction) -> Self {
     Self::NativeFunction(Rc::from(value))
+  }
+}
+impl From<Vec<Self>> for Value {
+  fn from(value: Vec<Self>) -> Self {
+    Self::List(Rc::from(RefCell::new(value)))
   }
 }

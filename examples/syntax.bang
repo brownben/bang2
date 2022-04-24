@@ -8,6 +8,7 @@
 // - Booleans
 // - Null
 // - Functions
+// - List
 
 // Strings
 // ==========================
@@ -96,6 +97,19 @@ null
 (() => 3)()        // 3
 ((x: number) => x + 3)(4)  // 7
 
+
+// Lists
+// ==========================
+
+[1, 2, 3]
+
+// Truthy if not empty
+!![] // false
+!![1, 2, 3] // true
+
+// Equality is based of structure
+[1, 2, 3] == [1, 2, 3] // true
+[1, 2, 3] != [1, 2, 3] // false
 
 // ==========================
 // Logical Operators

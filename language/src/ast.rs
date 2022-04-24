@@ -120,6 +120,9 @@ pub mod expression {
     Group {
       expression: Box<Expression<'source>>,
     },
+    List {
+      items: Vec<Expression<'source>>,
+    },
     Literal {
       type_: LiteralType,
       value: &'source str,
@@ -148,6 +151,7 @@ pub mod expression {
         } => {
           left.has_side_effect() || right.has_side_effect() || *operator == BinaryOperator::Pipeline
         }
+        Expr::List { items } => items.iter().any(|item| item.has_side_effect()),
       }
     }
 
@@ -165,6 +169,7 @@ pub mod expression {
           operator,
           ..
         } => left.is_constant() && right.is_constant() && *operator != BinaryOperator::Pipeline,
+        Expr::List { items } => items.iter().all(|item| item.is_constant()),
       }
     }
   }
@@ -430,6 +435,7 @@ pub mod types {
     Function(Box<TypeExpression<'s>>, Vec<TypeExpression<'s>>),
     Optional(Box<TypeExpression<'s>>),
     Group(Box<TypeExpression<'s>>),
+    List(Box<TypeExpression<'s>>),
   }
 
   macro_rules! types {
@@ -517,6 +523,7 @@ pub trait Visitor {
       }
       Expr::Function { body, .. } => self.visit_statement(body),
       Expr::Literal { .. } | Expr::Variable { .. } => {}
+      Expr::List { items } => items.iter().for_each(|item| self.visit_expression(item)),
     }
 
     self.exit_expression(expression);

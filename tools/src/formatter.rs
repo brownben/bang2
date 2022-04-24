@@ -149,6 +149,10 @@ impl<'source> Formatter<'source> {
         self.fmt_type(type_, f)?;
         write!(f, "?")?;
       }
+      Type::List(type_) => {
+        self.fmt_type(type_, f)?;
+        write!(f, "[]")?;
+      }
     }
 
     Ok(())
@@ -261,6 +265,21 @@ impl<'source> Formatter<'source> {
       }
       Expr::Group { expression, .. } => {
         self.write_group( expression, indentation, f)?;
+      }
+      Expr::List {
+        items
+      } => {
+        write!(f, "[")?;
+        Self::write_list(
+          items,
+          |item| self.line(item.span),
+          &mut |f, item, i| self.fmt_expression(item, i, f),
+          self.line(expression.span),
+          indentation,
+          false,
+          f,
+        )?;
+        write!(f, "]")?;
       }
       Expr::Literal { type_, value, .. } => {
         match type_ {

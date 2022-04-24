@@ -358,6 +358,26 @@ impl VM {
             }
           }
         }
+
+        OpCode::List => {
+          let length = chunk.get_value(ip + 1);
+          let start_of_items = self.stack.len() - length as usize;
+
+          let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
+          self.push(Value::from(items));
+
+          ip += 2;
+        }
+        OpCode::ListLong => {
+          let length = chunk.get_long_value(ip + 1);
+          let start_of_items = self.stack.len() - length as usize;
+
+          let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
+          self.push(Value::from(items));
+
+          ip += 3;
+        }
+
         OpCode::Unknown => {
           break runtime_error!((self, chunk, ip), "Unknown OpCode");
         }

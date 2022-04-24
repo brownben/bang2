@@ -53,6 +53,8 @@ fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
     OpCode::GetLocal => byte_instruction("Get Local", chunk, position),
     OpCode::SetLocal => byte_instruction("Set Local", chunk, position),
     OpCode::Call => byte_instruction("Call", chunk, position),
+    OpCode::List => byte_instruction("List", chunk, position),
+    OpCode::ListLong => double_byte_instruction("List Long", chunk, position),
     OpCode::Unknown => simple_instruction("Unknown OpCode", position),
   }
 }
@@ -84,6 +86,13 @@ fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
 
   println!("{} {}", name, value);
   position + 2
+}
+
+fn double_byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
+  let value = chunk.get_long_value(position + 1);
+
+  println!("{} {}", name, value);
+  position + 3
 }
 
 fn jump_instruction(name: &str, direction: i8, chunk: &Chunk, position: usize) -> usize {

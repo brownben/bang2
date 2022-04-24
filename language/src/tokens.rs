@@ -9,6 +9,8 @@ pub enum TokenType {
   RightParen,
   LeftBrace,
   RightBrace,
+  LeftSquare,
+  RightSquare,
 
   // Separators
   Comma,
@@ -189,6 +191,8 @@ impl<'source> Tokeniser<'source> {
       b')' => (TokenType::RightParen, 1),
       b'{' => (TokenType::LeftBrace, 1),
       b'}' => (TokenType::RightBrace, 1),
+      b'[' => (TokenType::LeftSquare, 1),
+      b']' => (TokenType::RightSquare, 1),
       b',' => (TokenType::Comma, 1),
       b'.' => (TokenType::Dot, 1),
       b'+' => (TokenType::Plus, 1),

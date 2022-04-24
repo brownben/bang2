@@ -29,6 +29,7 @@ pub enum Type {
   Existential(Existential),
   Function(Vec<Type>, Box<Type>),
   Union(Box<Type>, Box<Type>),
+  List(Box<Type>),
 }
 impl Type {
   fn includes(&self, alpha: Existential) -> bool {
@@ -39,6 +40,18 @@ impl Type {
       }
       Self::Existential(var) => *var == alpha,
       Self::Union(a, b) => a.includes(alpha) || b.includes(alpha),
+      Self::List(element_type) => element_type.includes(alpha),
+    }
+  }
+
+  fn includes_type(&self, t: &Type) -> bool {
+    match (self, t) {
+      (a, b) if a == b => true,
+      (Self::Any, _) | (Self::Boolean, Self::Literal(LiteralType::True | LiteralType::False)) => {
+        true
+      }
+      (Self::Union(c, d), b) => c.includes_type(b) || d.includes_type(b),
+      _ => false,
     }
   }
 
@@ -68,6 +81,7 @@ impl Type {
 
   fn union(a: Self, b: Self) -> Self {
     match (a, b) {
+      (a, b) if a.includes_type(&b) => a,
       (Self::Never, Self::Never) => Self::Never,
       (a, Self::Never) => a,
       (Self::Never, b) => b,
@@ -98,6 +112,13 @@ impl fmt::Display for Type {
       Self::Existential(ex) => write!(f, "^{ex}"),
       Self::Union(a, b) => write!(f, "{a} | {b}"),
       Self::Function(arguments, return_type) => write!(f, "({arguments:?}) -> {return_type}"),
+      Self::List(element_type) => {
+        if let Self::Union(_, _) | Self::Function(_, _) = **element_type {
+          write!(f, "({element_type})[]")
+        } else {
+          write!(f, "{element_type}[]")
+        }
+      }
     }
   }
 }
@@ -224,6 +245,7 @@ impl<'s> Typechecker<'s> {
         Type::Literal(LiteralType::Null),
         self.type_from_annotation(t),
       ),
+      TypeItem::List(box t) => Type::List(Box::new(self.type_from_annotation(t))),
     }
   }
 
@@ -343,6 +365,7 @@ impl<'s> Typechecker<'s> {
         Box::new(self.apply_context(return_type)),
       ),
       Type::Union(a, b) => Type::union(self.apply_context(a), self.apply_context(b)),
+      Type::List(type_) => Type::List(Box::new(self.apply_context(type_))),
     }
   }
 
@@ -359,6 +382,7 @@ impl<'s> Typechecker<'s> {
       (Type::Union(a, b), Type::Union(a1, b1)) => {
         (self.subtype(a, a1) && self.subtype(b, b1)) || (self.subtype(a, b1) && self.subtype(b, a1))
       }
+      (Type::List(a), Type::List(b)) => self.subtype(a, b),
       (Type::Existential(alpha), b @ Type::Union(_, _)) => {
         if b.includes(*alpha) {
           false
@@ -440,16 +464,14 @@ impl<'s> Typechecker<'s> {
         expression,
         type_,
       } => {
-        let expression_type = if let Some(expression) = expression {
-          self.synthesize_expression(expression)
-        } else {
-          Type::Literal(LiteralType::Null)
-        };
-
         let annotation = if let Some(annotation) = type_ {
           self.type_from_annotation(annotation)
+        } else if let Some(expression) = expression {
+          self
+            .synthesize_expression(expression)
+            .uplevel_literal_booleans()
         } else {
-          expression_type.uplevel_literal_booleans()
+          Type::Literal(LiteralType::Null)
         };
 
         if let Some(expression) = expression {
@@ -730,6 +752,19 @@ impl<'s> Typechecker<'s> {
           }
           BinaryOperator::Pipeline => unreachable!(),
         }
+      }
+
+      Expr::List { items } => {
+        if items.is_empty() {
+          return Type::List(Box::new(Type::Existential(self.new_existential())));
+        }
+
+        Type::List(Box::new(
+          items
+            .iter()
+            .map(|item| self.synthesize_expression(item))
+            .fold(Type::Never, Type::union),
+        ))
       }
     }
   }

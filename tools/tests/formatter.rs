@@ -421,3 +421,14 @@ fn declaration_statement_with_type() {
     "let print: null | function | boolean"
   );
 }
+
+#[test]
+fn list() {
+  assert_format!("[1, 2, 3]");
+  assert_format!("[1, 2, 3,]", "[1, 2, 3]");
+  assert_format!("[]");
+  assert_format!("[  ] ", "[]");
+  assert_format!("['hello',    () =>   8, 5]", "['hello', () => 8, 5]");
+  assert_format!("[\n  'hello', () => 8, 5, \n]");
+  assert_format!("[\n  'hello',\n  () => 8,\n  5,\n]");
+}

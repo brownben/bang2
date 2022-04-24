@@ -266,3 +266,26 @@ bang_test!(unterminated_string_2
 "
   CompileError
 );
+
+bang_test!(lists_equality
+"
+let a = [] == []
+let b = [1, 2, 3] == [1, 2, 3]
+let c = [1, 2, 3] == [1, 2, 3, 4]
+let d = [1, 2, 3] == [1, 2]
+let e = [1, [2, 3]] == [1, [2, 3]]
+
+let f = [1, 'hello', null] == [1, 'hello', null]
+let g = [1, 'hello', null]
+let h = g == g
+let i = [1, 'hello', null] == g
+"
+  a == true
+  b == true
+  c == false
+  d == false
+  e == true
+  f == true
+  h == true
+  i == true
+);

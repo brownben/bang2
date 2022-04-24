@@ -30,6 +30,8 @@ pub enum OpCode {
   SetLocal,
   Return,
   Call,
+  List,
+  ListLong,
   Unknown,
 }
 impl From<u8> for OpCode {
@@ -64,6 +66,8 @@ impl From<u8> for OpCode {
       26 => Self::SetLocal,
       27 => Self::Return,
       28 => Self::Call,
+      29 => Self::List,
+      30 => Self::ListLong,
       _ => Self::Unknown,
     }
   }

@@ -8,12 +8,14 @@ let b = type(true)
 let c = type(null)
 let d = type(type)
 let e = type('hello')
+let f = type([])
 "
   a == "number"
   b == "boolean"
   c == "null"
   d == "function"
   e == "string"
+  f == "list"
 );
 
 bang_test!(print

@@ -98,6 +98,16 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
         remove_carriage_returns(text)
       );
     }
+    Expr::List { items } => {
+      println!("{}List", prefix_start);
+
+      if let Some((last, items)) = items.split_last() {
+        for item in items {
+          print_expression(source, item, prefix_list_indent_start, prefix_list_indent);
+        }
+        print_expression(source, last, prefix_start_indent, prefix_blank_indent);
+      }
+    }
   }
 }
 

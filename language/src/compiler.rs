@@ -19,6 +19,7 @@ enum Error {
   TooManyArguments,
   TooManyParameters,
   TooManyLocals,
+  TooLongList,
   VariableAlreadyExists,
   BuiltinNotFound,
 }
@@ -32,6 +33,7 @@ impl Error {
       Self::VariableAlreadyExists => "Variable Already Exists",
       Self::BuiltinNotFound => "Builtin Not Found",
       Self::TooManyLocals => "Too Many Local Variables",
+      Self::TooLongList => "Too Long List",
     }
   }
 
@@ -46,6 +48,7 @@ impl Error {
       Self::TooManyLocals => "There is a limit of 255 local variables at once".to_string(),
       Self::VariableAlreadyExists => format!("Variable '{value}' has been defined already"),
       Self::BuiltinNotFound => format!("Could not find value in module '{value}'"),
+      Self::TooLongList => "List is too long, can have a maximum of 2^16 elements".to_string(),
     }
   }
 
@@ -442,6 +445,21 @@ impl<'s> Compiler<'s> {
         );
       }
       Expr::Comment { expression, .. } => self.compile_expression(expression),
+      Expr::List { items } => {
+        for item in items {
+          self.compile_expression(item);
+        }
+
+        if let Ok(length) = u8::try_from(items.len()) {
+          self.emit_opcode(span, OpCode::List);
+          self.emit_value(span, length);
+        } else if let Ok(length) = u16::try_from(items.len()) {
+          self.emit_opcode(span, OpCode::ListLong);
+          self.emit_long_value(span, length);
+        } else {
+          self.error(Error::TooLongList, span, "");
+        }
+      }
     }
   }
 
