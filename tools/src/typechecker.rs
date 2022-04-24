@@ -44,7 +44,7 @@ impl Type {
     }
   }
 
-  fn includes_type(&self, t: &Type) -> bool {
+  fn includes_type(&self, t: &Self) -> bool {
     match (self, t) {
       (a, b) if a == b => true,
       (Self::Any, _) | (Self::Boolean, Self::Literal(LiteralType::True | LiteralType::False)) => {
@@ -79,7 +79,7 @@ impl Type {
     }
   }
 
-  fn union(a: Self, b: Self) -> Self {
+  pub fn union(a: Self, b: Self) -> Self {
     match (a, b) {
       (a, b) if a.includes_type(&b) => a,
       (Self::Never, Self::Never) => Self::Never,
@@ -111,7 +111,15 @@ impl fmt::Display for Type {
       Self::Literal(lit) => write!(f, "{lit}"),
       Self::Existential(ex) => write!(f, "^{ex}"),
       Self::Union(a, b) => write!(f, "{a} | {b}"),
-      Self::Function(arguments, return_type) => write!(f, "({arguments:?}) -> {return_type}"),
+      Self::Function(arguments, return_type) => write!(
+        f,
+        "({}) -> {return_type}",
+        arguments
+          .iter()
+          .map(std::string::ToString::to_string)
+          .collect::<Vec<_>>()
+          .join(", ")
+      ),
       Self::List(element_type) => {
         if let Self::Union(_, _) | Self::Function(_, _) = **element_type {
           write!(f, "({element_type})[]")
@@ -314,10 +322,16 @@ impl<'s> Typechecker<'s> {
     self.solved_scope -= 1;
   }
 
-  pub fn new_existential(&mut self) -> Existential {
+  pub fn new_existential_value(&mut self) -> Existential {
     self.existential_id += 1;
     self.existentials.push(self.existential_id);
     self.existential_id
+  }
+
+  pub fn new_existential(&mut self) -> Type {
+    self.existential_id += 1;
+    self.existentials.push(self.existential_id);
+    Type::Existential(self.existential_id)
   }
 
   fn create_existentials_for_function(
@@ -326,9 +340,9 @@ impl<'s> Typechecker<'s> {
     arguments_length: usize,
   ) -> (Vec<Existential>, Existential) {
     let arguments: Vec<Existential> = (0..arguments_length)
-      .map(|_| self.new_existential())
+      .map(|_| self.new_existential_value())
       .collect();
-    let return_type = self.new_existential();
+    let return_type = self.new_existential_value();
 
     self.define_existential(
       alpha,
@@ -531,7 +545,7 @@ impl<'s> Typechecker<'s> {
       Stmt::Comment { .. } => None,
       Stmt::Import { module, items } => {
         for item in items {
-          if let Some(type_) = get_builtin_module_type(module, item.name) {
+          if let Some(type_) = get_builtin_module_type(self, module, item.name) {
             if let Some(alias) = item.alias {
               self.define(alias, &type_);
             } else {
@@ -621,7 +635,7 @@ impl<'s> Typechecker<'s> {
         let return_type = if let Some(rt) = return_type {
           self.type_from_annotation(rt)
         } else {
-          Type::Existential(self.new_existential())
+          self.new_existential()
         };
         let arg_types = parameters
           .iter()
@@ -629,7 +643,7 @@ impl<'s> Typechecker<'s> {
             if let Some(ty) = &param.type_ {
               self.type_from_annotation(ty)
             } else {
-              Type::Existential(self.new_existential())
+              self.new_existential()
             }
           })
           .collect::<Vec<_>>();
@@ -756,7 +770,7 @@ impl<'s> Typechecker<'s> {
 
       Expr::List { items } => {
         if items.is_empty() {
-          return Type::List(Box::new(Type::Existential(self.new_existential())));
+          return Type::List(Box::new(self.new_existential()));
         }
 
         Type::List(Box::new(

@@ -329,3 +329,92 @@ let d = '-18y' >> toNumber >> isNan
     d == true
   );
 }
+
+mod list {
+  use super::*;
+
+  bang_test!(length
+"
+from list import { length, isEmpty }
+
+let a = length([1, 2, 3])
+let b = length([])
+let c = length(3) == null
+let d = isEmpty([])
+let e = isEmpty([1, 2, 3])
+"
+    a == 3
+    b == 0
+    c == true
+    d == true
+    e == false
+  );
+
+  bang_test!(get
+"
+from list import { get }
+
+let a = [1, 2, 3] >> get(0)
+let b = [1, 2, 3] >> get(1)
+let c = [1, 2, 3] >> get(2)
+let d = ([1, 2, 3] >> get(3)) == null
+let e = [1, 2, 3] >> get(-1)
+"
+    a == 1
+    b == 2
+    c == 3
+    d == true
+    e == 3
+  );
+
+  bang_test!(push_pop
+"
+from list import { push, pop, length }
+
+let a = []
+a >> push(1)
+let b = length(a)
+a >> push(88)
+let c = length(a)
+let d = a >> pop()
+let e = length(a)
+
+let list = [1, 2]
+list >> push(3) >> push(4)
+let f = list >> pop()
+let g = list >> pop()
+"
+    b == 1
+    c == 2
+    d == 88
+    e == 1
+    f == 4
+    g == 3
+  );
+
+  bang_test!(includes
+"
+from list import { includes }
+
+let a = [] >> includes(7)
+let b = [1, 2, 3] >> includes(2)
+let c = [1, 2, 3] >> includes(4)
+"
+    a == false
+    b == true
+    c == false
+  );
+
+  bang_test!(reverse
+"
+from list import { reverse }
+
+let a = [1, 2, 3]
+let b = [1, 2, 3] >> reverse()
+let c = b == [3, 2, 1]
+let d = a == [1, 2, 3]
+"
+    c == true
+    d == true
+  );
+}

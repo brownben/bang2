@@ -516,3 +516,20 @@ fn list() {
   assert_correct!("let a: (number | string)[] = [1, 'hello', 3]");
   assert_fails!("let a: (number | string)[] = [1, null, 3]");
 }
+
+#[test]
+fn list_builtins() {
+  assert_correct!(
+    "
+from list import { length, isEmpty, get, pop, length, push, includes, reverse }
+
+let a: number? = [1, 2, 3] >> get(0)
+let b: number? = [1, 2, 3] >> pop()
+let c: (number[]) -> number = length
+let d: boolean = isEmpty([])
+let e: number[] = [1, 2, 3] >> push(7)
+let f: (number[], number) -> boolean = includes
+let g: (number | string)[] = [1, 'hello', 3] >> reverse()
+"
+  );
+}

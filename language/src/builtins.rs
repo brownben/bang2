@@ -39,6 +39,47 @@ macro_rules! function_wrapper {
     })
   };
 
+  ($name:literal, $function:expr, List,) => {
+    NativeFunction::create($name, 1, |args| match &args[0] {
+      Value::List(value) => {
+        let value = &mut value.borrow_mut();
+        Value::from($function(value))
+      }
+      _ => Value::Null,
+    })
+  };
+
+  ($name:literal, $function:expr, List, Any,) => {
+    NativeFunction::create($name, 2, |args| match &args[0] {
+      Value::List(value) => {
+        let mut value = value.borrow_mut();
+        Value::from($function(&mut value, args[1].clone()))
+      }
+      _ => Value::Null,
+    })
+  };
+
+  ($name:literal, $function:expr, List, Any, Returns,) => {
+    NativeFunction::create($name, 2, |args| match &args[0] {
+      Value::List(value) => {
+        let mut value = value.borrow_mut();
+        $function(&mut value, args[1].clone());
+        args[0].clone()
+      }
+      _ => Value::Null,
+    })
+  };
+
+  ($name:literal, $function:expr, List, Number,) => {
+    NativeFunction::create($name, 2, |args| match (&args[0], &args[1]) {
+      (Value::List(value), Value::Number(number)) => {
+        let mut value = value.borrow_mut();
+        Value::from($function(&mut value, number.clone()))
+      }
+      _ => Value::Null,
+    })
+  };
+
   ($name:literal, $function:expr, String, String,) => {
     NativeFunction::create($name, 2, |args| match (&args[0], &args[1]) {
       (Value::String(first), Value::String(second)) => {
@@ -61,7 +102,7 @@ macro_rules! function_wrapper {
 macro_rules! module {
   ($key:expr, {
     $($type:ident $value_name:literal :  $value:expr,)*
-    $($item_name:literal : $item_value:expr, ($($item_type:ident,)+),)*
+    $($item_name:literal : ($($item_type:ident,)+) => $item_value:expr,)*
   }) => {
     match $key {
       $(
@@ -75,50 +116,72 @@ macro_rules! module {
   };
 }
 
+#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+fn get_index(number: f64, length: usize) -> usize {
+  let index = number.round().abs() as usize;
+
+  if index >= length {
+    length
+  } else if number < 0.0 {
+    length - index
+  } else {
+    index
+  }
+}
+
 pub fn get_builtin_module_value(module: &str, value: &str) -> Option<Value> {
   match module {
     "maths" => module!(value, {
-      Number "PI":       std::f64::consts::PI,
-      Number "E":        std::f64::consts::E,
-      Number "INFINITY": std::f64::INFINITY,
-      "floor": f64::floor,  (Number,),
-      "ceil":  f64::ceil,   (Number,),
-      "round": f64::round,  (Number,),
-      "abs":   f64::abs,    (Number,),
-      "sqrt":  f64::sqrt,   (Number,),
-      "cbrt":  f64::cbrt,   (Number,),
-      "exp":   f64::exp,    (Number,),
-      "pow":   f64::powf,   (Number, Number,),
-      "log":   f64::log,    (Number, Number,),
-      "ln":    f64::ln,     (Number,),
-      "sin":   f64::sin,    (Number,),
-      "cos":   f64::cos,    (Number,),
-      "tan":   f64::tan,    (Number,),
-      "asin":  f64::asin,   (Number,),
-      "acos":  f64::acos,   (Number,),
-      "atan":  f64::atan,   (Number,),
-      "sinh":  f64::sinh,   (Number,),
-      "cosh":  f64::cosh,   (Number,),
-      "tanh":  f64::tanh,   (Number,),
-      "asinh": f64::asinh,  (Number,),
-      "acosh": f64::acosh,  (Number,),
-      "atanh": f64::atanh,  (Number,),
-      "isNan": f64::is_nan, (Number,),
-      "radiansToDegrees": f64::to_degrees, (Number,),
-      "degreesToRadians": f64::to_radians, (Number,),
+      Number "PI":        std::f64::consts::PI,
+      Number "E":         std::f64::consts::E,
+      Number "INFINITY":  std::f64::INFINITY,
+      "floor": (Number,) => f64::floor,
+      "ceil":  (Number,) => f64::ceil,
+      "round": (Number,) => f64::round,
+      "abs":   (Number,) => f64::abs,
+      "sqrt":  (Number,) => f64::sqrt,
+      "cbrt":  (Number,) => f64::cbrt,
+      "sin":   (Number,) => f64::sin,
+      "cos":   (Number,) => f64::cos,
+      "tan":   (Number,) => f64::tan,
+      "asin":  (Number,) => f64::asin,
+      "acos":  (Number,) => f64::acos,
+      "atan":  (Number,) => f64::atan,
+      "sinh":  (Number,) => f64::sinh,
+      "cosh":  (Number,) => f64::cosh,
+      "tanh":  (Number,) => f64::tanh,
+      "asinh": (Number,) => f64::asinh,
+      "acosh": (Number,) => f64::acosh,
+      "atanh": (Number,) => f64::atanh,
+      "isNan": (Number,) => f64::is_nan,
+      "exp":   (Number,) => f64::exp,
+      "ln":    (Number,) => f64::ln,
+      "pow":   (Number, Number,) => f64::powf,
+      "log":   (Number, Number,) => f64::log,
+      "radiansToDegrees": (Number,) => f64::to_degrees,
+      "degreesToRadians": (Number,) => f64::to_radians,
     }),
     "string" => module!(value, {
-      "length":      str::len,          (String,),
-      "trim":        str::trim,         (String,),
-      "trimStart":   str::trim_start,   (String,),
-      "trimEnd":     str::trim_end,     (String,),
-      "repeat":      str::repeat,       (String, Number,),
-      "includes":    str::contains,     (String, String,),
-      "startsWith":  str::starts_with,  (String, String,),
-      "endsWith":    str::ends_with,    (String, String,),
-      "toLowerCase": str::to_lowercase, (String,),
-      "toUpperCase": str::to_uppercase, (String,),
-      "toNumber":  |s| str::parse::<f64>(s).unwrap_or(f64::NAN), (String,),
+      "length":      (String,) => str::len,
+      "trim":        (String,) => str::trim,
+      "trimStart":   (String,) => str::trim_start,
+      "trimEnd":     (String,) => str::trim_end,
+      "repeat":      (String, Number,) => str::repeat,
+      "includes":    (String, String,) => str::contains,
+      "startsWith":  (String, String,) => str::starts_with,
+      "endsWith":    (String, String,) => str::ends_with,
+      "toLowerCase": (String,) => str::to_lowercase,
+      "toUpperCase": (String,) => str::to_uppercase,
+      "toNumber":    (String,) => |s| str::parse::<f64>(s).unwrap_or(f64::NAN),
+    }),
+    "list" => module!(value, {
+      "length":   (List,) => Vec::len,
+      "isEmpty":  (List,) => Vec::is_empty,
+      "push":     (List, Any, Returns,) => Vec::push,
+      "pop":      (List,) => |list: &mut Vec<_>| list.pop().unwrap_or(Value::Null),
+      "includes": (List, Any,) => |list: &mut Vec<_>, value| list.contains(&value),
+      "reverse":  (List,) => |list: &mut Vec<_>| list.iter().rev().cloned().collect::<Vec<_>>(),
+      "get": (List, Number,) => |list: &mut Vec<_>, index| list.get(get_index(index, list.len())).cloned().unwrap_or(Value::Null),
     }),
     _ => None,
   }

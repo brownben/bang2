@@ -152,3 +152,8 @@ impl From<Vec<Self>> for Value {
     Self::List(Rc::from(RefCell::new(value)))
   }
 }
+impl From<()> for Value {
+  fn from(_value: ()) -> Self {
+    Self::Null
+  }
+}

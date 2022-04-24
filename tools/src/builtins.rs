@@ -4,8 +4,8 @@ use bang_language::ast::expression::LiteralType;
 pub fn define_globals(typechecker: &mut Typechecker) {
   let print_arg_existential = typechecker.new_existential();
   let print = Type::Function(
-    vec![Type::Existential(print_arg_existential)],
-    Box::new(Type::Existential(print_arg_existential)),
+    vec![print_arg_existential.clone()],
+    Box::new(print_arg_existential),
   );
   let type_ = Type::Function(
     vec![Type::Any],
@@ -54,7 +54,11 @@ macro_rules! module {
   };
 }
 
-pub fn get_builtin_module_type(module: &str, value: &str) -> Option<Type> {
+pub fn get_builtin_module_type(
+  typechecker: &mut Typechecker,
+  module: &str,
+  value: &str,
+) -> Option<Type> {
   match module {
     "maths" => module!(value, {
       Number "PI",
@@ -99,6 +103,53 @@ pub fn get_builtin_module_type(module: &str, value: &str) -> Option<Type> {
       "toUpperCase": (String,) -> String,
       "toNumber":    (String,) -> NumberOrNull,
     }),
+    "list" => match value {
+      "length" => Some(Type::Function(
+        vec![Type::List(Box::new(Type::Any))],
+        Box::new(type_!(Number)),
+      )),
+      "isEmpty" => Some(Type::Function(
+        vec![Type::List(Box::new(Type::Any))],
+        Box::new(Type::Boolean),
+      )),
+      "push" => {
+        let generic = typechecker.new_existential();
+        Some(Type::Function(
+          vec![Type::List(Box::new(generic.clone())), generic.clone()],
+          Box::new(Type::List(Box::new(generic))),
+        ))
+      }
+      "includes" => {
+        let generic = typechecker.new_existential();
+        Some(Type::Function(
+          vec![Type::List(Box::new(generic.clone())), generic],
+          Box::new(Type::Boolean),
+        ))
+      }
+      "pop" => {
+        let generic = typechecker.new_existential();
+        Some(Type::Function(
+          vec![Type::List(Box::new(generic.clone()))],
+          Box::new(Type::union(generic, type_!(Null))),
+        ))
+      }
+      "get" => {
+        let generic = typechecker.new_existential();
+        Some(Type::Function(
+          vec![Type::List(Box::new(generic.clone())), type_!(Number)],
+          Box::new(Type::union(generic, type_!(Null))),
+        ))
+      }
+      "reverse" => {
+        let generic = typechecker.new_existential();
+        Some(Type::Function(
+          vec![Type::List(Box::new(generic.clone()))],
+          Box::new(Type::List(Box::new(generic))),
+        ))
+      }
+      _ => None,
+    },
+
     _ => None,
   }
 }
