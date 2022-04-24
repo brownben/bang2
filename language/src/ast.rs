@@ -1,5 +1,4 @@
 use crate::tokens::{CharacterPosition, LineNumber, Token};
-use std::ops;
 
 #[derive(Copy, Clone, Debug)]
 pub struct Span {
@@ -37,14 +36,6 @@ impl Span {
     }
 
     unreachable!()
-  }
-}
-impl From<ops::Range<CharacterPosition>> for Span {
-  fn from(range: ops::Range<CharacterPosition>) -> Self {
-    Self {
-      start: range.start,
-      end: range.end,
-    }
   }
 }
 impl From<&Token> for Span {
@@ -136,25 +127,6 @@ pub mod expression {
     },
   }
   impl<'s> Expr<'s> {
-    pub fn has_side_effect(&self) -> bool {
-      match self {
-        Expr::Assignment { .. } | Expr::Call { .. } => true,
-        Expr::Function { .. } | Expr::Variable { .. } | Expr::Literal { .. } => false,
-        Expr::Group { expression, .. }
-        | Expr::Unary { expression, .. }
-        | Expr::Comment { expression, .. } => expression.has_side_effect(),
-        Expr::Binary {
-          left,
-          right,
-          operator,
-          ..
-        } => {
-          left.has_side_effect() || right.has_side_effect() || *operator == BinaryOperator::Pipeline
-        }
-        Expr::List { items } => items.iter().any(|item| item.has_side_effect()),
-      }
-    }
-
     pub fn is_constant(&self) -> bool {
       match self {
         Expr::Call { .. } | Expr::Variable { .. } => false,

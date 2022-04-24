@@ -565,10 +565,6 @@ pub fn compile(source: &str, ast: &[Statement]) -> Result<Chunk, Diagnostic> {
     }
   }
 
-  while compiler.scope_depth > 0 {
-    compiler.end_scope();
-  }
-
   compiler.emit_opcode_blank(OpCode::Return);
 
   let mut chunk = compiler.chunk.finalize();

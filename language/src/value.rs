@@ -157,3 +157,40 @@ impl From<()> for Value {
     Self::Null
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::{Function, NativeFunction, Value};
+
+  #[test]
+  fn displays_correctly() {
+    assert_eq!(Value::from("hello").to_string(), "'hello'");
+    assert_eq!(Value::from(true).to_string(), "true");
+    assert_eq!(Value::from(false).to_string(), "false");
+    assert_eq!(Value::from(()).to_string(), "null");
+    assert_eq!(Value::from(vec![]).to_string(), "[]");
+    assert_eq!(
+      Value::from(vec![Value::from("hello")]).to_string(),
+      "['hello']"
+    );
+    assert_eq!(
+      Value::from(Function {
+        name: "hello".to_string(),
+        arity: 0,
+        start: 0
+      })
+      .to_string(),
+      "<function hello>"
+    );
+
+    assert_eq!(
+      Value::from(NativeFunction {
+        name: "native",
+        arity: 0,
+        func: |_| Value::Null
+      })
+      .to_string(),
+      "<function native>"
+    );
+  }
+}

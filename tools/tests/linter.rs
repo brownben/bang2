@@ -33,8 +33,11 @@ while (4 > 5)
   do_stuff()
 while (question() > 4)
   do_stuff()
+
+if ([])
+  go_to_next_step()
 "
-  "No Constant Conditions" [2 8 10]
+  "No Constant Conditions" [2 8 10 15]
 );
 
 bang_lint!(no_negative_zero
@@ -93,6 +96,8 @@ x > 7
 
 bang_lint!(no_constant_condition_and_unreachable_code
 "
+from maths import { pow }
+
 if (true)
   do_stuff()
   return 10
@@ -100,10 +105,10 @@ if (true)
 else
   do_stuff()
 
-let a = 7
+let a = 7 // comment
 if (-(a = 8))
   do_stuff()
 "
-  "No Constant Conditions" [2 10]
-  "No Unreachable Code" [5]
+  "No Constant Conditions" [4 12]
+  "No Unreachable Code" [7]
 );

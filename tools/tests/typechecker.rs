@@ -320,6 +320,10 @@ from maths import { sin }
 let a: (number) -> number = sin
 "
   );
+
+  assert_fails!("from maths import { unknown }");
+  assert_fails!("from list import { unknown }");
+  assert_fails!("from unknown import { unknown }");
 }
 
 #[test]
@@ -420,6 +424,13 @@ let func = (a: number?) ->
 let s = (b: string) => b
 let func = (a: string) ->
   if (a != '') s(a)
+  "
+    );
+    assert_correct!(
+      "
+let s = (b: true) => b
+let func = (a: boolean) ->
+  if (a != false) s(a)
   "
     );
   }
@@ -530,6 +541,42 @@ let d: boolean = isEmpty([])
 let e: number[] = [1, 2, 3] >> push(7)
 let f: (number[], number) -> boolean = includes
 let g: (number | string)[] = [1, 'hello', 3] >> reverse()
+"
+  );
+}
+
+#[test]
+fn truthyness_with_unions() {
+  assert_correct!(
+    "
+let func: ((any) -> any) | ((number) -> number) = print
+let a: false = !func"
+  );
+  assert_correct!(
+    "
+let func: ((any) -> any) | ((number) -> number) = print
+let a: ((any) -> any) | ((number) -> number) = func || 7"
+  );
+}
+
+#[test]
+fn call_existential() {
+  assert_correct!(
+    "
+let func = (a) ->
+  return a
+
+let a: (number) -> number = func
+"
+  );
+  assert_correct!(
+    "
+let plusFiveAdder = (number, adder) ->
+  return adder(number + 5)
+
+let adder = (number) => number + 1
+
+let d: number = plusFiveAdder(5, adder)
 "
   );
 }

@@ -51,7 +51,6 @@ impl<'source> Formatter<'source> {
     &self,
     statement: &Statement,
     indentation: usize,
-    trailing_newline: bool,
     f: &mut std::fmt::Formatter,
   ) -> std::fmt::Result {
     if let Stmt::Block { body, .. } = &statement.stmt {
@@ -61,16 +60,10 @@ impl<'source> Formatter<'source> {
       } else {
         write!(f, " ")?;
         self.fmt_statement(&body[0], indentation, false, f)?;
-        if trailing_newline {
-          writeln!(f)?;
-        }
       }
     } else {
       write!(f, " ")?;
       self.fmt_statement(statement, indentation, false, f)?;
-      if trailing_newline {
-        writeln!(f)?;
-      }
     }
 
     Ok(())
@@ -364,11 +357,11 @@ impl<'source> Formatter<'source> {
       } => {
         write!(f, "if ")?;
         self.write_group(condition, indentation, f)?;
-        self.write_statement_inline(then, indentation, false, f)?;
+        self.write_statement_inline(then, indentation, f)?;
 
         if let Some(otherwise) = otherwise {
           write!(f, "\n{}else", INDENTATION.repeat(indentation))?;
-          self.write_statement_inline(otherwise, indentation, false, f)?;
+          self.write_statement_inline(otherwise, indentation, f)?;
         }
       }
       Stmt::Import { module, items, .. } => {
@@ -401,7 +394,7 @@ impl<'source> Formatter<'source> {
       } => {
         write!(f, "while ")?;
         self.write_group(condition, indentation, f)?;
-        self.write_statement_inline(body, indentation, false, f)?;
+        self.write_statement_inline(body, indentation, f)?;
       }
     }
 

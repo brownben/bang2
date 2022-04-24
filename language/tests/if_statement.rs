@@ -184,3 +184,19 @@ if ([])
 "
   a == false
 );
+
+bang_test!(misformed_if
+"
+if [])
+  doStuff()
+"
+  CompileError
+);
+
+bang_test!(misformed_if_end
+"
+if ([]
+  doStuff()
+"
+  CompileError
+);

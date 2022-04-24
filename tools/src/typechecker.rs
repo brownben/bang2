@@ -82,7 +82,6 @@ impl Type {
   pub fn union(a: Self, b: Self) -> Self {
     match (a, b) {
       (a, b) if a.includes_type(&b) => a,
-      (Self::Never, Self::Never) => Self::Never,
       (a, Self::Never) => a,
       (Self::Never, b) => b,
       (a, b) => Self::Union(Box::new(a), Box::new(b)),

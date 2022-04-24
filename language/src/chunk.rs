@@ -130,11 +130,8 @@ impl LineInfo {
 
       line += 1;
     }
-    if length == 0 {
-      0
-    } else {
-      self.lines[line].0
-    }
+
+    self.lines[line].0
   }
 }
 

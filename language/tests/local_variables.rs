@@ -121,3 +121,8 @@ let a
   a == 22.0
 
 );
+
+bang_test!(cant_assign_to_call
+  "print() = 7"
+  CompileError
+);

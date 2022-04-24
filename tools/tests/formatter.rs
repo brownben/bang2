@@ -34,6 +34,14 @@ fn binary_expression() {
   assert_format!("3+4", "3 + 4");
   assert_format!("3 -4", "3 - 4");
   assert_format!("3* 4", "3 * 4");
+  assert_format!("3 / 4");
+  assert_format!("3 > 4");
+  assert_format!("3 < 4");
+  assert_format!("3 == 4");
+  assert_format!("3 != 4");
+  assert_format!("3 >= 4");
+  assert_format!("3 <= 4");
+  assert_format!("null ?? 4");
 }
 
 #[test]
@@ -306,6 +314,12 @@ fn while_statement() {
 fn assignment_operator() {
   assert_format!("x += 1", "x += 1");
   assert_format!("x = x + 1", "x += 1");
+  assert_format!("x -= 1", "x -= 1");
+  assert_format!("x = x - 1", "x -= 1");
+  assert_format!("x *= 1", "x *= 1");
+  assert_format!("x = x * 1", "x *= 1");
+  assert_format!("x /= 1", "x /= 1");
+  assert_format!("x = x / 1", "x /= 1");
 }
 
 #[test]
@@ -429,4 +443,20 @@ fn list() {
   assert_format!("['hello',    () =>   8, 5]", "['hello', () => 8, 5]");
   assert_format!("[\n  'hello', () => 8, 5, \n]");
   assert_format!("[\n  'hello',\n  () => 8,\n  5,\n]");
+}
+
+#[test]
+fn types() {
+  assert_format!("let a: number?");
+  assert_format!("let b: number[]");
+  assert_format!("let c: string | number");
+  assert_format!("let d: (string | number)[]");
+  assert_format!("let e: (string) -> number");
+  assert_format!("let e: (string,) -> number", "let e: (string) -> number");
+  assert_format!("let f: (string, number) -> number");
+}
+
+#[test]
+fn pipeline() {
+  assert_format!("7 >> multiply(4)");
 }

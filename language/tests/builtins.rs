@@ -37,6 +37,21 @@ bang_test!(unknown_module_import
   CompileError
 );
 
+bang_test!(misformed_import
+  "from unknown_module { stuff }"
+  CompileError
+);
+
+bang_test!(misformed_import_start_curly
+  "from unknown_module  stuff }"
+  CompileError
+);
+
+bang_test!(misformed_import_end_curly
+  "from unknown_module { stuff "
+  CompileError
+);
+
 bang_test!(rename_imports_with_as
   "
 from maths import { sqrt as squareRoot }
