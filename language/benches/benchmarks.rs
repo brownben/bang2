@@ -39,8 +39,7 @@ macro_rules! bang_benchmark {
       const SOURCE: &'static str = $source;
 
       fn compile() -> Result<bang::Chunk, bang::Diagnostic> {
-        let tokens = bang::tokenize(SOURCE);
-        let ast = bang::parse(SOURCE, &tokens)?;
+        let ast = bang::parse(SOURCE)?;
         bang::compile(SOURCE, &ast)
       }
 

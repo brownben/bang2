@@ -1,11 +1,11 @@
-use bang_language::{parse, tokenize};
+use bang_language::parse;
 use bang_tools::lint;
 
 macro_rules! bang_lint {
   ($name:ident $code:literal $($rule:literal [$($num:literal)*])*) => {
     #[test]
     fn $name() {
-      match parse($code, &tokenize($code)) {
+      match parse($code) {
         Ok(ast) => {
           let warnings = lint($code, &ast);
           $({

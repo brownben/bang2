@@ -1,6 +1,4 @@
-use bang_language::{
-  compile as compile_ast, parse, run, tokenize, Chunk, Diagnostic, VMGlobals, VM,
-};
+use bang_language::{compile as compile_ast, parse, run, Chunk, Diagnostic, VMGlobals, VM};
 use bang_tools::{format, lint, typecheck};
 use clap::{Arg, Command};
 use rustyline::error::ReadlineError;
@@ -19,8 +17,7 @@ fn read_file(filename: &str) -> String {
 }
 
 fn compile(source: &str) -> Result<Chunk, Diagnostic> {
-  let tokens = tokenize(source);
-  let ast = parse(source, &tokens)?;
+  let ast = parse(source)?;
 
   compile_ast(source, &ast)
 }
@@ -76,15 +73,6 @@ fn main() {
         .arg(Arg::new("file").help("The file to lint").required(true)),
     )
     .subcommand(
-      Command::new("tokens")
-        .about("Display the Tokens for a file")
-        .arg(
-          Arg::new("file")
-            .help("The file scan for tokens")
-            .required(true),
-        ),
-    )
-    .subcommand(
       Command::new("ast")
         .about("Display the Abstract Syntax Tree for a file")
         .arg(Arg::new("file").help("The file to parse").required(true)),
@@ -117,13 +105,12 @@ fn main() {
     .get_matches();
 
   if let Some((
-    command @ ("lint" | "run" | "tokens" | "ast" | "bytecode" | "format" | "typecheck"),
+    command @ ("lint" | "run" | "ast" | "bytecode" | "format" | "typecheck"),
     subcommand,
   )) = app.subcommand()
   {
     let filename = subcommand.value_of("file").unwrap();
     let source = read_file(filename);
-    let tokens = tokenize(&source);
 
     if source.is_empty() {
       return;
@@ -134,7 +121,7 @@ fn main() {
         Ok(_) => {}
         Err(details) => print::error(filename, &source, details),
       },
-      "lint" => match parse(&source, &tokens) {
+      "lint" => match parse(&source) {
         Ok(ast) => {
           for lint in lint(&source, &ast) {
             print::warning(filename, &source, lint);
@@ -142,8 +129,7 @@ fn main() {
         }
         Err(details) => print::error(filename, &source, details),
       },
-      "tokens" => print::tokens(&source, &tokens),
-      "ast" => match parse(&source, &tokens) {
+      "ast" => match parse(&source) {
         Ok(ast) => print::ast(&source, &ast),
         Err(details) => print::error(filename, &source, details),
       },
@@ -151,7 +137,7 @@ fn main() {
         Ok(chunk) => print::chunk(&chunk),
         Err(details) => print::error(filename, &source, details),
       },
-      "format" => match parse(&source, &tokens) {
+      "format" => match parse(&source) {
         Ok(ast) => {
           let new_source = format(&source, &ast);
 
@@ -165,7 +151,7 @@ fn main() {
         }
         Err(details) => print::error(filename, &source, details),
       },
-      "typecheck" => match parse(&source, &tokens) {
+      "typecheck" => match parse(&source) {
         Ok(ast) => {
           for error in typecheck(&source, &ast) {
             print::error(filename, &source, error);

@@ -9,7 +9,7 @@ use crate::{
     Span,
   },
   diagnostic::Diagnostic,
-  tokens::{Token, TokenType},
+  tokens::{tokenize, Token, TokenType},
 };
 
 #[derive(Clone, Copy, Debug, PartialOrd, PartialEq)]
@@ -952,11 +952,9 @@ impl<'source> Parser<'source, '_> {
   }
 }
 
-pub fn parse<'source, 'tokens>(
-  source: &'source str,
-  tokens: &'tokens [Token],
-) -> Result<Vec<Statement<'source>>, Diagnostic> {
-  let mut parser = Parser::new(source, tokens);
+pub fn parse(source: &str) -> Result<Vec<Statement>, Diagnostic> {
+  let tokens = tokenize(source);
+  let mut parser = Parser::new(source, &tokens);
   let mut statements = Vec::new();
 
   while !parser.at_end() {
@@ -982,7 +980,6 @@ pub fn parse_number(string: &str) -> f64 {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::tokens::tokenize;
 
   fn assert_literal(expr: &Expr<'_>, expected: &str, literal_type: LiteralType) {
     match expr {
@@ -1013,9 +1010,7 @@ mod tests {
 
   #[test]
   fn should_error_on_unknown_character() {
-    let source = "&";
-    let tokens = tokenize(source);
-    let result = super::parse(source, &tokens);
+    let result = super::parse("&");
 
     assert!(result.is_err());
     assert_eq!(result.unwrap_err().message, "Unknown character '&'");
@@ -1023,9 +1018,7 @@ mod tests {
 
   #[test]
   fn should_parse_group() {
-    let source = "('hello world')\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("('hello world')\n").unwrap();
 
     if let Expr::Group { expression, .. } = unwrap_expression(&statements[0]) {
       assert_literal(expression, "hello world", LiteralType::String);
@@ -1036,9 +1029,7 @@ mod tests {
 
   #[test]
   fn should_parse_unary() {
-    let source = "!false\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("!false\n").unwrap();
 
     if let Expr::Unary {
       operator,
@@ -1054,9 +1045,7 @@ mod tests {
 
   #[test]
   fn should_parse_binary() {
-    let source = "10 + 5\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("10 + 5\n").unwrap();
 
     if let Expr::Binary {
       operator,
@@ -1074,9 +1063,7 @@ mod tests {
 
   #[test]
   fn should_parse_call() {
-    let source = "function(7, null)\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("function(7, null)\n").unwrap();
 
     if let Expr::Call {
       expression,
@@ -1094,9 +1081,7 @@ mod tests {
 
   #[test]
   fn should_parse_function() {
-    let source = "() => null\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("() => null\n").unwrap();
 
     if let Expr::Function {
       parameters, body, ..
@@ -1118,9 +1103,7 @@ mod tests {
 
   #[test]
   fn should_parse_variable_declaration_with_initalizer() {
-    let source = "let a = null\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("let a = null\n").unwrap();
 
     if let Stmt::Declaration {
       identifier,
@@ -1138,9 +1121,7 @@ mod tests {
 
   #[test]
   fn should_parse_variable_declaration_without_initalizer() {
-    let source = "let b\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("let b\n").unwrap();
 
     if let Stmt::Declaration {
       identifier,
@@ -1156,9 +1137,7 @@ mod tests {
 
   #[test]
   fn should_parse_return_with_value() {
-    let source = "return value\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("return value\n").unwrap();
 
     if let Stmt::Return {
       expression: Some(expression),
@@ -1173,9 +1152,7 @@ mod tests {
 
   #[test]
   fn should_parse_return_without_value() {
-    let source = "return\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("return\n").unwrap();
 
     if let Stmt::Return {
       expression: Some(_),
@@ -1187,9 +1164,7 @@ mod tests {
 
   #[test]
   fn should_parse_while() {
-    let source = "while(7) doStuff\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("while(7) doStuff\n").unwrap();
 
     if let Stmt::While {
       condition, body, ..
@@ -1204,9 +1179,7 @@ mod tests {
 
   #[test]
   fn should_parse_if_else() {
-    let source = "if (true) doStuff\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("if (true) doStuff\n").unwrap();
 
     if let Stmt::If {
       condition,
@@ -1225,9 +1198,7 @@ mod tests {
 
   #[test]
   fn should_parse_if_without_else() {
-    let source = "if (true)\n\tdoStuff\nelse\n\tdoOtherStuff\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("if (true)\n\tdoStuff\nelse\n\tdoOtherStuff\n").unwrap();
 
     if let Stmt::If {
       condition,
@@ -1244,9 +1215,7 @@ mod tests {
 
   #[test]
   fn should_parse_block() {
-    let source = "a\n\tdoStuff\n\totherStuff\n\tmoreStuff\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("a\n\tdoStuff\n\totherStuff\n\tmoreStuff\n").unwrap();
 
     assert_eq!(statements.len(), 2);
 
@@ -1259,9 +1228,7 @@ mod tests {
 
   #[test]
   fn should_parse_list() {
-    let source = "[44, null, 'hello']\n";
-    let tokens = tokenize(source);
-    let statements = super::parse(source, &tokens).unwrap();
+    let statements = super::parse("[44, null, 'hello']\n").unwrap();
 
     if let Expr::List { items } = unwrap_expression(&statements[0]) {
       assert_literal(&items[0], "44", LiteralType::Number);

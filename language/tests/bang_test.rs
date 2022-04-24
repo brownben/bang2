@@ -10,8 +10,7 @@ pub enum RunResult {
 }
 
 fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
-  let tokens = bang::tokenize(source);
-  let ast = bang::parse(source, &tokens)?;
+  let ast = bang::parse(source)?;
   bang::compile(source, &ast)
 }
 

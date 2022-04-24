@@ -15,11 +15,9 @@ mod vm;
 // A error or warning from the language
 pub use diagnostic::Diagnostic;
 
-// Tokenise a source string
-pub use tokens::{tokenize, LineNumber, Token, TokenType};
-
 // Parse a slice of tokens into an AST
 pub use parser::{parse, parse_number};
+pub use tokens::LineNumber;
 
 // Compile an AST into a chunk of bytecode
 pub use chunk::{Chunk, OpCode};
@@ -34,8 +32,7 @@ pub use value::Value;
 // Interpret a string of code
 pub type VMGlobals = HashMap<Rc<str>, Value>;
 pub fn interpret(source: &str) -> Result<VMGlobals, Diagnostic> {
-  let tokens = tokens::tokenize(source);
-  let ast = parser::parse(source, &tokens)?;
+  let ast = parser::parse(source)?;
   let chunk = compiler::compile(source, &ast)?;
 
   vm::run(&chunk)

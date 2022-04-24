@@ -1,4 +1,4 @@
-use bang_language::{parse, tokenize};
+use bang_language::parse;
 use bang_tools::format;
 
 macro_rules! assert_format {
@@ -7,8 +7,7 @@ macro_rules! assert_format {
   };
 
   ($source:expr, $output:expr) => {
-    let tokens = tokenize($source);
-    let ast = parse($source, &tokens).unwrap();
+    let ast = parse($source).unwrap();
     let formatter = format($source, &ast);
     let output = formatter.to_string();
 
@@ -17,8 +16,7 @@ macro_rules! assert_format {
   };
 
   (remains_constant $source:expr) => {
-    let tokens = tokenize(&$source);
-    let ast = parse(&$source, &tokens).unwrap();
+    let ast = parse(&$source).unwrap();
     let formatter = format(&$source, &ast);
 
     assert_eq!(&formatter.to_string(), &$source);
