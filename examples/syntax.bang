@@ -29,6 +29,11 @@
 !""                // true
 !'stuff'           // false
 
+// You can index a string to get each character, but are immutable so can't assign to them
+'hello'[0]  // 'h'
+'hello'[1]  // 'e'
+'hello'[-1] // 'o'
+
 
 // Numbers
 // ==========================
@@ -110,6 +115,18 @@ null
 // Equality is based of structure
 [1, 2, 3] == [1, 2, 3] // true
 [1, 2, 3] != [1, 2, 3] // false
+
+// You can index a list to get each element, and assign to each element
+// When assigning to an index the item and index are only evaluated once
+
+let list = [1, 2, 3, 4, 5]
+list[0] = 1
+list[1] = 2
+list[-1] = 5
+
+list[1] = 55 // list: [1, 55, 3, 4, 5]
+list[0] *= 4 // list: [4, 55, 3, 4, 5]
+
 
 // ==========================
 // Logical Operators

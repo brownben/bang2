@@ -32,6 +32,8 @@ pub enum OpCode {
   Call,
   List,
   ListLong,
+  GetIndex,
+  SetIndex,
   Unknown,
 }
 impl From<u8> for OpCode {
@@ -68,6 +70,8 @@ impl From<u8> for OpCode {
       28 => Self::Call,
       29 => Self::List,
       30 => Self::ListLong,
+      31 => Self::GetIndex,
+      32 => Self::SetIndex,
       _ => Self::Unknown,
     }
   }

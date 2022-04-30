@@ -5,12 +5,15 @@
 //
 // It doesn't yet support all features of bang. The current known issues are:
 // - Doesn't support corecursion, or accessing globals before they are defined
+// - Indexing a union
 
 use crate::builtins::{define_globals, get_builtin_module_type};
 use ahash::AHashMap as HashMap;
 use bang_language::{
   ast::{
-    expression::{BinaryOperator, Expr, Expression, LiteralType, UnaryOperator},
+    expression::{
+      AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, UnaryOperator,
+    },
     statement::{Statement, Stmt},
     types::{Type as TypeItem, TypeExpression},
     Span,
@@ -778,6 +781,50 @@ impl<'s> Typechecker<'s> {
             .map(|item| self.synthesize_expression(item))
             .fold(Type::Never, Type::union),
         ))
+      }
+      Expr::Index { expression, index } => {
+        self.check_expression(index, &Type::Literal(LiteralType::Number));
+
+        let expression_type = self.synthesize_expression(expression);
+        if expression_type == Type::Literal(LiteralType::String) {
+          return Type::Literal(LiteralType::String);
+        }
+
+        let list_interior = self.new_existential();
+        self.check_expression(expression, &Type::List(Box::new(list_interior.clone())));
+        list_interior
+      }
+      Expr::IndexAssignment {
+        expression,
+        index,
+        value,
+        assignment_operator,
+      } => {
+        let list_interior = self.new_existential();
+        self.check_expression(expression, &Type::List(Box::new(list_interior.clone())));
+        self.check_expression(index, &Type::Literal(LiteralType::Number));
+        self.check_expression(value, &list_interior);
+
+        match assignment_operator {
+          Some(AssignmentOperator::Plus) => {
+            let plus_able = Type::union(
+              Type::Literal(LiteralType::Number),
+              Type::Literal(LiteralType::String),
+            );
+            self.check_expression(value, &plus_able);
+            self.check_expression(expression, &Type::List(Box::new(plus_able)));
+          }
+          Some(_) => {
+            self.check_expression(value, &Type::Literal(LiteralType::Number));
+            self.check_expression(
+              expression,
+              &Type::List(Box::new(Type::Literal(LiteralType::Number))),
+            );
+          }
+          _ => (),
+        };
+
+        list_interior
       }
     }
   }

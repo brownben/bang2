@@ -580,3 +580,39 @@ let d: number = plusFiveAdder(5, adder)
 "
   );
 }
+
+#[test]
+fn index() {
+  assert_correct!("let a: string = 'hello'[5]");
+  assert_fails!("let a: string = 'hello'[null] ");
+  assert_fails!("let a: string = null[5] ");
+  assert_fails!("let a: string = boolean[null] ");
+
+  assert_correct!("let a: number | string = [1, 2, 3][1]");
+  assert_correct!("let a: number = [1, 2, 3][1]");
+  assert_correct!("let a: number | string = [1, 2, 3, 'hello'][1]");
+  assert_fails!("let a: number | string = [1, 2, 3]['hello']");
+  assert_fails!("let a: number | string = [1, 2, null, 3]['hello']");
+}
+
+#[test]
+fn index_assignment() {
+  assert_correct!("let a = [1, 2, 3]\n a[0] = 4");
+  assert_fails!("let a = [1, 2, 3]\n a[''] = 4");
+  assert_fails!("let a = [1, 2, 3]\n a[0] = null");
+
+  assert_correct!("let a: number | string = [1, 2, 3][1]");
+  assert_correct!("let a: number = [1, 2, 3][1]");
+  assert_correct!("let a: number | string = [1, 2, 3, 'hello'][1]");
+  assert_fails!("let a: number | string = [1, 2, 3]['hello']");
+  assert_fails!("let a: number | string = [1, 2, null, 3]['hello']");
+}
+
+#[test]
+fn index_assignment_operator() {
+  assert_correct!("let a = [1, 2, 3]\n a[0] += 4");
+  assert_fails!("let a = [1, 2, 3]\n a[''] += 4");
+  assert_fails!("let a = [1, 2, 3]\n a[0] += null");
+  assert_correct!("let a = [1, 5, 3]\n a[2] -= 8");
+  assert_fails!("let a: (boolean|number)[] = [1, false, 3]\n a[0] += 4");
+}

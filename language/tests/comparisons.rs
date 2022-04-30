@@ -112,10 +112,12 @@ bang_test!(equality_number
 let a = 3 == 4
 let b = 3 == 3
 let c = -5 == 5
+let d = 0 == -0
 "
   a == false
   b == true
   c == false
+  d == true
 );
 
 bang_test!(equality_strings

@@ -2,7 +2,9 @@ use std::rc::Rc;
 
 use crate::{
   ast::{
-    expression::{BinaryOperator, Expr, Expression, LiteralType, UnaryOperator},
+    expression::{
+      AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, UnaryOperator,
+    },
     statement::{Statement, Stmt},
     Span,
   },
@@ -460,10 +462,61 @@ impl<'s> Compiler<'s> {
           self.error(Error::TooLongList, span, "");
         }
       }
+      Expr::Index { expression, index } => {
+        self.compile_expression(expression);
+        self.compile_expression(index);
+        self.emit_opcode(span, OpCode::GetIndex);
+      }
+      Expr::IndexAssignment {
+        expression,
+        index,
+        value,
+        assignment_operator,
+      } => {
+        self.begin_scope();
+
+        // Calculate the index and expression once before they are assigned
+        self.compile_expression(expression);
+        let expression_variable = self.define_variable("$index_assignment_expr$", span);
+        self.compile_expression(index);
+        let index_variable = self.define_variable("$index_assignment_index$", span);
+
+        // Calculate the value to assign
+        if let Some(operator) = *assignment_operator {
+          self.get_local(expression_variable, span);
+          self.get_local(index_variable, span);
+          self.emit_opcode(span, OpCode::GetIndex);
+          self.compile_expression(value);
+          match operator {
+            AssignmentOperator::Plus => self.emit_opcode(span, OpCode::Add),
+            AssignmentOperator::Minus => self.emit_opcode(span, OpCode::Subtract),
+            AssignmentOperator::Multiply => self.emit_opcode(span, OpCode::Multiply),
+            AssignmentOperator::Divide => self.emit_opcode(span, OpCode::Divide),
+          }
+        } else {
+          self.compile_expression(value);
+        }
+
+        // Set the index
+        self.get_local(expression_variable, span);
+        self.get_local(index_variable, span);
+        self.emit_opcode(span, OpCode::SetIndex);
+
+        self.end_scope();
+      }
     }
   }
 
-  fn define_variable(&mut self, identifier: &'s str, span: Span) {
+  fn get_local(&mut self, index: usize, span: Span) {
+    if let Ok(index) = u8::try_from(index) {
+      self.emit_opcode(span, OpCode::GetLocal);
+      self.emit_value(span, index);
+    } else {
+      self.error(Error::TooManyLocals, span, "");
+    }
+  }
+
+  fn define_variable(&mut self, identifier: &'s str, span: Span) -> usize {
     if self.scope_depth > 0 {
       if self
         .locals
@@ -481,6 +534,8 @@ impl<'s> Compiler<'s> {
       self.emit_opcode(span, OpCode::DefineGlobal);
       self.emit_constant_string(span, identifier);
     }
+
+    self.locals.len().saturating_sub(1)
   }
 
   fn and(&mut self, span: Span, left: &Expression<'s>, right: &Expression<'s>) {

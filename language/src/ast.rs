@@ -111,6 +111,16 @@ pub mod expression {
     Group {
       expression: Box<Expression<'source>>,
     },
+    Index {
+      expression: Box<Expression<'source>>,
+      index: Box<Expression<'source>>,
+    },
+    IndexAssignment {
+      expression: Box<Expression<'source>>,
+      index: Box<Expression<'source>>,
+      value: Box<Expression<'source>>,
+      assignment_operator: Option<AssignmentOperator>,
+    },
     List {
       items: Vec<Expression<'source>>,
     },
@@ -142,6 +152,10 @@ pub mod expression {
           ..
         } => left.is_constant() && right.is_constant() && *operator != BinaryOperator::Pipeline,
         Expr::List { items } => items.iter().all(|item| item.is_constant()),
+        Expr::Index {
+          expression, index, ..
+        } => expression.is_constant() && index.is_constant(),
+        Expr::IndexAssignment { value, .. } => value.is_constant(),
       }
     }
   }
@@ -251,6 +265,16 @@ pub mod expression {
         BinaryOperator::Minus => Some(Self::Minus),
         BinaryOperator::Multiply => Some(Self::Multiply),
         BinaryOperator::Divide => Some(Self::Divide),
+        _ => None,
+      }
+    }
+
+    pub fn from_token(operator: TokenType) -> Option<Self> {
+      match operator {
+        TokenType::PlusEqual => Some(Self::Plus),
+        TokenType::MinusEqual => Some(Self::Minus),
+        TokenType::StarEqual => Some(Self::Multiply),
+        TokenType::SlashEqual => Some(Self::Divide),
         _ => None,
       }
     }
@@ -496,6 +520,20 @@ pub trait Visitor {
       Expr::Function { body, .. } => self.visit_statement(body),
       Expr::Literal { .. } | Expr::Variable { .. } => {}
       Expr::List { items } => items.iter().for_each(|item| self.visit_expression(item)),
+      Expr::Index { expression, index } => {
+        self.visit_expression(expression);
+        self.visit_expression(index);
+      }
+      Expr::IndexAssignment {
+        expression,
+        index,
+        value,
+        ..
+      } => {
+        self.visit_expression(expression);
+        self.visit_expression(index);
+        self.visit_expression(value);
+      }
     }
 
     self.exit_expression(expression);

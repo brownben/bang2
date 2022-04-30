@@ -133,6 +133,39 @@ lint_rule! {
   }
 }
 
+fn expression_has_possible_side_effect(expression: &Expr) -> bool {
+  match expression {
+    Expr::Assignment { .. } | Expr::IndexAssignment { .. } | Expr::Call { .. } => true,
+    Expr::Function { .. } | Expr::Literal { .. } | Expr::Variable { .. } => false,
+    Expr::Comment { expression, .. }
+    | Expr::Group { expression }
+    | Expr::Unary { expression, .. } => expression_has_possible_side_effect(expression),
+    Expr::Index { expression, index } => {
+      expression_has_possible_side_effect(expression) || expression_has_possible_side_effect(index)
+    }
+    Expr::Binary { left, right, .. } => {
+      expression_has_possible_side_effect(left) || expression_has_possible_side_effect(right)
+    }
+    Expr::List { items } => items
+      .iter()
+      .any(|expression| expression_has_possible_side_effect(&expression.expr)),
+  }
+}
+
+lint_rule! {
+  name: NoSideEffectInIndex;
+  title: "No Side Effects in Index Assignment";
+  message: "Index can be evaluated in an unexpected order, don't have side effects";
+  visitor: {
+    fn exit_expression(&mut self, expression: &Expression) {
+      if let Expr::IndexAssignment { index, .. } = &expression.expr
+        && expression_has_possible_side_effect(index) {
+        self.issues.push(index.span);
+      }
+    }
+  }
+}
+
 pub fn lint(source: &str, ast: &[Statement]) -> Vec<Diagnostic> {
   let mut results = vec![
     NoConstantCondition::check(source, ast),
@@ -140,6 +173,7 @@ pub fn lint(source: &str, ast: &[Statement]) -> Vec<Diagnostic> {
     NoNegativeZero::check(source, ast),
     NoSelfAssign::check(source, ast),
     NoUnreachable::check(source, ast),
+    NoSideEffectInIndex::check(source, ast),
   ];
 
   results.retain(|r| !r.lines.is_empty());

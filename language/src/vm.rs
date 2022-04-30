@@ -2,7 +2,7 @@ use crate::{
   builtins,
   chunk::{Chunk, OpCode},
   diagnostic::Diagnostic,
-  value::Value,
+  value::{Index, Value},
 };
 use ahash::AHashMap as HashMap;
 use std::rc::Rc;
@@ -376,6 +376,35 @@ impl VM {
           self.push(Value::from(items));
 
           ip += 3;
+        }
+
+        OpCode::GetIndex => {
+          let index = self.pop();
+          let item = self.pop();
+
+          match item.get_property(index) {
+            Some(value) => self.push(value),
+            None => {
+              break runtime_error!((self, chunk, ip), "Can't index type {}", item.get_type());
+            }
+          }
+
+          ip += 1;
+        }
+        OpCode::SetIndex => {
+          let index = self.pop();
+          let mut item = self.pop();
+          let value = self.peek().clone();
+
+          if !item.set_property(index, value) {
+            break runtime_error!(
+              (self, chunk, ip),
+              "Can't assign to index of type {}",
+              item.get_type()
+            );
+          }
+
+          ip += 1;
         }
 
         OpCode::Unknown => {

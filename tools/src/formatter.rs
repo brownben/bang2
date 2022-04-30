@@ -259,6 +259,19 @@ impl<'source> Formatter<'source> {
       Expr::Group { expression, .. } => {
         self.write_group( expression, indentation, f)?;
       }
+      Expr::Index { expression, index } => {
+        self.fmt_expression(expression, indentation, f)?;
+        write!(f, "[")?;
+        self.fmt_expression(index, indentation, f)?;
+        write!(f, "]")?;
+      }
+      Expr::IndexAssignment { expression, index, value, assignment_operator } => {
+        self.fmt_expression(expression, indentation, f)?;
+        write!(f, "[")?;
+        self.fmt_expression(index, indentation, f)?;
+        write!(f, "] {} ", assignment_operator.map(|operator| operator.to_string()).unwrap_or_else(|| "=".to_string()))?;
+        self.fmt_expression(value, indentation, f)?;
+      }
       Expr::List {
         items
       } => {

@@ -1,0 +1,23 @@
+from list import { length }
+
+let swap = (list, i, j) -> null
+  let temp = list[i]
+  list[i] = list[j]
+  list[j] = temp
+
+let bubbleSort = (list) -> null
+  let n = length(list)
+  let i = 0
+
+  while (i < n)
+    let j = 0
+
+    while (j < n - i - 1)
+      if (list[j] > list[j + 1]) list >> swap(j, j + 1)
+      j += 1
+
+    i += 1
+
+let array = bubbleSort(
+  [64, 34, 25, 12, 22, 11, 90, 7, 52, 32, 686, 45, 12, 5, 4, 45, 78, 21, 56, 25, 54, 52], 
+)

@@ -112,3 +112,21 @@ if (-(a = 8))
   "No Constant Conditions" [4 12]
   "No Unreachable Code" [7]
 );
+
+bang_lint!(no_side_effect_in_index
+"
+x[a()] = 8
+x[c = 8] = 8
+x[b[3] = 9] = 8
+
+x[0] = 7
+x[0 + (-7)] = 9
+x[b[6]] = 10
+x[
+  4 // comment
+] = 0
+x[[1,2,3]] = 8
+"
+  "No Side Effects in Index Assignment" [2 3 4]
+
+);

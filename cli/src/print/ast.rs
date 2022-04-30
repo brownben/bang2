@@ -108,6 +108,40 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
         print_expression(source, last, prefix_start_indent, prefix_blank_indent);
       }
     }
+    Expr::Index { expression, index } => {
+      println!("{}Index (expression, index)", prefix_start);
+
+      print_expression(
+        source,
+        expression,
+        prefix_list_indent_start,
+        prefix_list_indent,
+      );
+      print_expression(source, index, prefix_start_indent, prefix_blank_indent);
+    }
+    Expr::IndexAssignment {
+      expression,
+      index,
+      value,
+      assignment_operator,
+    } => {
+      println!(
+        "{}Index Assignment (expression[index] {} value)",
+        prefix_start,
+        assignment_operator
+          .map(|operator| operator.to_string())
+          .unwrap_or_else(|| "=".to_string())
+      );
+
+      print_expression(
+        source,
+        expression,
+        prefix_list_indent_start,
+        prefix_list_indent,
+      );
+      print_expression(source, index, prefix_list_indent_start, prefix_list_indent);
+      print_expression(source, value, prefix_start_indent, prefix_blank_indent);
+    }
   }
 }
 

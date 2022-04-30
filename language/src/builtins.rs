@@ -1,5 +1,5 @@
 use crate::{
-  value::{NativeFunction, Value},
+  value::{calculate_index, NativeFunction, Value},
   vm::VM,
 };
 
@@ -116,19 +116,6 @@ macro_rules! module {
   };
 }
 
-#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-fn get_index(number: f64, length: usize) -> usize {
-  let index = number.round().abs() as usize;
-
-  if index >= length {
-    length
-  } else if number < 0.0 {
-    length - index
-  } else {
-    index
-  }
-}
-
 pub fn get_builtin_module_value(module: &str, value: &str) -> Option<Value> {
   match module {
     "maths" => module!(value, {
@@ -181,7 +168,7 @@ pub fn get_builtin_module_value(module: &str, value: &str) -> Option<Value> {
       "pop":      (List,) => |list: &mut Vec<_>| list.pop().unwrap_or(Value::Null),
       "includes": (List, Any,) => |list: &mut Vec<_>, value| list.contains(&value),
       "reverse":  (List,) => |list: &mut Vec<_>| list.iter().rev().cloned().collect::<Vec<_>>(),
-      "get": (List, Number,) => |list: &mut Vec<_>, index| list.get(get_index(index, list.len())).cloned().unwrap_or(Value::Null),
+      "get": (List, Number,) => |list: &mut Vec<_>, index| list.get(calculate_index(index, list.len())).cloned().unwrap_or(Value::Null),
     }),
     _ => None,
   }

@@ -69,3 +69,5 @@ bang_benchmark!(iterative_fibonacci, examples "iterativeFibonacci.bang");
 bang_benchmark!(recursive_fibonacci, examples "recursiveFibonacci.bang");
 
 bang_benchmark!(syntax, examples "syntax.bang");
+
+bang_benchmark!(bubble_sort, examples "bubbleSort.bang");

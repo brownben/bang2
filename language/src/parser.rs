@@ -25,7 +25,7 @@ enum Precedence {
   Term,       // + -
   Factor,     // * /
   Unary,      // ! -
-  Call,       // . ()
+  Call,       // () []
   Primary,
   Comment,
 }
@@ -53,7 +53,7 @@ impl Precedence {
       TokenType::And => Self::And,
       TokenType::Or => Self::Or,
       TokenType::QuestionQuestion => Self::Nullish,
-      TokenType::LeftParen => Self::Call,
+      TokenType::LeftParen | TokenType::LeftSquare => Self::Call,
       TokenType::Plus | TokenType::Minus => Self::Term,
       TokenType::Star | TokenType::Slash => Self::Factor,
       TokenType::BangEqual | TokenType::EqualEqual => Self::Equality,
@@ -306,8 +306,9 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
 
     while precedence <= Precedence::from(self.current().ttype) {
       let token = self.current();
+      let can_assign = precedence <= Precedence::Assignment;
 
-      if let Some(value) = self.infix_rule(token.ttype, previous.pop().unwrap())? {
+      if let Some(value) = self.infix_rule(token.ttype, previous.pop().unwrap(), can_assign)? {
         previous.push(value);
       }
 
@@ -341,9 +342,11 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
     &mut self,
     token_type: TokenType,
     previous: Expression<'source>,
+    can_assign: bool,
   ) -> Result<Option<Expression<'source>>, Error> {
     match token_type {
       TokenType::LeftParen => Ok(Some(self.call(previous)?)),
+      TokenType::LeftSquare => Ok(Some(self.index(previous, can_assign)?)),
       TokenType::Comment => Ok(Some(self.comment(previous))),
       TokenType::Plus
       | TokenType::Minus
@@ -796,6 +799,55 @@ impl<'source> Parser<'source, '_> {
     }
   }
 
+  fn index(
+    &mut self,
+    previous: Expression<'source>,
+    can_assign: bool,
+  ) -> ExpressionResult<'source> {
+    let _start_token = self.current_advance();
+    self.ignore_newline();
+    let expression = self.expression()?;
+    self.ignore_newline();
+    let end_token = self.consume(TokenType::RightSquare, Error::ExpectedClosingSquare)?;
+
+    let is_assignment_operator = self.current().ttype.is_assignment_operator();
+
+    if (true, true) == (can_assign, is_assignment_operator) {
+      let operator = self.current_advance();
+      let right = self.expression()?;
+
+      Ok(expression!(
+        IndexAssignment {
+          expression: Box::new(previous),
+          index: Box::new(expression),
+          assignment_operator: AssignmentOperator::from_token(operator.ttype),
+          value: Box::new(right)
+        },
+        (previous.span, right.span)
+      ))
+    } else if self.matches(TokenType::Equal) && can_assign {
+      let right = self.expression()?;
+
+      Ok(expression!(
+        IndexAssignment {
+          expression: Box::new(previous),
+          index: Box::new(expression),
+          assignment_operator: None,
+          value: Box::new(right)
+        },
+        (previous.span, right.span)
+      ))
+    } else {
+      Ok(expression!(
+        Index {
+          expression: Box::new(previous),
+          index: Box::new(expression),
+        },
+        (previous.span, end_token)
+      ))
+    }
+  }
+
   fn call(&mut self, previous: Expression<'source>) -> ExpressionResult<'source> {
     let _start_token = self.current_advance();
     let mut arguments = Vec::new();
@@ -866,7 +918,7 @@ impl<'source> Parser<'source, '_> {
   fn types(&mut self) -> TypeResult<'source> {
     let token = self.current();
 
-    let t = match token.ttype {
+    let mut t = match token.ttype {
       TokenType::Identifier | TokenType::Null | TokenType::True | TokenType::False => {
         self.next();
         Ok(types!(Named(token.get_value(self.source)), token))
@@ -875,9 +927,12 @@ impl<'source> Parser<'source, '_> {
       _ => Err(Error::ExpectedType),
     };
 
+    if self.matches(TokenType::LeftSquare) {
+      t = self.type_list(t?);
+    }
+
     match self.current().ttype {
       TokenType::Pipe => self.type_union(t?),
-      TokenType::LeftSquare => self.type_list(t?),
       TokenType::Question => Ok(self.type_optional(t?)),
       _ => t,
     }
@@ -900,7 +955,7 @@ impl<'source> Parser<'source, '_> {
   }
 
   fn type_list(&mut self, left: TypeExpression<'source>) -> TypeResult<'source> {
-    let end_token = self.consume_next(TokenType::RightSquare, Error::ExpectedClosingSquare)?;
+    let end_token = self.consume(TokenType::RightSquare, Error::ExpectedClosingSquare)?;
 
     Ok(types!(List(Box::new(left)), (left.span, end_token)))
   }
@@ -1230,6 +1285,18 @@ mod tests {
       assert_literal(&items[0], "44", LiteralType::Number);
       assert_literal(&items[1], "null", LiteralType::Null);
       assert_literal(&items[2], "hello", LiteralType::String);
+    } else {
+      panic!("Expected list");
+    }
+  }
+
+  #[test]
+  fn should_parse_index() {
+    let statements = super::parse("a[5]\n").unwrap();
+
+    if let Expr::Index { expression, index } = unwrap_expression(&statements[0]) {
+      assert_literal(&index, "5", LiteralType::Number);
+      assert_variable(expression, "a");
     } else {
       panic!("Expected list");
     }

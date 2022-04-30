@@ -460,3 +460,18 @@ fn types() {
 fn pipeline() {
   assert_format!("7 >> multiply(4)");
 }
+
+#[test]
+fn index() {
+  assert_format!("'hello' [ 3 ] ", "'hello'[3]");
+  assert_format!("'hello' [ 3 ] [ 4 ] ", "'hello'[3][4]");
+  assert_format!("'hello' [ 3 + 4] ", "'hello'[3 + 4]");
+  assert_format!("'hello' [\n3 + 4\n] [ \n5 ] ", "'hello'[3 + 4][5]");
+}
+
+#[test]
+fn index_assignment() {
+  assert_format!("x[3] += 7");
+  assert_format!("x[3 - 8] = 22");
+  assert_format!("[1, 2, 3][0] /= 99");
+}
