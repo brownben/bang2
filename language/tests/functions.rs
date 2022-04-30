@@ -104,9 +104,9 @@ let fib_iterative = (n: number) -> number
     i += 1
   return x
 
-let result = fib_iterative(36)
+let result = fib_iterative(10)
 "
-  result == 9227465.0
+  result == 34
 );
 
 bang_test!(recursive_fibonacci
@@ -119,9 +119,9 @@ let fib_recursive = (n: number) -> number
   else
     return fib_recursive(n - 1) + fib_recursive(n - 2)
 
-let result = fib_recursive(25)
+let result = fib_recursive(5)
 "
-  result == 46368.0
+  result == 3
 );
 
 bang_test!(recursive_loop
