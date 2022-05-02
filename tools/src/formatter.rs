@@ -331,10 +331,23 @@ impl<'source> Formatter<'source> {
     match &statement.stmt {
       Stmt::Block { body, .. } => {
         if let Some((last, body)) = body.split_last() {
-          for stmt in body {
-            write!(f, "{}", INDENTATION.repeat(indentation + 1))?;
-            self.fmt_statement(stmt, indentation + 1, true, f)?;
+          if !body.is_empty() {
+            let mut prev = &body[0];
+            for stmt in body {
+              if self.line_end(prev.span) + 1 < self.line(stmt.span) {
+                writeln!(f)?;
+              }
+
+              write!(f, "{}", INDENTATION.repeat(indentation + 1))?;
+              self.fmt_statement(stmt, indentation + 1, true, f)?;
+              prev = stmt;
+            }
+
+            if self.line_end(prev.span) + 1 < self.line(last.span) {
+              writeln!(f)?;
+            }
           }
+
           write!(f, "{}", INDENTATION.repeat(indentation + 1))?;
           self.fmt_statement(last, indentation + 1, false, f)?;
         }
@@ -427,7 +440,7 @@ impl std::fmt::Display for Formatter<'_> {
 
     let mut prev = &self.ast[0];
     for stmt in self.ast {
-      if self.line(prev.span) + 1 < self.line(stmt.span) {
+      if self.line_end(prev.span) < self.line(stmt.span) {
         writeln!(f)?;
       }
 

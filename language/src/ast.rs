@@ -19,7 +19,7 @@ impl Span {
       }
     }
 
-    unreachable!()
+    line
   }
 
   pub fn get_line_number_end(&self, source: &str) -> LineNumber {
@@ -35,7 +35,7 @@ impl Span {
       }
     }
 
-    unreachable!()
+    line
   }
 }
 impl From<&Token> for Span {
