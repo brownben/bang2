@@ -12,9 +12,16 @@ pub fn define_globals(vm: &mut VM) {
     args[0].clone()
   });
   let type_ = NativeFunction::create("type", 1, |args| Value::from(args[0].get_type()));
+  let to_string = NativeFunction::create("toString", 1, |args| {
+    Value::from(match &args[0] {
+      Value::String(string) => string.to_string(),
+      value => value.to_string(),
+    })
+  });
 
   vm.define_global("print", print);
   vm.define_global("type", type_);
+  vm.define_global("toString", to_string);
 }
 
 macro_rules! function_wrapper {
