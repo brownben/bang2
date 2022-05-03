@@ -492,6 +492,12 @@ impl<'s> Typechecker<'s> {
 
         if let Some(expression) = expression {
           self.check_expression(expression, &annotation);
+        } else if !self.subtype(&Type::Literal(LiteralType::Null), &annotation) {
+          self.error(
+            Error::ExpectedType,
+            format!("Expected type {annotation}, but recieved null"),
+            stmt.span,
+          );
         }
 
         self.define(identifier, &annotation);

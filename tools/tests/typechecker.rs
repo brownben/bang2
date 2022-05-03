@@ -47,6 +47,7 @@ fn typed_declarations() {
   assert_correct!("let a: null | number\na = 5\na = null");
   assert_correct!("let a: null | number\na = 5 && null\n");
   assert_fails!("let a: number = true");
+  assert_fails!("let a: number // as initialized to null");
 }
 
 #[test]
