@@ -41,7 +41,7 @@ macro_rules! function_wrapper {
 
   ($name:literal, $function:expr, String,) => {
     NativeFunction::create($name, 1, |args| match &args[0] {
-      Value::String(value) => Value::from($function(&value)),
+      Value::String(value) => Value::from($function(&value as &str)),
       _ => Value::Null,
     })
   };
@@ -167,6 +167,10 @@ pub fn get_builtin_module_value(module: &str, value: &str) -> Option<Value> {
       "toLowerCase": (String,) => str::to_lowercase,
       "toUpperCase": (String,) => str::to_uppercase,
       "toNumber":    (String,) => |s| str::parse::<f64>(s).unwrap_or(f64::NAN),
+    }),
+    "fs" => module!(value, {
+      "read": (String,) => |filename| std::fs::read(filename).map_or(Value::Null, Value::from),
+      "write": (String, String,) => |filename, data| std::fs::write(filename, data).is_ok(),
     }),
     "list" => module!(value, {
       "length":   (List,) => Vec::len,

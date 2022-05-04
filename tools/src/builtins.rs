@@ -23,6 +23,9 @@ macro_rules! type_ {
   (NumberOrNull) => {
     Type::Union(Box::new(type_!(Number)), Box::new(type_!(Null)))
   };
+  (StringOrNull) => {
+    Type::Union(Box::new(type_!(String)), Box::new(type_!(Null)))
+  };
   ($type:ident) => {
     Type::Literal(LiteralType::$type)
   };
@@ -102,6 +105,10 @@ pub fn get_builtin_module_type(
       "toLowerCase": (String,) -> String,
       "toUpperCase": (String,) -> String,
       "toNumber":    (String,) -> NumberOrNull,
+    }),
+    "fs" => module!(value, {
+      "read":   (String,) -> StringOrNull,
+      "write":  (String, String,) -> Boolean,
     }),
     "list" => match value {
       "length" => Some(Type::Function(

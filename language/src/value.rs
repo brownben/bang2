@@ -225,6 +225,11 @@ impl From<Vec<Self>> for Value {
     Self::List(Rc::from(RefCell::new(value)))
   }
 }
+impl From<Vec<u8>> for Value {
+  fn from(value: Vec<u8>) -> Self {
+    std::str::from_utf8(&value).map_or(Self::Null, Self::from)
+  }
+}
 impl From<()> for Value {
   fn from(_value: ()) -> Self {
     Self::Null
@@ -243,10 +248,11 @@ mod test {
   #[test]
   fn displays_correctly() {
     assert_eq!(Value::from("hello").to_string(), "'hello'");
+    assert_eq!(Value::from(Vec::new() as Vec<u8>).to_string(), "''");
     assert_eq!(Value::from(true).to_string(), "true");
     assert_eq!(Value::from(false).to_string(), "false");
     assert_eq!(Value::from(()).to_string(), "null");
-    assert_eq!(Value::from(vec![]).to_string(), "[]");
+    assert_eq!(Value::from(Vec::new() as Vec<Value>).to_string(), "[]");
     assert_eq!(
       Value::from(vec![Value::from("hello")]).to_string(),
       "['hello']"
