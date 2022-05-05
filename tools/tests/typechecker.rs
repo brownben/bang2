@@ -594,6 +594,7 @@ fn index() {
   assert_correct!("let a: number | string = [1, 2, 3, 'hello'][1]");
   assert_fails!("let a: number | string = [1, 2, 3]['hello']");
   assert_fails!("let a: number | string = [1, 2, null, 3]['hello']");
+  assert_correct!("let a: number[] | string[] = [1, 2, 3]\n let b: number | string = a[0]");
 }
 
 #[test]

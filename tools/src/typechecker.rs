@@ -5,7 +5,6 @@
 //
 // It doesn't yet support all features of bang. The current known issues are:
 // - Doesn't support corecursion, or accessing globals before they are defined
-// - Indexing a union
 
 use crate::builtins::{define_globals, get_builtin_module_type};
 use ahash::AHashMap as HashMap;
@@ -390,16 +389,7 @@ impl<'s> Typechecker<'s> {
       (_, Type::Never) => false,
       (_, Type::Any) => true,
       (a, b) if a == b => true,
-      (Type::Literal(a), Type::Boolean) => *a == LiteralType::True || *a == LiteralType::False,
-      (Type::Union(a, b), Type::Boolean) => {
-        self.subtype(a, &Type::Boolean) && self.subtype(b, &Type::Boolean)
-      }
-      (Type::Union(a, b), x) if a == b => self.subtype(a, x),
-      (Type::Union(a, b), Type::Union(a1, b1)) => {
-        (self.subtype(a, a1) && self.subtype(b, b1)) || (self.subtype(a, b1) && self.subtype(b, a1))
-      }
-      (Type::List(a), Type::List(b)) => self.subtype(a, b),
-      (Type::Existential(alpha), b @ Type::Union(_, _)) => {
+      (Type::Existential(alpha), b) => {
         if b.includes(*alpha) {
           false
         } else {
@@ -407,38 +397,28 @@ impl<'s> Typechecker<'s> {
           true
         }
       }
-      (x, Type::Union(a, b)) => self.subtype(x, a) || self.subtype(x, b),
-      (Type::Function(a_params, a_return), Type::Function(b_params, b_return)) => {
-        if a_params.len() != b_params.len() {
-          return false;
-        }
-
-        if !a_params
-          .iter()
-          .zip(b_params.iter())
-          .all(|(a, b)| self.subtype(b, a))
-        {
-          return false;
-        }
-
-        self.subtype(&self.apply_context(a_return), &self.apply_context(b_return))
-      }
-      (Type::Existential(exist1), Type::Existential(exist2)) if exist1 == exist2 => true,
-      (Type::Existential(alpha), _) => {
-        if b.includes(*alpha) {
-          false
-        } else {
-          self.define_existential(*alpha, b.clone());
-          true
-        }
-      }
-      (_, Type::Existential(alpha)) => {
+      (a, Type::Existential(alpha)) => {
         if a.includes(*alpha) {
           false
         } else {
           self.define_existential(*alpha, a.clone());
           true
         }
+      }
+      (Type::Literal(LiteralType::True | LiteralType::False), Type::Boolean) => true,
+      (Type::List(a), Type::List(b)) => self.subtype(a, b),
+      (Type::Union(box Type::List(a), box Type::List(b)), Type::List(c)) => {
+        self.subtype(a, c) && self.subtype(b, c)
+      }
+      (Type::Union(a, b), x) => self.subtype(a, x) && self.subtype(b, x),
+      (x, Type::Union(a, b)) => self.subtype(x, a) || self.subtype(x, b),
+      (Type::Function(a_params, a_return), Type::Function(b_params, b_return)) => {
+        a_params.len() == b_params.len()
+          && a_params
+            .iter()
+            .zip(b_params.iter())
+            .all(|(a, b)| self.subtype(b, a))
+          && self.subtype(&self.apply_context(a_return), &self.apply_context(b_return))
       }
       _ => false,
     }
