@@ -26,8 +26,8 @@
 'hello' == "hello" // true
 'cat' > 'bat'      // true
 'he' + 'llo'       // 'hello'
-!""                // true
-!'stuff'           // false
+(!"")              // true
+(!'stuff')         // false
 
 // You can index a string to get each character, but are immutable so can't assign to them
 'hello'[0]  // 'h'
@@ -55,8 +55,8 @@
 5 >= 3      // true
 5 < 7       // true
 5 <= 5      // true
-!0          // true
-!1          // false
+(!0)        // true
+(!1)        // false
 
 
 // Booleans
@@ -65,7 +65,7 @@
 true
 false
 
-!true         // false
+(!true)         // false
 true != false // true
 
 
@@ -74,7 +74,7 @@ true != false // true
 
 null
 
-!null // true
+(!null) // true
 
 
 // Functions
@@ -93,7 +93,7 @@ null
 (() => 3) != (() => 3)
 
 // Are always truthy
-!!(() => 3)   // true
+(!!(() => 3))   // true
 
 // Can take up to 255 parameters
 (a: number, b: number) => a + b
@@ -109,8 +109,8 @@ null
 [1, 2, 3]
 
 // Truthy if not empty
-!![] // false
-!![1, 2, 3] // true
+(!![]) // false
+(!![1, 2, 3]) // true
 
 // Equality is based of structure
 [1, 2, 3] == [1, 2, 3] // true
