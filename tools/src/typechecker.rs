@@ -22,16 +22,16 @@ use bang_language::{
 use std::collections::hash_map::Entry as HashMapEntry;
 use std::fmt;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
   Literal(LiteralType),
   Boolean,
   Any,
   Never,
   Existential(Existential),
-  Function(Vec<Type>, Box<Type>),
-  Union(Box<Type>, Box<Type>),
-  List(Box<Type>),
+  Function(Vec<Self>, Box<Self>),
+  Union(Box<Self>, Box<Self>),
+  List(Box<Self>),
 }
 impl Type {
   fn includes(&self, alpha: Existential) -> bool {
@@ -644,7 +644,7 @@ impl<'s> Typechecker<'s> {
           );
           self.define(name, &function);
         };
-        self.check_statement(&*body, &return_type);
+        self.check_statement(body, &return_type);
         self.end_scope();
 
         Type::Function(

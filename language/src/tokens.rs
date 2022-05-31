@@ -2,7 +2,7 @@ pub type LineNumber = u16;
 pub type CharacterPosition = u32;
 type TokenLength = usize;
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum TokenType {
   // Brackets
   LeftParen,

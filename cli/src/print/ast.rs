@@ -28,14 +28,14 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
     Expr::Literal { value, .. } => println!("{}Literal ({})", prefix, value),
     Expr::Group { expression, .. } => {
       println!("{}Group", prefix);
-      print_expression(source, &*expression, prefix_start, prefix_blank);
+      print_expression(source, expression, prefix_start, prefix_blank);
     }
     Expr::Unary {
       expression,
       operator,
     } => {
       println!("{}Unary ({})", prefix, operator);
-      print_expression(source, &*expression, prefix_start, prefix_blank);
+      print_expression(source, expression, prefix_start, prefix_blank);
     }
     Expr::Binary {
       left,
@@ -43,15 +43,15 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
       operator,
     } => {
       println!("{}Binary ({})", prefix, operator);
-      print_expression(source, &*left, prefix_list_inline_start, prefix_list_inline);
-      print_expression(source, &*right, prefix_start, prefix_blank);
+      print_expression(source, left, prefix_list_inline_start, prefix_list_inline);
+      print_expression(source, right, prefix_start, prefix_blank);
     }
     Expr::Assignment {
       expression,
       identifier,
     } => {
       println!("{}Assignment ({})", prefix, identifier);
-      print_expression(source, &*expression, prefix_start, prefix_blank);
+      print_expression(source, expression, prefix_start, prefix_blank);
     }
     Expr::Variable { name, .. } => {
       println!("{}Variable ({})", prefix, name);
@@ -61,7 +61,7 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
       arguments,
       ..
     } => {
-      print_expression(source, &*expression, prefix, prefix_blank);
+      print_expression(source, expression, prefix, prefix_blank);
       println!("{}Call", prefix_start);
 
       if let Some((last, arguments)) = arguments.split_last() {
@@ -88,10 +88,10 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
       } else {
         println!("{}Function ({})", prefix, params);
       }
-      print_statement(source, &*body, prefix_start, prefix_blank);
+      print_statement(source, body, prefix_start, prefix_blank);
     }
     Expr::Comment { expression, text } => {
-      print_expression(source, &*expression, prefix, prefix_raw);
+      print_expression(source, expression, prefix, prefix_raw);
       println!(
         "{}Comment ({})",
         prefix_start,
@@ -176,10 +176,10 @@ fn print_statement(source: &[u8], statement: &Statement, prefix: &str, prefix_ra
       println!("{}├─ Condition", prefix_raw);
       print_expression(source, condition, prefix_list_start, prefix_list);
       println!("{}├─ Then", prefix_raw);
-      print_statement(source, &*then, prefix_list_start, prefix_list);
+      print_statement(source, then, prefix_list_start, prefix_list);
       if let Some(ot) = otherwise {
         println!("{}╰─ Else", prefix_raw);
-        print_statement(source, &*ot, prefix_indetented_start, prefix_indetented);
+        print_statement(source, ot, prefix_indetented_start, prefix_indetented);
       };
     }
     Stmt::Import { module, items, .. } => {
@@ -200,7 +200,7 @@ fn print_statement(source: &[u8], statement: &Statement, prefix: &str, prefix_ra
       println!("{}├─ Condition", prefix_raw);
       print_expression(source, condition, prefix_list_start, prefix_list);
       println!("{}╰─ Body", prefix_raw);
-      print_statement(source, &*body, prefix_indetented_start, prefix_indetented);
+      print_statement(source, body, prefix_indetented_start, prefix_indetented);
     }
     Stmt::Return { expression, .. } => {
       println!("{}Return", prefix);

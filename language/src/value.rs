@@ -127,15 +127,15 @@ pub trait Index {
 impl Index for Value {
   fn get_property(&self, index: Value) -> Option<Value> {
     match self {
-      Value::List(list) => list.borrow().get_property(index),
-      Value::String(string) => string.get_property(index),
+      Self::List(list) => list.borrow().get_property(index),
+      Self::String(string) => string.get_property(index),
       _ => None,
     }
   }
 
   fn set_property(&mut self, index: Value, value: Value) -> bool {
     match self {
-      Value::List(list) => list.borrow_mut().set_property(index, value),
+      Self::List(list) => list.borrow_mut().set_property(index, value),
       _ => false,
     }
   }

@@ -160,7 +160,7 @@ pub mod expression {
     }
   }
 
-  #[derive(Copy, Clone, Debug, PartialEq)]
+  #[derive(Copy, Clone, Debug, PartialEq, Eq)]
   pub enum LiteralType {
     String,
     Number,
@@ -192,7 +192,7 @@ pub mod expression {
     }
   }
 
-  #[derive(Copy, Clone, Debug, PartialEq)]
+  #[derive(Copy, Clone, Debug, PartialEq, Eq)]
   pub enum BinaryOperator {
     Plus,
     Minus,
@@ -251,7 +251,7 @@ pub mod expression {
     }
   }
 
-  #[derive(Copy, Clone, Debug, PartialEq)]
+  #[derive(Copy, Clone, Debug, PartialEq, Eq)]
   pub enum AssignmentOperator {
     Plus,
     Minus,
@@ -300,7 +300,7 @@ pub mod expression {
     }
   }
 
-  #[derive(Copy, Clone, Debug, PartialEq)]
+  #[derive(Copy, Clone, Debug, PartialEq, Eq)]
   pub enum UnaryOperator {
     Not,
     Minus,
@@ -462,8 +462,8 @@ pub trait Visitor {
 
     match &statement.stmt {
       Stmt::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
-      Stmt::Declaration { expression, .. } => {
-        if let Some(expression) = &*expression {
+      Stmt::Declaration { expression, .. } | Stmt::Return { expression, .. } => {
+        if let Some(expression) = expression {
           self.visit_expression(expression);
         }
       }
@@ -476,13 +476,8 @@ pub trait Visitor {
       } => {
         self.visit_expression(condition);
         self.visit_statement(then);
-        if let Some(otherwise) = &*otherwise {
+        if let Some(otherwise) = otherwise {
           self.visit_statement(otherwise.as_ref());
-        }
-      }
-      Stmt::Return { expression, .. } => {
-        if let Some(expression) = expression {
-          self.visit_expression(expression);
         }
       }
       Stmt::While {

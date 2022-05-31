@@ -12,7 +12,7 @@ use crate::{
   tokens::{tokenize, Token, TokenType},
 };
 
-#[derive(Clone, Copy, Debug, PartialOrd, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Eq)]
 enum Precedence {
   None = 1,
   Assignment, // =
@@ -440,7 +440,7 @@ impl<'source> Parser<'source, '_> {
       None
     };
 
-    let statement = if self.matches(TokenType::Equal) {
+    if self.matches(TokenType::Equal) {
       let mut expression = self.expression()?;
 
       if let Expr::Function {
@@ -478,9 +478,7 @@ impl<'source> Parser<'source, '_> {
         },
         (token, identifier_token)
       ))
-    };
-
-    statement
+    }
   }
 
   fn return_statement(&mut self) -> StatementResult<'source> {
