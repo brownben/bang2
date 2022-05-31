@@ -151,13 +151,10 @@ impl<'source> Tokeniser<'source> {
   pub fn next_token(&mut self) -> Token {
     let (ttype, len) = self.next_token_type();
 
-    #[allow(
-      clippy::cast_possible_truncation,
-      reason = "assume files are less than 2^32 characters"
-    )]
+    #[allow(clippy::cast_possible_truncation)]
+    // assume files are less than 2^32 characters
     let token = Token {
       ttype,
-
       start: self.position as CharacterPosition,
       end: (self.position + len) as CharacterPosition,
       line: self.line,

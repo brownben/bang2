@@ -237,8 +237,8 @@ impl<'s> Typechecker<'s> {
           annotation.span,
         ),
       },
-      TypeItem::Group(box t) => self.type_from_annotation(t),
-      TypeItem::Function(box return_type, parameters) => {
+      TypeItem::Group(t) => self.type_from_annotation(t),
+      TypeItem::Function(return_type, parameters) => {
         let return_type = self.type_from_annotation(return_type);
         let parameters = parameters
           .iter()
@@ -247,14 +247,14 @@ impl<'s> Typechecker<'s> {
 
         Type::Function(parameters, Box::new(return_type))
       }
-      TypeItem::Union(box a, box b) => {
+      TypeItem::Union(a, b) => {
         Type::union(self.type_from_annotation(a), self.type_from_annotation(b))
       }
-      TypeItem::Optional(box t) => Type::union(
+      TypeItem::Optional(t) => Type::union(
         Type::Literal(LiteralType::Null),
         self.type_from_annotation(t),
       ),
-      TypeItem::List(box t) => Type::List(Box::new(self.type_from_annotation(t))),
+      TypeItem::List(t) => Type::List(Box::new(self.type_from_annotation(t))),
     }
   }
 
@@ -407,9 +407,6 @@ impl<'s> Typechecker<'s> {
       }
       (Type::Literal(LiteralType::True | LiteralType::False), Type::Boolean) => true,
       (Type::List(a), Type::List(b)) => self.subtype(a, b),
-      (Type::Union(box Type::List(a), box Type::List(b)), Type::List(c)) => {
-        self.subtype(a, c) && self.subtype(b, c)
-      }
       (Type::Union(a, b), x) => self.subtype(a, x) && self.subtype(b, x),
       (x, Type::Union(a, b)) => self.subtype(x, a) || self.subtype(x, b),
       (Type::Function(a_params, a_return), Type::Function(b_params, b_return)) => {
@@ -824,7 +821,7 @@ impl<'s> Typechecker<'s> {
     };
 
     let (expression, arguments) = if let Expr::Call {
-      box expression,
+      expression,
       arguments,
       ..
     } = &right.expr

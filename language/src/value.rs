@@ -193,10 +193,8 @@ impl From<i32> for Value {
 }
 impl From<usize> for Value {
   fn from(value: usize) -> Self {
-    #[allow(
-      clippy::cast_precision_loss,
-      reason = "used by builtins for lengths, if larger allow rounding as that is to be expected with number type"
-    )]
+    #[allow(clippy::cast_precision_loss)]
+    // used by builtins for lengths, if larger allow rounding as that is to be expected with number type
     Self::Number(value as f64)
   }
 }

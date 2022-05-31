@@ -1,4 +1,5 @@
-#![feature(box_patterns, let_chains, lint_reasons)]
+#![feature(let_chains)]
+
 use ahash::AHashMap as HashMap;
 use std::rc::Rc;
 

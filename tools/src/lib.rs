@@ -1,4 +1,4 @@
-#![feature(let_chains, box_patterns)]
+#![feature(let_chains)]
 
 mod builtins;
 mod formatter;
