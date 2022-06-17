@@ -22,6 +22,12 @@ use bang_language::{
 use std::collections::hash_map::Entry as HashMapEntry;
 use std::fmt;
 
+type Existential = u32;
+
+const NULL_TYPE: Type = Type::Literal(LiteralType::Null);
+const NUMBER_TYPE: Type = Type::Literal(LiteralType::Number);
+const STRING_TYPE: Type = Type::Literal(LiteralType::String);
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
   Literal(LiteralType),
@@ -132,8 +138,6 @@ impl fmt::Display for Type {
   }
 }
 
-type Existential = u32;
-
 #[derive(Clone, Debug)]
 struct Solved {
   existential: Existential,
@@ -224,9 +228,9 @@ impl<'s> Typechecker<'s> {
   fn type_from_annotation(&mut self, annotation: &TypeExpression) -> Type {
     match &annotation.type_ {
       TypeItem::Named(name) => match *name {
-        "string" => Type::Literal(LiteralType::String),
-        "number" => Type::Literal(LiteralType::Number),
-        "null" => Type::Literal(LiteralType::Null),
+        "string" => STRING_TYPE,
+        "number" => NUMBER_TYPE,
+        "null" => NULL_TYPE,
         "false" => Type::Literal(LiteralType::False),
         "true" => Type::Literal(LiteralType::True),
         "boolean" => Type::Boolean,
@@ -250,10 +254,7 @@ impl<'s> Typechecker<'s> {
       TypeItem::Union(a, b) => {
         Type::union(self.type_from_annotation(a), self.type_from_annotation(b))
       }
-      TypeItem::Optional(t) => Type::union(
-        Type::Literal(LiteralType::Null),
-        self.type_from_annotation(t),
-      ),
+      TypeItem::Optional(t) => Type::union(NULL_TYPE, self.type_from_annotation(t)),
       TypeItem::List(t) => Type::List(Box::new(self.type_from_annotation(t))),
     }
   }
@@ -323,40 +324,10 @@ impl<'s> Typechecker<'s> {
     self.solved_scope -= 1;
   }
 
-  pub fn new_existential_value(&mut self) -> Existential {
-    self.existential_id += 1;
-    self.existentials.push(self.existential_id);
-    self.existential_id
-  }
-
   pub fn new_existential(&mut self) -> Type {
     self.existential_id += 1;
     self.existentials.push(self.existential_id);
     Type::Existential(self.existential_id)
-  }
-
-  fn create_existentials_for_function(
-    &mut self,
-    alpha: Existential,
-    arguments_length: usize,
-  ) -> (Vec<Existential>, Existential) {
-    let arguments: Vec<Existential> = (0..arguments_length)
-      .map(|_| self.new_existential_value())
-      .collect();
-    let return_type = self.new_existential_value();
-
-    self.define_existential(
-      alpha,
-      Type::Function(
-        arguments
-          .iter()
-          .map(|arg| Type::Existential(*arg))
-          .collect(),
-        Box::new(Type::Existential(return_type)),
-      ),
-    );
-
-    (arguments, return_type)
   }
 
   pub fn apply_context(&self, type_: &Type) -> Type {
@@ -393,6 +364,7 @@ impl<'s> Typechecker<'s> {
         if b.includes(*alpha) {
           false
         } else {
+          // Create a subtype of b
           self.define_existential(*alpha, b.clone());
           true
         }
@@ -401,6 +373,7 @@ impl<'s> Typechecker<'s> {
         if a.includes(*alpha) {
           false
         } else {
+          // Create a supertype of a
           self.define_existential(*alpha, a.clone());
           true
         }
@@ -424,7 +397,7 @@ impl<'s> Typechecker<'s> {
   fn check_statement(&mut self, stmt: &Statement<'s>, type_: &Type) {
     let stmt_type = match self.synthesize_statement(stmt) {
       Some(ty) => self.apply_context(&ty),
-      None => Type::Literal(LiteralType::Null),
+      None => NULL_TYPE,
     };
 
     if !self.subtype(&stmt_type, type_) {
@@ -464,12 +437,12 @@ impl<'s> Typechecker<'s> {
             .synthesize_expression(expression)
             .uplevel_literal_booleans()
         } else {
-          Type::Literal(LiteralType::Null)
+          NULL_TYPE
         };
 
         if let Some(expression) = expression {
           self.check_expression(expression, &annotation);
-        } else if !self.subtype(&Type::Literal(LiteralType::Null), &annotation) {
+        } else if !self.subtype(&NULL_TYPE, &annotation) {
           self.error(
             Error::ExpectedType,
             format!("Expected type {annotation}, but recieved null"),
@@ -495,7 +468,6 @@ impl<'s> Typechecker<'s> {
           let y = self.synthesize_statement_with_restriction(otherwise, restrictions);
 
           match (x, y) {
-            (Some(x), Some(y)) if x == y => Some(x),
             (Some(x), Some(y)) => Some(Type::union(x, y)),
             (Some(x), None) => Some(x),
             (None, Some(y)) => Some(y),
@@ -531,11 +503,7 @@ impl<'s> Typechecker<'s> {
       Stmt::Import { module, items } => {
         for item in items {
           if let Some(type_) = get_builtin_module_type(self, module, item.name) {
-            if let Some(alias) = item.alias {
-              self.define(alias, &type_);
-            } else {
-              self.define(item.name, &type_);
-            }
+            self.define(item.alias.unwrap_or(item.name), &type_);
           } else {
             self.error(
               Error::BuiltinNotFound,
@@ -550,7 +518,7 @@ impl<'s> Typechecker<'s> {
         if let Some(expression) = expression {
           Some(self.synthesize_expression(expression))
         } else {
-          Some(Type::Literal(LiteralType::Null))
+          Some(NULL_TYPE)
         }
       }
     }
@@ -674,8 +642,8 @@ impl<'s> Typechecker<'s> {
         let type_ = self.synthesize_expression(expression);
         match operator {
           UnaryOperator::Minus => {
-            self.check_expression(expression, &Type::Literal(LiteralType::Number));
-            Type::Literal(LiteralType::Number)
+            self.check_expression(expression, &NUMBER_TYPE);
+            NUMBER_TYPE
           }
           UnaryOperator::Not => match type_ {
             type_ if type_.is_truthy() => Type::Literal(LiteralType::False),
@@ -701,18 +669,15 @@ impl<'s> Typechecker<'s> {
           BinaryOperator::Plus => {
             self.check_expression(
               left,
-              &Type::Union(
-                Box::new(Type::Literal(LiteralType::Number)),
-                Box::new(Type::Literal(LiteralType::String)),
-              ),
+              &Type::Union(Box::new(NUMBER_TYPE), Box::new(STRING_TYPE)),
             );
             self.check_expression(right, &l);
             l
           }
           BinaryOperator::Minus | BinaryOperator::Multiply | BinaryOperator::Divide => {
-            self.check_expression(left, &Type::Literal(LiteralType::Number));
-            self.check_expression(right, &Type::Literal(LiteralType::Number));
-            Type::Literal(LiteralType::Number)
+            self.check_expression(left, &NUMBER_TYPE);
+            self.check_expression(right, &NUMBER_TYPE);
+            NUMBER_TYPE
           }
           BinaryOperator::Equal | BinaryOperator::NotEqual => {
             self.check_expression(right, &l);
@@ -724,10 +689,7 @@ impl<'s> Typechecker<'s> {
           | BinaryOperator::LessEqual => {
             self.check_expression(
               left,
-              &Type::Union(
-                Box::new(Type::Literal(LiteralType::Number)),
-                Box::new(Type::Literal(LiteralType::String)),
-              ),
+              &Type::Union(Box::new(NUMBER_TYPE), Box::new(STRING_TYPE)),
             );
             self.check_expression(right, &l);
             Type::Boolean
@@ -743,8 +705,8 @@ impl<'s> Typechecker<'s> {
             _ => Type::union(l, r),
           },
           BinaryOperator::Nullish => {
-            if self.subtype(&Type::Literal(LiteralType::Null), &l) {
-              Type::union(l.narrow(&Type::Literal(LiteralType::Null)), r)
+            if self.subtype(&NULL_TYPE, &l) {
+              Type::union(l.narrow(&NULL_TYPE), r)
             } else {
               l
             }
@@ -766,11 +728,11 @@ impl<'s> Typechecker<'s> {
         ))
       }
       Expr::Index { expression, index } => {
-        self.check_expression(index, &Type::Literal(LiteralType::Number));
+        self.check_expression(index, &NUMBER_TYPE);
 
         let expression_type = self.synthesize_expression(expression);
-        if expression_type == Type::Literal(LiteralType::String) {
-          return Type::Literal(LiteralType::String);
+        if expression_type == STRING_TYPE {
+          return STRING_TYPE;
         }
 
         let list_interior = self.new_existential();
@@ -785,24 +747,18 @@ impl<'s> Typechecker<'s> {
       } => {
         let list_interior = self.new_existential();
         self.check_expression(expression, &Type::List(Box::new(list_interior.clone())));
-        self.check_expression(index, &Type::Literal(LiteralType::Number));
+        self.check_expression(index, &NUMBER_TYPE);
         self.check_expression(value, &list_interior);
 
         match assignment_operator {
           Some(AssignmentOperator::Plus) => {
-            let plus_able = Type::union(
-              Type::Literal(LiteralType::Number),
-              Type::Literal(LiteralType::String),
-            );
+            let plus_able = Type::union(NUMBER_TYPE, STRING_TYPE);
             self.check_expression(value, &plus_able);
             self.check_expression(expression, &Type::List(Box::new(plus_able)));
           }
           Some(_) => {
-            self.check_expression(value, &Type::Literal(LiteralType::Number));
-            self.check_expression(
-              expression,
-              &Type::List(Box::new(Type::Literal(LiteralType::Number))),
-            );
+            self.check_expression(value, &NUMBER_TYPE);
+            self.check_expression(expression, &Type::List(Box::new(NUMBER_TYPE)));
           }
           _ => (),
         };
@@ -848,14 +804,21 @@ impl<'s> Typechecker<'s> {
 
     let type_ = match expression {
       Type::Existential(alpha) => {
-        let (alpha_args, return_type) =
-          self.create_existentials_for_function(*alpha, arguments.len());
+        let alpha_args: Vec<_> = (0..arguments.len())
+          .map(|_| self.new_existential())
+          .collect();
+        let return_type = self.new_existential();
+
+        self.define_existential(
+          *alpha,
+          Type::Function(alpha_args.clone(), Box::new(return_type.clone())),
+        );
 
         for (alpha, expression) in alpha_args.iter().zip(arguments.iter()) {
-          self.check_expression(expression, &Type::Existential(*alpha));
+          self.check_expression(expression, alpha);
         }
 
-        Type::Existential(return_type)
+        return_type
       }
       Type::Function(args, return_type) => {
         if args.len() != arguments.len() {
@@ -883,7 +846,10 @@ impl<'s> Typechecker<'s> {
     self.end_solved_scope();
     type_
   }
+}
 
+/// Restrictions
+impl<'s> Typechecker<'s> {
   fn get_restrictions(&mut self, expression: &Expression<'s>) -> Vec<Restriction<'s>> {
     match &expression.expr {
       Expr::Group { expression } | Expr::Comment { expression, .. } => {

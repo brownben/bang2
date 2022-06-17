@@ -11,9 +11,14 @@ pub fn define_globals(typechecker: &mut Typechecker) {
     vec![Type::Any],
     Box::new(Type::Literal(LiteralType::String)),
   );
+  let to_string = Type::Function(
+    vec![Type::Any],
+    Box::new(Type::Literal(LiteralType::String)),
+  );
 
   typechecker.define("print", &print);
   typechecker.define("type", &type_);
+  typechecker.define("toString", &to_string);
 }
 
 macro_rules! type_ {
@@ -55,6 +60,14 @@ macro_rules! module {
       _ => None,
     }
   };
+}
+
+fn list(value: Type) -> Type {
+  Type::List(Box::new(value))
+}
+
+fn function(args: Vec<Type>, value: Type) -> Type {
+  Type::Function(args, Box::new(value))
 }
 
 pub fn get_builtin_module_type(
@@ -111,48 +124,39 @@ pub fn get_builtin_module_type(
       "write":  (String, String,) -> Boolean,
     }),
     "list" => match value {
-      "length" => Some(Type::Function(
-        vec![Type::List(Box::new(Type::Any))],
-        Box::new(type_!(Number)),
-      )),
-      "isEmpty" => Some(Type::Function(
-        vec![Type::List(Box::new(Type::Any))],
-        Box::new(Type::Boolean),
-      )),
+      "length" => Some(function(vec![list(Type::Any)], type_!(Number))),
+      "isEmpty" => Some(function(vec![list(Type::Any)], Type::Boolean)),
       "push" => {
         let generic = typechecker.new_existential();
-        Some(Type::Function(
-          vec![Type::List(Box::new(generic.clone())), generic.clone()],
-          Box::new(Type::List(Box::new(generic))),
+        Some(function(
+          vec![list(generic.clone()), generic.clone()],
+          list(generic),
         ))
       }
       "includes" => {
         let generic = typechecker.new_existential();
-        Some(Type::Function(
-          vec![Type::List(Box::new(generic.clone())), generic],
-          Box::new(Type::Boolean),
+        Some(function(
+          vec![list(generic.clone()), generic],
+          Type::Boolean,
         ))
       }
       "pop" => {
         let generic = typechecker.new_existential();
-        Some(Type::Function(
-          vec![Type::List(Box::new(generic.clone()))],
-          Box::new(Type::union(generic, type_!(Null))),
+        Some(function(
+          vec![list(generic.clone())],
+          Type::union(generic, type_!(Null)),
         ))
       }
       "get" => {
         let generic = typechecker.new_existential();
-        Some(Type::Function(
-          vec![Type::List(Box::new(generic.clone())), type_!(Number)],
-          Box::new(Type::union(generic, type_!(Null))),
+        Some(function(
+          vec![list(generic.clone()), type_!(Number)],
+          Type::union(generic, type_!(Null)),
         ))
       }
       "reverse" => {
         let generic = typechecker.new_existential();
-        Some(Type::Function(
-          vec![Type::List(Box::new(generic.clone()))],
-          Box::new(Type::List(Box::new(generic))),
-        ))
+        Some(function(vec![list(generic.clone())], list(generic)))
       }
       _ => None,
     },
