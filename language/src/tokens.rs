@@ -120,10 +120,8 @@ impl Token {
   pub fn get_value<'s>(&self, source: &'s [u8]) -> &'s str {
     let start = self.start as usize;
     let end = self.end as usize;
-    unsafe {
-      // This is safe because `self.source` is converted from a string and not mutated.
-      std::str::from_utf8_unchecked(&source[start..end])
-    }
+
+    std::str::from_utf8(&source[start..end]).expect("Source to be valid utf8")
   }
 }
 
