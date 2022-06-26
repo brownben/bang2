@@ -83,6 +83,7 @@ enum Error {
   EmptyStatement,
   ExpectedImportKeyword,
   ExpectedType,
+  ExpectedCatchAllLast,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -99,9 +100,10 @@ impl Error {
       Self::InvalidAssignmentTarget => "Invalid Assignment Target",
       Self::UnexpectedCharacter => "Unexpected Character",
       Self::UnterminatedString => "Unterminated String",
-      Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
       Self::ExpectedImportKeyword => "Expected 'import' keyword",
       Self::ExpectedType => "Expected Type",
+      Self::ExpectedCatchAllLast => "Expected Catch All Parameter To Be The Last",
+      Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
     }
   }
 
@@ -123,6 +125,7 @@ impl Error {
         format!("Missing closing quote {}", &token.get_value(source)[0..1])
       }
       Self::InvalidAssignmentTarget => "Can't assign to an expression, only a variable".to_string(),
+      Self::ExpectedCatchAllLast => "No parameters can follow a catch all parameter".to_string(),
       Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
     }
   }
@@ -624,6 +627,7 @@ impl<'source> Parser<'source, '_> {
         break;
       }
 
+      let catch_remaining = self.matches(TokenType::DotDot);
       let parameter = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
       let type_ = if self.matches(TokenType::Colon) {
         Some(self.types()?)
@@ -635,11 +639,15 @@ impl<'source> Parser<'source, '_> {
         name: parameter.get_value(self.source),
         span: Span::from(parameter),
         type_,
+        catch_remaining,
       });
 
       if !self.matches(TokenType::Comma) {
         self.ignore_newline();
         self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+        break;
+      } else if catch_remaining {
+        self.consume(TokenType::RightParen, Error::ExpectedCatchAllLast)?;
         break;
       }
     }

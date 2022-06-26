@@ -12,7 +12,7 @@ use crate::{
   chunk::{Builder as ChunkBuilder, Chunk, OpCode},
   diagnostic::Diagnostic,
   parser::parse_number,
-  value::{Function, Value},
+  value::{Arity, Function, Value},
 };
 
 enum Error {
@@ -44,9 +44,10 @@ impl Error {
       Self::TooBigJump | Self::TooManyConstants => {
         "This is likely an error with the language".to_string()
       }
-      Self::TooManyArguments | Self::TooManyParameters => {
-        "There is a limit of 255 arguments for a function".to_string()
+      Self::TooManyArguments => {
+        "There is a limit of 255 arguments to be passed to a function".to_string()
       }
+      Self::TooManyParameters => "There is a limit of 255 parameters for a function".to_string(),
       Self::TooManyLocals => "There is a limit of 255 local variables at once".to_string(),
       Self::VariableAlreadyExists => format!("Variable '{value}' has been defined already"),
       Self::BuiltinNotFound => format!("Could not find value in module '{value}'"),
@@ -441,7 +442,10 @@ impl<'s> Compiler<'s> {
           span,
           Value::from(Function {
             name: name.unwrap_or("").to_string(),
-            arity,
+            arity: Arity::new(
+              arity,
+              parameters.iter().any(|parameter| parameter.catch_remaining),
+            ),
             start: chunk,
           }),
         );

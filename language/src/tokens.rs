@@ -18,6 +18,7 @@ pub enum TokenType {
   Colon,
   RightArrow,
   FatRightArrow,
+  DotDot,
 
   // Type Operators
   Pipe,
@@ -228,6 +229,7 @@ impl<'source> Tokeniser<'source> {
       (b'|', b'|') => Some(TokenType::Or),
       (b'?', b'?') => Some(TokenType::QuestionQuestion),
       (b'>', b'>') => Some(TokenType::RightRight),
+      (b'.', b'.') => Some(TokenType::DotDot),
       _ => None,
     }
   }

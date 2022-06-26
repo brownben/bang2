@@ -319,28 +319,43 @@ impl VM {
 
           match callee {
             Value::Function(func) => {
-              if arg_count != func.arity {
+              if !func.arity.check_arg_count(arg_count) {
                 break runtime_error!(
                   (self, chunk, ip),
                   "Expected {} arguments but got {}.",
-                  func.arity,
+                  func.arity.get_count(),
                   arg_count
                 );
               }
 
-              self.store_frame(ip + 2, offset);
+              // If more arguments than expected, wrap the overflowing ones into a list
+              if func.arity.has_varadic_param() && func.arity.check_arg_count(arg_count) {
+                let overflow_count = arg_count + 1 - func.arity.get_count();
+                let start_of_items = self.stack.len() - overflow_count as usize;
+                let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
+                self.push(Value::from(items));
+              }
 
-              offset = self.stack.len() - arg_count as usize;
+              self.store_frame(ip + 2, offset);
+              offset = self.stack.len() - func.arity.get_count() as usize;
               ip = func.start;
             }
             Value::NativeFunction(func) => {
-              if arg_count != func.arity {
+              if !func.arity.check_arg_count(arg_count) {
                 break runtime_error!(
                   (self, chunk, ip),
                   "Expected {} arguments but got {}.",
-                  func.arity,
+                  func.arity.get_count(),
                   arg_count
                 );
+              }
+
+              // If more arguments than expected, wrap the overflowing ones into a list
+              if func.arity.has_varadic_param() && func.arity.check_arg_count(arg_count) {
+                let overflow_count = arg_count + 1 - func.arity.get_count();
+                let start_of_items = self.stack.len() - overflow_count as usize;
+                let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
+                self.push(Value::from(items));
               }
 
               let start_of_args = self.stack.len() - arg_count as usize;
