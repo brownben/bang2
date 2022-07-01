@@ -3,18 +3,13 @@ use bang_language::ast::expression::LiteralType;
 
 pub fn define_globals(typechecker: &mut Typechecker) {
   let print_arg_existential = typechecker.new_existential();
-  let print = Type::Function(
+  let print = Type::function(
     vec![print_arg_existential.clone()],
-    Box::new(print_arg_existential),
+    print_arg_existential,
+    false,
   );
-  let type_ = Type::Function(
-    vec![Type::Any],
-    Box::new(Type::Literal(LiteralType::String)),
-  );
-  let to_string = Type::Function(
-    vec![Type::Any],
-    Box::new(Type::Literal(LiteralType::String)),
-  );
+  let type_ = Type::function(vec![Type::Any], Type::Literal(LiteralType::String), false);
+  let to_string = Type::function(vec![Type::Any], Type::Literal(LiteralType::String), false);
 
   typechecker.define("print", &print);
   typechecker.define("type", &type_);
@@ -47,13 +42,14 @@ macro_rules! module {
       )*
       $(
         $item_name => Some(
-          Type::Function(
+          Type::function(
             vec![
               $(
                 type_!($item_type),
               )+
             ],
-            Box::new(type_!($returns))
+            type_!($returns),
+            false
           )
         ),
       )*
@@ -67,7 +63,7 @@ fn list(value: Type) -> Type {
 }
 
 fn function(args: Vec<Type>, value: Type) -> Type {
-  Type::Function(args, Box::new(value))
+  Type::function(args, value, false)
 }
 
 pub fn get_builtin_module_type(

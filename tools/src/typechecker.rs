@@ -29,13 +29,20 @@ const NUMBER_TYPE: Type = Type::Literal(LiteralType::Number);
 const STRING_TYPE: Type = Type::Literal(LiteralType::String);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Function {
+  parameters: Vec<Type>,
+  return_type: Type,
+  catch_all: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
   Literal(LiteralType),
   Boolean,
   Any,
   Never,
   Existential(Existential),
-  Function(Vec<Self>, Box<Self>),
+  Function(Box<Function>),
   Union(Box<Self>, Box<Self>),
   List(Box<Self>),
 }
@@ -43,8 +50,12 @@ impl Type {
   fn includes(&self, alpha: Existential) -> bool {
     match self {
       Self::Any | Self::Boolean | Self::Literal(_) | Self::Never => false,
-      Self::Function(parameters, return_type) => {
-        parameters.iter().any(|parameter| parameter.includes(alpha)) || return_type.includes(alpha)
+      Self::Function(function) => {
+        function
+          .parameters
+          .iter()
+          .any(|parameter| parameter.includes(alpha))
+          || function.return_type.includes(alpha)
       }
       Self::Existential(var) => *var == alpha,
       Self::Union(a, b) => a.includes(alpha) || b.includes(alpha),
@@ -65,7 +76,7 @@ impl Type {
 
   fn is_truthy(&self) -> bool {
     match self {
-      Self::Literal(LiteralType::True) | Self::Function(_, _) => true,
+      Self::Literal(LiteralType::True) | Self::Function(_) => true,
       Self::Union(a, b) => a.is_truthy() && b.is_truthy(),
       _ => false,
     }
@@ -108,6 +119,14 @@ impl Type {
       (x, _) => x,
     }
   }
+
+  pub fn function(parameters: Vec<Self>, return_type: Self, catch_all: bool) -> Self {
+    Self::Function(Box::new(Function {
+      parameters,
+      return_type,
+      catch_all,
+    }))
+  }
 }
 impl fmt::Display for Type {
   fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
@@ -118,17 +137,19 @@ impl fmt::Display for Type {
       Self::Literal(lit) => write!(f, "{lit}"),
       Self::Existential(ex) => write!(f, "^{ex}"),
       Self::Union(a, b) => write!(f, "{a} | {b}"),
-      Self::Function(arguments, return_type) => write!(
+      Self::Function(function) => write!(
         f,
-        "({}) -> {return_type}",
-        arguments
+        "({}) -> {}",
+        function
+          .parameters
           .iter()
           .map(std::string::ToString::to_string)
           .collect::<Vec<_>>()
-          .join(", ")
+          .join(", "),
+        function.return_type
       ),
       Self::List(element_type) => {
-        if let Self::Union(_, _) | Self::Function(_, _) = **element_type {
+        if let Self::Union(_, _) | Self::Function(_) = **element_type {
           write!(f, "({element_type})[]")
         } else {
           write!(f, "{element_type}[]")
@@ -249,7 +270,7 @@ impl<'s> Typechecker<'s> {
           .map(|p| self.type_from_annotation(p))
           .collect::<Vec<_>>();
 
-        Type::Function(parameters, Box::new(return_type))
+        Type::function(parameters, return_type, false)
       }
       TypeItem::Union(a, b) => {
         Type::union(self.type_from_annotation(a), self.type_from_annotation(b))
@@ -343,12 +364,14 @@ impl<'s> Typechecker<'s> {
           type_.clone()
         }
       }
-      Type::Function(parameters, return_type) => Type::Function(
-        parameters
+      Type::Function(function) => Type::function(
+        function
+          .parameters
           .iter()
           .map(|parameter| self.apply_context(parameter))
           .collect(),
-        Box::new(self.apply_context(return_type)),
+        self.apply_context(&function.return_type),
+        function.catch_all,
       ),
       Type::Union(a, b) => Type::union(self.apply_context(a), self.apply_context(b)),
       Type::List(type_) => Type::List(Box::new(self.apply_context(type_))),
@@ -382,13 +405,17 @@ impl<'s> Typechecker<'s> {
       (Type::List(a), Type::List(b)) => self.subtype(a, b),
       (Type::Union(a, b), x) => self.subtype(a, x) && self.subtype(b, x),
       (x, Type::Union(a, b)) => self.subtype(x, a) || self.subtype(x, b),
-      (Type::Function(a_params, a_return), Type::Function(b_params, b_return)) => {
-        a_params.len() == b_params.len()
-          && a_params
+      (Type::Function(a), Type::Function(b)) => {
+        a.parameters.len() == b.parameters.len()
+          && a
+            .parameters
             .iter()
-            .zip(b_params.iter())
+            .zip(b.parameters.iter())
             .all(|(a, b)| self.subtype(b, a))
-          && self.subtype(&self.apply_context(a_return), &self.apply_context(b_return))
+          && self.subtype(
+            &self.apply_context(&a.return_type),
+            &self.apply_context(&b.return_type),
+          )
       }
       _ => false,
     }
@@ -600,27 +627,32 @@ impl<'s> Typechecker<'s> {
             }
           })
           .collect::<Vec<_>>();
+        let has_catch_all_parameter = parameters
+          .last()
+          .map_or(false, |parameter| parameter.catch_remaining);
 
         self.begin_scope();
         for (type_, param) in arg_types.iter().zip(parameters.iter()) {
           self.define(param.name, type_);
         }
         if let Some(name) = name {
-          let function = Type::Function(
+          let function = Type::function(
             arg_types.clone(),
-            Box::new(self.apply_context(&return_type)),
+            self.apply_context(&return_type),
+            has_catch_all_parameter,
           );
           self.define(name, &function);
         };
         self.check_statement(body, &return_type);
         self.end_scope();
 
-        Type::Function(
+        Type::function(
           arg_types
             .iter()
             .map(|type_| self.apply_context(type_))
             .collect(),
-          Box::new(self.apply_context(&return_type)),
+          self.apply_context(&return_type),
+          has_catch_all_parameter,
         )
       }
 
@@ -811,7 +843,7 @@ impl<'s> Typechecker<'s> {
 
         self.define_existential(
           *alpha,
-          Type::Function(alpha_args.clone(), Box::new(return_type.clone())),
+          Type::function(alpha_args.clone(), return_type.clone(), false),
         );
 
         for (alpha, expression) in alpha_args.iter().zip(arguments.iter()) {
@@ -820,20 +852,42 @@ impl<'s> Typechecker<'s> {
 
         return_type
       }
-      Type::Function(args, return_type) => {
-        if args.len() != arguments.len() {
+      Type::Function(function) => {
+        if (function.catch_all && arguments.len() < function.parameters.len() - 1)
+          || (!function.catch_all && arguments.len() != function.parameters.len())
+        {
           return self.error(
             Error::WrongNumberArguments,
-            format!("Expected {} arguments, got {}", args.len(), arguments.len()),
+            format!(
+              "Expected {} arguments, got {}",
+              function.parameters.len(),
+              arguments.len()
+            ),
             span,
           );
         }
 
-        for (arg, e) in args.iter().zip(arguments.iter()) {
-          self.check_expression(e, arg);
+        let normal_parameter_end_index =
+          function.parameters.len() - if function.catch_all { 1 } else { 0 };
+
+        function.parameters[..normal_parameter_end_index]
+          .iter()
+          .zip(arguments.iter())
+          .for_each(|(arg, e)| self.check_expression(e, arg));
+
+        if function.catch_all {
+          let items = arguments[(function.parameters.len() - 1)..].to_owned();
+
+          self.check_expression(
+            &Expression {
+              expr: Expr::List { items },
+              span,
+            },
+            function.parameters.last().unwrap(),
+          );
         }
 
-        *return_type.clone()
+        function.return_type.clone()
       }
       _ => self.error(
         Error::NotCallable,
