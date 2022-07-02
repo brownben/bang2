@@ -201,6 +201,9 @@ a // 7
 let a: number = 7
 let b: number | null
 
+// You can destructure the first elements in the list
+let [a, b] = [1, 2] // a = 1; b = 2
+
 // ==========================
 // Assignment Operators
 // ==========================

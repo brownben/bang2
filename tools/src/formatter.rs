@@ -1,7 +1,7 @@
 use bang_language::{
   ast::{
     expression::{AssignmentOperator, Expr, Expression, LiteralType},
-    statement::{Statement, Stmt},
+    statement::{DeclarationIdentifier, Statement, Stmt},
     types::{Type, TypeExpression},
     Span,
   },
@@ -362,7 +362,23 @@ impl<'source> Formatter<'source> {
         expression,
         type_,
       } => {
-        write!(f, "let {identifier}")?;
+        match identifier {
+          DeclarationIdentifier::Variable(identifier) => write!(f, "let {identifier}")?,
+          DeclarationIdentifier::List(list) => {
+            write!(f, "let [")?;
+            Self::write_list(
+              list,
+              |_| self.line(span),
+              &mut |f, item, _| write!(f, "{item}"),
+              self.line(span),
+              indentation,
+              false,
+              f,
+            )?;
+            write!(f, "]")?;
+          }
+        };
+
         if let Some(type_) = type_ {
           write!(f, ": ")?;
           self.fmt_type(type_, f)?;

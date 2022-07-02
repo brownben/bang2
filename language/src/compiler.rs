@@ -5,7 +5,7 @@ use crate::{
     expression::{
       AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, UnaryOperator,
     },
-    statement::{Statement, Stmt},
+    statement::{DeclarationIdentifier, Statement, Stmt},
     Span,
   },
   builtins::get_builtin_module_value,
@@ -219,7 +219,28 @@ impl<'s> Compiler<'s> {
           self.emit_opcode(span, OpCode::Null);
         }
 
-        self.define_variable(identifier, span);
+        match identifier {
+          DeclarationIdentifier::Variable(identifier) => {
+            self.define_variable(identifier, span);
+          }
+          DeclarationIdentifier::List(identifiers) => {
+            identifiers
+              .iter()
+              .enumerate()
+              .for_each(|(index, identifier)| {
+                let temp_local_location = u8::try_from(self.locals.len())
+                  .map_err(|_| self.error(Error::TooManyLocals, span, ""))
+                  .unwrap_or(0);
+
+                self.emit_opcode(span, OpCode::GetLocal);
+                self.emit_value(span, temp_local_location);
+                self.emit_constant(span, Value::from(index));
+                self.emit_opcode(span, OpCode::GetIndex);
+                self.define_variable(identifier, span);
+              });
+            self.emit_opcode(span, OpCode::Pop);
+          }
+        }
       }
       Stmt::If {
         condition,

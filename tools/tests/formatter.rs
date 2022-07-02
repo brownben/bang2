@@ -475,3 +475,9 @@ fn index_assignment() {
   assert_format!("x[3 - 8] = 22");
   assert_format!("[1, 2, 3][0] /= 99");
 }
+
+#[test]
+fn list_destructuring() {
+  assert_format!("let[a,b]=[1,2,3]", "let [a, b] = [1, 2, 3]");
+  assert_format!("let [c,] =  list", "let [c] = list");
+}

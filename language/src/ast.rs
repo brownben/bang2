@@ -336,7 +336,7 @@ pub mod statement {
   use super::expression::Expression;
   use super::types::TypeExpression;
   use super::Span;
-  use std::ops;
+  use std::{fmt, ops};
 
   #[derive(Clone, Debug)]
   pub struct Statement<'s> {
@@ -373,7 +373,7 @@ pub mod statement {
       body: Vec<Statement<'source>>,
     },
     Declaration {
-      identifier: &'source str,
+      identifier: DeclarationIdentifier<'source>,
       type_: Option<TypeExpression<'source>>,
       expression: Option<Expression<'source>>,
     },
@@ -406,6 +406,20 @@ pub mod statement {
     pub name: &'s str,
     pub span: Span,
     pub alias: Option<&'s str>,
+  }
+
+  #[derive(Clone, Debug)]
+  pub enum DeclarationIdentifier<'source> {
+    Variable(&'source str),
+    List(Vec<&'source str>),
+  }
+  impl fmt::Display for DeclarationIdentifier<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+      match self {
+        DeclarationIdentifier::Variable(identifier) => write!(f, "{identifier}"),
+        DeclarationIdentifier::List(identifiers) => write!(f, "{}", identifiers.join(", ")),
+      }
+    }
   }
 }
 

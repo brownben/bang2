@@ -159,3 +159,45 @@ let d = list[3]
   c == 3
   d == 4
 );
+
+bang_test!(list_destructuring
+  "
+let [a, b, c] = [5, 6, 7]
+let [d] = [8]
+let [e, f] = [9, 10]
+
+let list = [4, 1, 8]
+let [x, y, z] = list
+  "
+  a == 5
+  b == 6
+  c == 7
+  d == 8
+  e == 9
+  f == 10
+
+  x == 4
+  y == 1
+  z == 8
+);
+
+bang_test!(list_destructuring_too_few
+  "let [a, b, c] = [5, 6]\n"
+  RuntimeError
+);
+
+bang_test!(list_destructuring_too_many
+  "
+let [a, b, c] = [5, 6, 7, 8, 9]
+
+let list = [4, 1, 8, 6, 5]
+let [x, y, z] = list
+  "
+  a == 5
+  b == 6
+  c == 7
+
+  x == 4
+  y == 1
+  z == 8
+);

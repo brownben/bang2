@@ -13,7 +13,7 @@ use bang_language::{
     expression::{
       AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, UnaryOperator,
     },
-    statement::{Statement, Stmt},
+    statement::{DeclarationIdentifier, Statement, Stmt},
     types::{Type as TypeItem, TypeExpression},
     Span,
   },
@@ -427,13 +427,7 @@ impl<'s> Typechecker<'s> {
       None => NULL_TYPE,
     };
 
-    if !self.subtype(&stmt_type, type_) {
-      self.error(
-        Error::ExpectedType,
-        format!("Expected type {type_}, but recieved {stmt_type}"),
-        stmt.span,
-      );
-    }
+    self.check_type(&stmt_type, type_, stmt.span);
   }
 
   fn check_expression(&mut self, expr: &Expression<'s>, type_: &Type) {
@@ -441,11 +435,15 @@ impl<'s> Typechecker<'s> {
     let expression_type = self.apply_context(&expression_type);
     let type_ = self.apply_context(type_);
 
-    if !self.subtype(&expression_type, &type_) {
+    self.check_type(&expression_type, &type_, expr.span);
+  }
+
+  fn check_type(&mut self, got: &Type, expected: &Type, span: Span) {
+    if !self.subtype(got, expected) {
       self.error(
         Error::ExpectedType,
-        format!("Expected type {type_}, but recieved {expression_type}"),
-        expr.span,
+        format!("Expected type {expected}, but recieved {got}"),
+        span,
       );
     }
   }
@@ -469,15 +467,26 @@ impl<'s> Typechecker<'s> {
 
         if let Some(expression) = expression {
           self.check_expression(expression, &annotation);
-        } else if !self.subtype(&NULL_TYPE, &annotation) {
-          self.error(
-            Error::ExpectedType,
-            format!("Expected type {annotation}, but recieved null"),
-            stmt.span,
-          );
+        } else {
+          self.check_type(&NULL_TYPE, &annotation, stmt.span);
         }
 
-        self.define(identifier, &annotation);
+        match identifier {
+          DeclarationIdentifier::Variable(identifier) => self.define(identifier, &annotation),
+          DeclarationIdentifier::List(identifiers) => identifiers.iter().for_each(|identifier| {
+            if annotation == STRING_TYPE {
+              self.define(identifier, &annotation);
+            } else {
+              let list_inner_type = self.new_existential();
+              self.check_type(
+                &annotation,
+                &Type::List(Box::new(list_inner_type.clone())),
+                stmt.span,
+              );
+              self.define(identifier, &list_inner_type);
+            }
+          }),
+        }
 
         None
       }

@@ -164,6 +164,27 @@ mod variables {
     assert_fails!("a\n");
     assert_fails!("let a\nb\n");
   }
+
+  #[test]
+  fn list_destructuring() {
+    assert_correct!(
+      "
+let [x, y, z] = [0, 1, 2]
+let a: number = x
+let b: number = y
+let c: number = z
+    "
+    );
+    assert_correct!("let [a, b]: number[] = [1, 2, 3, 4]");
+    assert_fails!("let [a, b] = null");
+    assert_correct!(
+      "
+let [a, b]: string = 'hello'
+let c: string = a
+"
+    );
+    assert_fails!("let [a, b] = 373.32");
+  }
 }
 
 mod operators {

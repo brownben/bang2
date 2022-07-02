@@ -4,7 +4,7 @@ use crate::{
       expression, AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, Parameter,
       UnaryOperator,
     },
-    statement::{statement, ImportItem, Statement, Stmt},
+    statement::{statement, DeclarationIdentifier, ImportItem, Statement, Stmt},
     types::{types, Type, TypeExpression},
     Span,
   },
@@ -434,54 +434,60 @@ impl<'source> Parser<'source, '_> {
   }
 
   fn var_declaration(&mut self) -> StatementResult<'source> {
-    let token = self.current();
-    let identifier_token = self.consume_next(TokenType::Identifier, Error::ExpectedIdentifier)?;
-    let identifier = identifier_token.get_value(self.source);
+    let token = self.current_advance();
+
+    let (identifier, identifier_span) = match self.current().ttype {
+      TokenType::Identifier => {
+        let token = self.current_advance();
+        (
+          DeclarationIdentifier::Variable(token.get_value(self.source)),
+          token.into(),
+        )
+      }
+      TokenType::LeftSquare => {
+        self.next();
+        let mut identifiers = Vec::new();
+        while self.current().ttype == TokenType::Identifier {
+          identifiers.push(self.current_advance().get_value(self.source));
+          self.matches(TokenType::Comma);
+        }
+        self.consume(TokenType::RightSquare, Error::ExpectedClosingSquare)?;
+
+        (
+          DeclarationIdentifier::List(identifiers),
+          self.current().into(),
+        )
+      }
+      _ => Err(Error::ExpectedIdentifier)?,
+    };
     let type_ = if self.matches(TokenType::Colon) {
       Some(self.types()?)
     } else {
       None
     };
 
-    if self.matches(TokenType::Equal) {
+    let (end, expression) = if self.matches(TokenType::Equal) {
       let mut expression = self.expression()?;
 
-      if let Expr::Function {
-        parameters,
-        body,
-        return_type,
-        ..
-      } = expression.expr
+      if let Expr::Function { ref mut name, .. } = expression.expr
+        && let DeclarationIdentifier::Variable(identifier) = identifier
       {
-        expression = Expression {
-          expr: Expr::Function {
-            parameters,
-            body,
-            name: Some(identifier),
-            return_type,
-          },
-          span: expression.span,
-        }
+        *name = Some(identifier);
       }
 
-      Ok(statement!(
-        Declaration {
-          identifier,
-          type_,
-          expression: Some(expression)
-        },
-        (token, expression.span)
-      ))
+      (expression.span, Some(expression))
     } else {
-      Ok(statement!(
-        Declaration {
-          identifier,
-          type_,
-          expression: None
-        },
-        (token, identifier_token)
-      ))
-    }
+      (identifier_span, None)
+    };
+
+    Ok(statement!(
+      Declaration {
+        identifier,
+        type_,
+        expression
+      },
+      (token, end)
+    ))
   }
 
   fn return_statement(&mut self) -> StatementResult<'source> {
@@ -1169,7 +1175,31 @@ mod tests {
     } = &statements[0].stmt
     {
       let expr = expression.as_ref().unwrap();
-      assert_eq!(*identifier, "a");
+      match identifier {
+        DeclarationIdentifier::Variable(identifier) => assert_eq!(*identifier, "a"),
+        _ => assert!(false),
+      };
+      assert_literal(&expr.expr, "null", LiteralType::Null);
+    } else {
+      panic!("Expected declaration statement");
+    }
+  }
+
+  #[test]
+  fn should_parse_variable_declaration_list_destructuring() {
+    let statements = super::parse("let [a, b] = null\n").unwrap();
+
+    if let Stmt::Declaration {
+      identifier,
+      expression,
+      ..
+    } = &statements[0].stmt
+    {
+      let expr = expression.as_ref().unwrap();
+      match identifier {
+        DeclarationIdentifier::List(identifier) => assert_eq!(identifier.len(), 2),
+        _ => assert!(false),
+      };
       assert_literal(&expr.expr, "null", LiteralType::Null);
     } else {
       panic!("Expected declaration statement");
@@ -1186,7 +1216,10 @@ mod tests {
       ..
     } = &statements[0].stmt
     {
-      assert_eq!(*identifier, "b");
+      match identifier {
+        DeclarationIdentifier::Variable(identifier) => assert_eq!(*identifier, "b"),
+        _ => assert!(false),
+      };
     } else {
       panic!("Expected declaration statement");
     }
