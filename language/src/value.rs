@@ -46,12 +46,12 @@ pub struct NativeFunction {
   pub func: fn(args: &[Value]) -> Value,
 }
 impl NativeFunction {
-  pub fn create(name: &'static str, arity: u8, func: fn(args: &[Value]) -> Value) -> Value {
-    Value::from(Self {
+  pub fn new(name: &'static str, arity: u8, func: fn(args: &[Value]) -> Value) -> Self {
+    Self {
       name,
       func,
       arity: arity.into(),
-    })
+    }
   }
 }
 
@@ -219,14 +219,14 @@ impl From<bool> for Value {
     Self::Boolean(value)
   }
 }
-impl From<f64> for Value {
-  fn from(value: f64) -> Self {
-    Self::Number(value)
-  }
-}
 impl From<i32> for Value {
   fn from(value: i32) -> Self {
     Self::Number(f64::from(value))
+  }
+}
+impl From<f64> for Value {
+  fn from(value: f64) -> Self {
+    Self::Number(value)
   }
 }
 impl From<usize> for Value {
@@ -236,6 +236,7 @@ impl From<usize> for Value {
     Self::Number(value as f64)
   }
 }
+
 impl From<String> for Value {
   fn from(value: String) -> Self {
     Self::String(Rc::from(value))
@@ -246,6 +247,17 @@ impl From<&str> for Value {
     Self::String(Rc::from(value))
   }
 }
+impl From<char> for Value {
+  fn from(value: char) -> Self {
+    Self::from(value.to_string())
+  }
+}
+impl From<Vec<u8>> for Value {
+  fn from(value: Vec<u8>) -> Self {
+    std::str::from_utf8(&value).into()
+  }
+}
+
 impl From<Function> for Value {
   fn from(value: Function) -> Self {
     Self::Function(Rc::from(value))
@@ -256,24 +268,32 @@ impl From<NativeFunction> for Value {
     Self::NativeFunction(Rc::from(value))
   }
 }
+
 impl From<Vec<Self>> for Value {
   fn from(value: Vec<Self>) -> Self {
     Self::List(Rc::from(RefCell::new(value)))
   }
 }
-impl From<Vec<u8>> for Value {
-  fn from(value: Vec<u8>) -> Self {
-    std::str::from_utf8(&value).map_or(Self::Null, Self::from)
-  }
-}
+
 impl From<()> for Value {
-  fn from(_value: ()) -> Self {
+  fn from(_: ()) -> Self {
     Self::Null
   }
 }
-impl From<char> for Value {
-  fn from(value: char) -> Self {
-    Self::from(value.to_string())
+impl<T: Into<Self>> From<Option<T>> for Value {
+  fn from(value: Option<T>) -> Self {
+    match value {
+      Some(value) => value.into(),
+      None => Self::Null,
+    }
+  }
+}
+impl<T: Into<Self>, E> From<Result<T, E>> for Value {
+  fn from(value: Result<T, E>) -> Self {
+    match value {
+      Ok(value) => value.into(),
+      Err(_) => Self::Null,
+    }
   }
 }
 
