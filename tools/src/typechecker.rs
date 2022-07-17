@@ -8,7 +8,7 @@
 
 use crate::builtins::{define_globals, get_builtin_module_type};
 use ahash::AHashMap as HashMap;
-use bang_language::{
+use bang_syntax::{
   ast::{
     expression::{
       AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, UnaryOperator,
@@ -205,7 +205,8 @@ impl Error {
     Diagnostic {
       title: self.get_title().to_string(),
       message,
-      lines: vec![span.get_line_number(source)],
+      line: span.get_line_number(source),
+      span,
     }
   }
 }

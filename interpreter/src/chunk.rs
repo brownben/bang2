@@ -1,4 +1,5 @@
-use crate::{tokens::LineNumber, value::Value};
+use crate::value::Value;
+use bang_syntax::LineNumber;
 
 pub enum OpCode {
   Constant,

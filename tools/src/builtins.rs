@@ -1,5 +1,5 @@
 use crate::typechecker::{Type, Typechecker};
-use bang_language::ast::expression::LiteralType;
+use bang_syntax::ast::expression::LiteralType;
 
 pub fn define_globals(typechecker: &mut Typechecker) {
   let print_arg_existential = typechecker.new_existential();

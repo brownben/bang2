@@ -1,11 +1,27 @@
 use crate::{
   builtins,
   chunk::{Chunk, OpCode},
-  diagnostic::Diagnostic,
   value::{Index, Value},
 };
 use ahash::AHashMap as HashMap;
-use std::rc::Rc;
+use bang_syntax::LineNumber;
+use std::{collections::hash_map, error, fmt, rc::Rc};
+
+#[derive(Debug)]
+pub struct RuntimeError {
+  pub message: String,
+  pub lines: Vec<LineNumber>,
+}
+impl fmt::Display for RuntimeError {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "Runtime Error: {}\nat line {}",
+      self.message, self.lines[0]
+    )
+  }
+}
+impl error::Error for RuntimeError {}
 
 macro_rules! runtime_error {
   (($vm:expr, $chunk:expr, $ip:expr), $($message:tt)+) => {{
@@ -17,9 +33,8 @@ macro_rules! runtime_error {
       lines.push($chunk.get_line_number(frame.ip));
     }
 
-    Err(Diagnostic {
-      title: format!($($message)+),
-      message: "".to_string(),
+    Err(RuntimeError {
+      message: format!($($message)+),
       lines,
     })
   }};
@@ -109,7 +124,7 @@ impl VM {
     self.stack.push(value);
   }
 
-  pub fn run(&mut self, chunk: &Chunk) -> Result<(), Diagnostic> {
+  pub fn run(&mut self, chunk: &Chunk) -> Result<(), RuntimeError> {
     let mut ip: usize = 0;
     let mut offset: usize = 0;
 
@@ -253,9 +268,7 @@ impl VM {
           let name = chunk.get_constant(name_location as usize);
           let value = self.peek().clone();
 
-          if let std::collections::hash_map::Entry::Occupied(mut entry) =
-            self.globals.entry(name.as_str())
-          {
+          if let hash_map::Entry::Occupied(mut entry) = self.globals.entry(name.as_str()) {
             entry.insert(value);
           } else {
             break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name.as_str());
@@ -455,7 +468,7 @@ impl Default for VM {
   }
 }
 
-pub fn run(chunk: &Chunk) -> Result<VMGlobals, Diagnostic> {
+pub fn run(chunk: &Chunk) -> Result<VMGlobals, RuntimeError> {
   let mut vm = VM::new();
 
   vm.run(chunk)?;

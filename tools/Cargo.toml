@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bang-language = { path = "../language" }
+bang-syntax = { path = "../syntax" }
 ahash = "0.7.6"

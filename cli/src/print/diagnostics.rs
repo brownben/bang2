@@ -1,5 +1,7 @@
 use super::remove_carriage_returns;
-use bang_language::{Diagnostic, LineNumber};
+use bang_interpreter::RuntimeError;
+use bang_syntax::{Diagnostic, LineNumber};
+use bang_tools::LintDiagnostic;
 
 fn red(text: &str) -> String {
   format!("\u{001b}[31m{}\u{001b}[0m", text)
@@ -33,7 +35,15 @@ fn code_frame(file: &str, source: &str, line_number: LineNumber) {
   eprintln!("────╯");
 }
 
-pub fn error(filename: &str, source: &str, diagnostic: Diagnostic) {
+pub fn runtime_error(filename: &str, source: &str, error: RuntimeError) {
+  eprintln!("{} {}\n", bold(&red("Error:")), bold(&error.message),);
+
+  for line_number in error.lines {
+    code_frame(filename, source, line_number);
+  }
+}
+
+pub fn error(filename: &str, source: &str, diagnostic: &Diagnostic) {
   eprintln!(
     "{} {}\n{}\n",
     bold(&red("Error:")),
@@ -41,12 +51,10 @@ pub fn error(filename: &str, source: &str, diagnostic: Diagnostic) {
     remove_carriage_returns(&diagnostic.message)
   );
 
-  for line_number in diagnostic.lines {
-    code_frame(filename, source, line_number);
-  }
+  code_frame(filename, source, diagnostic.line);
 }
 
-pub fn warning(filename: &str, source: &str, diagnostic: Diagnostic) {
+pub fn warning(filename: &str, source: &str, diagnostic: LintDiagnostic) {
   eprintln!(
     "{} {}\n{}\n",
     bold(&yellow("Warning:")),

@@ -33,8 +33,12 @@ macro_rules! bang_benchmark {
   ($name:ident, $source:expr) => {
     mod $name {
       extern crate test;
-      pub use bang_language as bang;
       use test::Bencher;
+
+      mod bang {
+        pub use bang_interpreter::*;
+        pub use bang_syntax::*;
+      }
 
       const SOURCE: &'static str = $source;
 
@@ -56,7 +60,10 @@ macro_rules! bang_benchmark {
 
       #[bench]
       fn all(b: &mut Bencher) {
-        b.iter(|| bang::interpret(SOURCE))
+        b.iter(|| {
+          let chunk = compile().expect("Successful compile");
+          bang::run(&chunk).expect("No runtime errors");
+        })
       }
     }
   };

@@ -1,4 +1,4 @@
-use bang_language::{
+use bang_syntax::{
   ast::{
     expression::{AssignmentOperator, Expr, Expression, LiteralType},
     statement::{DeclarationIdentifier, Statement, Stmt},

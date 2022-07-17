@@ -1,3 +1,5 @@
+use std::str;
+
 pub type LineNumber = u16;
 pub type CharacterPosition = u32;
 type TokenLength = usize;
@@ -122,7 +124,7 @@ impl Token {
     let start = self.start as usize;
     let end = self.end as usize;
 
-    std::str::from_utf8(&source[start..end]).expect("Source to be valid utf8")
+    str::from_utf8(&source[start..end]).expect("Source to be valid utf8")
   }
 }
 

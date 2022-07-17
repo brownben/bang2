@@ -8,9 +8,10 @@ use crate::{
     types::{types, Type, TypeExpression},
     Span,
   },
-  diagnostic::Diagnostic,
   tokens::{tokenize, Token, TokenType},
+  LineNumber,
 };
+use std::{error, fmt};
 
 #[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Eq)]
 enum Precedence {
@@ -131,13 +132,34 @@ impl Error {
   }
 
   fn get_diagnostic(&self, source: &str, token: &Token) -> Diagnostic {
+    let span: Span = token.into();
+
     Diagnostic {
       title: self.get_title().to_string(),
       message: self.get_message(source.as_bytes(), token),
-      lines: vec![token.line],
+      line: span.get_line_number(source),
+      span,
     }
   }
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Diagnostic {
+  pub title: String,
+  pub message: String,
+  pub span: Span,
+  pub line: LineNumber,
+}
+impl fmt::Display for Diagnostic {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "Error: {}\n\t{}\nat line {}",
+      self.title, self.message, self.line
+    )
+  }
+}
+impl error::Error for Diagnostic {}
 
 type ExpressionResult<'source> = Result<Expression<'source>, Error>;
 type StatementResult<'source> = Result<Statement<'source>, Error>;

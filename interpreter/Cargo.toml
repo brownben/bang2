@@ -1,10 +1,11 @@
 [package]
-name = "bang-language"
+name = "bang-interpreter"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 ahash = "0.7.6"
+bang-syntax = { path = "../syntax" }
 
 [features]
 debug = []

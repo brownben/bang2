@@ -1,6 +1,9 @@
-use std::rc::Rc;
-
 use crate::{
+  builtins::get_builtin_module_value,
+  chunk::{Builder as ChunkBuilder, Chunk, OpCode},
+  value::{Arity, Function, Value},
+};
+use bang_syntax::{
   ast::{
     expression::{
       AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, UnaryOperator,
@@ -8,12 +11,9 @@ use crate::{
     statement::{DeclarationIdentifier, Statement, Stmt},
     Span,
   },
-  builtins::get_builtin_module_value,
-  chunk::{Builder as ChunkBuilder, Chunk, OpCode},
-  diagnostic::Diagnostic,
-  parser::parse_number,
-  value::{Arity, Function, Value},
+  parse_number, Diagnostic,
 };
+use std::{mem, rc::Rc};
 
 enum Error {
   TooBigJump,
@@ -59,7 +59,8 @@ impl Error {
     Diagnostic {
       title: self.get_title().to_string(),
       message: self.get_message(value),
-      lines: vec![span.get_line_number(source)],
+      line: span.get_line_number(source),
+      span,
     }
   }
 }
@@ -186,7 +187,7 @@ impl<'s> Compiler<'s> {
   }
 
   fn new_chunk(&mut self) {
-    let chunk = std::mem::replace(&mut self.chunk, ChunkBuilder::new());
+    let chunk = mem::replace(&mut self.chunk, ChunkBuilder::new());
     self.chunk_stack.push(chunk);
     self.begin_scope();
   }
@@ -194,7 +195,7 @@ impl<'s> Compiler<'s> {
   fn finish_chunk(&mut self) -> usize {
     self.end_scope();
 
-    let chunk = std::mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
+    let chunk = mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
     let chunk_id = self.finished_chunks.len();
     self.finished_chunks.push(chunk.finalize());
     chunk_id

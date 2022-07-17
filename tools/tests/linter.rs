@@ -1,4 +1,4 @@
-use bang_language::parse;
+use bang_syntax::parse;
 use bang_tools::lint;
 
 macro_rules! bang_lint {

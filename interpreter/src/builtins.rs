@@ -2,6 +2,7 @@ use crate::{
   value::{calculate_index, NativeFunction, Value},
   vm::VM,
 };
+use std::fs;
 
 pub fn define_globals(vm: &mut VM) {
   let print = NativeFunction::new("print", 1, |args| {
@@ -115,7 +116,7 @@ pub fn get_builtin_module_value(module: &str, value: &str) -> Option<Value> {
     "maths" => module!(value, {
       const PI = std::f64::consts::PI;
       const E = std::f64::consts::E;
-      const INFINITY = std::f64::INFINITY;
+      const INFINITY = f64::INFINITY;
       fn floor(Number) -> f64::floor;
       fn ceil(Number) -> f64::ceil;
       fn round(Number) -> f64::round;
@@ -156,8 +157,8 @@ pub fn get_builtin_module_value(module: &str, value: &str) -> Option<Value> {
       fn toNumber(String) -> |s| str::parse::<f64>(s).unwrap_or(f64::NAN);
     }),
     "fs" => module!(value, {
-      fn read(String) -> std::fs::read;
-      fn write(String, String) -> std::fs::write;
+      fn read(String) -> fs::read;
+      fn write(String, String) -> fs::write;
     }),
     "list" => module!(value, {
       fn length(ListRef) -> Vec::len;

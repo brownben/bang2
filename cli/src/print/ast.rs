@@ -1,5 +1,5 @@
 use super::remove_carriage_returns;
-use bang_language::ast::{
+use bang_syntax::ast::{
   expression::{Expr, Expression},
   statement::{Statement, Stmt},
 };

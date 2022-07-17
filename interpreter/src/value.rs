@@ -1,4 +1,9 @@
-use std::{cell::RefCell, fmt::Display, rc::Rc};
+use std::{
+  cell::RefCell,
+  fmt::{self, Display},
+  rc::Rc,
+  str,
+};
 
 pub struct Arity {
   count: u8,
@@ -119,7 +124,7 @@ impl PartialEq for Value {
 }
 
 impl Display for Value {
-  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
       Self::Null => write!(f, "null"),
       Self::Boolean(value) => write!(f, "{}", value),
@@ -133,7 +138,7 @@ impl Display for Value {
         value
           .borrow()
           .iter()
-          .map(std::string::ToString::to_string)
+          .map(ToString::to_string)
           .collect::<Vec<String>>()
           .join(", ")
       ),
@@ -254,7 +259,7 @@ impl From<char> for Value {
 }
 impl From<Vec<u8>> for Value {
   fn from(value: Vec<u8>) -> Self {
-    std::str::from_utf8(&value).into()
+    str::from_utf8(&value).into()
   }
 }
 

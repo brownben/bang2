@@ -1,14 +1,50 @@
-use bang_language::{
+use bang_syntax::{
   ast::{
     expression::{BinaryOperator, Expr, Expression},
     statement::{Statement, Stmt},
     Span, Visitor,
   },
-  parse_number, Diagnostic,
+  parse_number, Diagnostic as ParserDiagnostic, LineNumber,
 };
+use std::{error, fmt};
 
 trait LintRule {
   fn check(source: &str, ast: &[Statement]) -> Diagnostic;
+}
+
+#[derive(Debug)]
+pub struct Diagnostic {
+  pub title: String,
+  pub message: String,
+  pub spans: Vec<Span>,
+  pub lines: Vec<LineNumber>,
+}
+impl fmt::Display for Diagnostic {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    write!(
+      f,
+      "Lint Warning: {}\n\t{}\nat lines {}",
+      self.title,
+      self.message,
+      self
+        .lines
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
+    )
+  }
+}
+impl error::Error for Diagnostic {}
+impl From<ParserDiagnostic> for Diagnostic {
+  fn from(diagnostic: ParserDiagnostic) -> Self {
+    Self {
+      title: diagnostic.title,
+      message: diagnostic.message,
+      spans: vec![diagnostic.span],
+      lines: vec![diagnostic.line],
+    }
+  }
 }
 
 macro_rules! lint_rule {
@@ -30,6 +66,7 @@ macro_rules! lint_rule {
           title: $title.to_string(),
           message: $message.to_string(),
           lines: visitor.issues.iter().map(|span| span.get_line_number(source)).collect(),
+          spans: visitor.issues,
         }
       }
     }

@@ -1,6 +1,10 @@
 use ahash::AHashMap as HashMap;
-pub use bang_language as bang;
 pub use std::rc::Rc;
+
+pub mod bang {
+  pub use bang_interpreter::*;
+  pub use bang_syntax::*;
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum RunResult {
