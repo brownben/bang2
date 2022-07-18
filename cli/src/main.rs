@@ -1,4 +1,5 @@
-use bang_interpreter::{compile as compile_ast, run, Chunk, VM};
+use bang_interpreter::{compile as compile_ast, Chunk, RuntimeError, VM};
+use bang_std::StdContext as Context;
 use bang_syntax::{parse, Diagnostic};
 use bang_tools::{format, lint, typecheck};
 use clap::{Arg, Command};
@@ -20,12 +21,17 @@ fn read_file(filename: &str) -> String {
 fn compile(source: &str) -> Result<Chunk, Diagnostic> {
   let ast = parse(source)?;
 
-  compile_ast(source, &ast)
+  compile_ast(source, &ast, &Context)
+}
+
+fn run(chunk: &Chunk) -> Result<(), RuntimeError> {
+  let mut vm = VM::new(&Context);
+  vm.run(chunk)
 }
 
 fn repl() {
   let mut rl = Editor::<()>::new();
-  let mut vm = VM::new();
+  let mut vm = VM::new(&Context);
 
   loop {
     let readline = rl.readline("> ");

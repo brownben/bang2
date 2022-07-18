@@ -1,5 +1,3 @@
-#![feature(let_chains)]
-
 mod builtins;
 mod formatter;
 mod linter;

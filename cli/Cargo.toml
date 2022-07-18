@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 bang-interpreter = { path = "../interpreter" }
+bang-std = { path = "../std" }
 bang-syntax = { path = "../syntax" }
 bang-tools = { path = "../tools" }
 clap = "3.1.0"

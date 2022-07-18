@@ -35,6 +35,7 @@ name = "bang"
 version = "0.1.0"
 dependencies = [
  "bang-interpreter",
+ "bang-std",
  "bang-syntax",
  "bang-tools",
  "clap",
@@ -46,7 +47,15 @@ name = "bang-interpreter"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "bang-std",
  "bang-syntax",
+]
+
+[[package]]
+name = "bang-std"
+version = "0.1.0"
+dependencies = [
+ "bang-interpreter",
 ]
 
 [[package]]

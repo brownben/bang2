@@ -1,6 +1,6 @@
 use crate::{
-  builtins::get_builtin_module_value,
   chunk::{Builder as ChunkBuilder, Chunk, OpCode},
+  context::Context,
   value::{Arity, Function, Value},
 };
 use bang_syntax::{
@@ -70,8 +70,9 @@ struct Local<'s> {
   depth: u8,
 }
 
-struct Compiler<'s> {
+struct Compiler<'s, 'c> {
   source: &'s str,
+  context: &'c dyn Context,
 
   locals: Vec<Local<'s>>,
   scope_depth: u8,
@@ -84,7 +85,7 @@ struct Compiler<'s> {
 }
 
 // Emit Bytecode
-impl<'s> Compiler<'s> {
+impl<'s> Compiler<'s, '_> {
   fn emit_opcode(&mut self, span: Span, code: OpCode) {
     self
       .chunk
@@ -160,10 +161,11 @@ impl<'s> Compiler<'s> {
   }
 }
 
-impl<'s> Compiler<'s> {
-  fn new(source: &'s str) -> Self {
+impl<'s, 'c> Compiler<'s, 'c> {
+  fn new(source: &'s str, context: &'c dyn Context) -> Self {
     Self {
       source,
+      context,
       chunk: ChunkBuilder::new(),
       chunk_stack: Vec::new(),
       finished_chunks: Vec::new(),
@@ -268,7 +270,7 @@ impl<'s> Compiler<'s> {
       }
       Stmt::Import { module, items, .. } => {
         for item in items {
-          if let Some(value) = get_builtin_module_value(module, item.name) {
+          if let Some(value) = self.context.get_value(module, item.name) {
             self.emit_constant(span, value);
 
             if let Some(alias) = item.alias {
@@ -635,8 +637,12 @@ impl<'s> Compiler<'s> {
   }
 }
 
-pub fn compile(source: &str, ast: &[Statement]) -> Result<Chunk, Diagnostic> {
-  let mut compiler = Compiler::new(source);
+pub fn compile(
+  source: &str,
+  ast: &[Statement],
+  context: &dyn Context,
+) -> Result<Chunk, Diagnostic> {
+  let mut compiler = Compiler::new(source, context);
 
   for statement in ast {
     compiler.compile_statement(statement);

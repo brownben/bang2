@@ -1,5 +1,3 @@
-#![feature(let_chains)]
-
 pub mod ast;
 mod parser;
 mod tokens;

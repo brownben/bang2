@@ -3,6 +3,7 @@ pub use std::rc::Rc;
 
 pub mod bang {
   pub use bang_interpreter::*;
+  pub use bang_std::*;
   pub use bang_syntax::*;
 }
 
@@ -15,7 +16,7 @@ pub enum RunResult {
 
 fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
   let ast = bang::parse(source)?;
-  bang::compile(source, &ast)
+  bang::compile(source, &ast, &bang::StdContext)
 }
 
 pub fn run(source: &str) -> (RunResult, HashMap<Rc<str>, bang::Value>) {
@@ -24,9 +25,10 @@ pub fn run(source: &str) -> (RunResult, HashMap<Rc<str>, bang::Value>) {
     Err(_) => return (RunResult::CompileError, HashMap::new()),
   };
 
-  match bang::run(&chunk) {
-    Ok(vars) => (RunResult::Success, vars),
-    Err(_) => (RunResult::RuntimeError, HashMap::new()),
+  let mut vm = bang::VM::new(&bang::StdContext);
+  match vm.run(&chunk) {
+    Ok(_) => (RunResult::Success, vm.get_globals()),
+    Err(_) => (RunResult::RuntimeError, Default::default()),
   }
 }
 

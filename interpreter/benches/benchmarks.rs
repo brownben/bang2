@@ -37,6 +37,7 @@ macro_rules! bang_benchmark {
 
       mod bang {
         pub use bang_interpreter::*;
+        pub use bang_std::*;
         pub use bang_syntax::*;
       }
 
@@ -44,7 +45,7 @@ macro_rules! bang_benchmark {
 
       fn compile() -> Result<bang::Chunk, bang::Diagnostic> {
         let ast = bang::parse(SOURCE)?;
-        bang::compile(SOURCE, &ast)
+        bang::compile(SOURCE, &ast, &bang::StdContext)
       }
 
       #[bench]
@@ -55,14 +56,19 @@ macro_rules! bang_benchmark {
       #[bench]
       fn vm(b: &mut Bencher) {
         let chunk = compile().unwrap();
-        b.iter(|| bang::run(&chunk));
+
+        b.iter(|| {
+          let mut vm = bang::VM::new(&bang::StdContext);
+          vm.run(&chunk).expect("No runtime errors");
+        });
       }
 
       #[bench]
       fn all(b: &mut Bencher) {
         b.iter(|| {
           let chunk = compile().expect("Successful compile");
-          bang::run(&chunk).expect("No runtime errors");
+          let mut vm = bang::VM::new(&bang::StdContext);
+          vm.run(&chunk).expect("No runtime errors");
         })
       }
     }

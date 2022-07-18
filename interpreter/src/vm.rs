@@ -1,6 +1,6 @@
 use crate::{
-  builtins,
   chunk::{Chunk, OpCode},
+  context::Context,
   value::{Index, Value},
 };
 use ahash::AHashMap as HashMap;
@@ -87,15 +87,13 @@ pub struct VM {
 }
 
 impl VM {
-  pub fn new() -> Self {
+  pub fn new(context: &dyn Context) -> Self {
     let mut vm = Self {
       stack: Vec::with_capacity(64),
       frames: Vec::with_capacity(16),
       globals: HashMap::new(),
     };
-
-    builtins::define_globals(&mut vm);
-
+    context.define_globals(&mut vm);
     vm
   }
 
@@ -449,6 +447,10 @@ impl VM {
     self.globals.insert(Rc::from(name), value);
   }
 
+  pub fn get_globals(&self) -> HashMap<Rc<str>, Value> {
+    self.globals.clone()
+  }
+
   #[cfg(feature = "debug")]
   fn print_stack(&self, ip: usize) {
     println!(
@@ -461,17 +463,4 @@ impl VM {
         .join(", ")
     );
   }
-}
-impl Default for VM {
-  fn default() -> Self {
-    Self::new()
-  }
-}
-
-pub fn run(chunk: &Chunk) -> Result<VMGlobals, RuntimeError> {
-  let mut vm = VM::new();
-
-  vm.run(chunk)?;
-
-  Ok(vm.globals)
 }
