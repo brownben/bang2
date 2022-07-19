@@ -74,6 +74,55 @@ let b: number = a
 }
 
 #[test]
+fn dead_code_ignored() {
+  assert_correct!(
+    "
+let a: () -> null = () ->
+  if (false) return 7
+
+let b: () -> number = () ->
+  if (true) return 7
+  "
+  );
+  assert_correct!(
+    "
+let a: () -> string = () ->
+  if (false) return 7
+  else return ''
+
+let b: () -> number = () ->
+  if (true) return 7
+  else return ''
+  "
+  );
+  assert_correct!(
+    "
+let a: () -> null = () ->
+  while (false) return 7
+
+let b: () -> number = () ->
+  while (true) return 7
+
+let c: () -> number | null = () ->
+  while (a) return 7
+
+let d: () -> number | string = () ->
+  let a: number = 0
+  while (a) return 7
+  return ''
+  "
+  );
+
+  assert_correct!(
+    "
+let a: () -> null = () ->
+  return null
+  return 7
+  "
+  );
+}
+
+#[test]
 fn imports() {
   assert_correct!(
     r"

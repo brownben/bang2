@@ -35,6 +35,12 @@ pub struct Function {
   catch_all: bool,
 }
 
+enum Truthiness {
+  True,
+  False,
+  Unknown,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Type {
   Literal(LiteralType),
@@ -87,6 +93,16 @@ impl Type {
       Self::Literal(LiteralType::False | LiteralType::Null) => true,
       Self::Union(a, b) => a.is_falsy() && b.is_falsy(),
       _ => false,
+    }
+  }
+
+  fn truthiness(&self) -> Truthiness {
+    if self.is_truthy() {
+      Truthiness::True
+    } else if self.is_falsy() {
+      Truthiness::False
+    } else {
+      Truthiness::Unknown
     }
   }
 
@@ -496,7 +512,7 @@ impl<'s> Typechecker<'s> {
         then,
         otherwise,
       } => {
-        self.synthesize_expression(condition);
+        let condition_type = self.synthesize_expression(condition);
         let restrictions = self.get_restrictions(condition);
         let x = self.synthesize_statement_with_restriction(then, restrictions);
 
@@ -504,20 +520,29 @@ impl<'s> Typechecker<'s> {
           let restrictions = self.get_inverse_restrictions(condition);
           let y = self.synthesize_statement_with_restriction(otherwise, restrictions);
 
-          match (x, y) {
-            (Some(x), Some(y)) => Some(Type::union(x, y)),
-            (Some(x), None) => Some(x),
-            (None, Some(y)) => Some(y),
-            (None, None) => None,
+          match (condition_type.truthiness(), x, y) {
+            (Truthiness::True, x, _) => x,
+            (Truthiness::False, _, y) => y,
+            (_, Some(x), Some(y)) => Some(Type::union(x, y)),
+            (_, Some(x), None) => Some(x),
+            (_, None, Some(y)) => Some(y),
+            (_, None, None) => None,
           }
+        } else if condition_type.is_falsy() {
+          None
         } else {
           x
         }
       }
       Stmt::While { condition, body } => {
+        let condition_type = self.synthesize_expression(condition);
         let restrictions = self.get_restrictions(condition);
-        self.synthesize_expression(condition);
-        self.synthesize_statement_with_restriction(body, restrictions)
+
+        if condition_type.is_falsy() {
+          None
+        } else {
+          self.synthesize_statement_with_restriction(body, restrictions)
+        }
       }
       Stmt::Block { body, .. } => {
         self.begin_scope();
