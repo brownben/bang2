@@ -34,6 +34,8 @@
 'hello'[1]  // 'e'
 'hello'[-1] // 'o'
 
+// All strings are format strings
+'Hello ${'I can interpolate'}, ${`multiple things`}'
 
 // Numbers
 // ==========================

@@ -52,6 +52,10 @@ pub enum Expr<'source> {
     expression: Box<Expression<'source>>,
     text: &'source str,
   },
+  FormatString {
+    strings: Vec<String>,
+    expressions: Vec<Expression<'source>>,
+  },
   Function {
     parameters: Vec<Parameter<'source>>,
     return_type: Option<TypeExpression<'source>>,
@@ -106,6 +110,7 @@ impl<'s> Expr<'s> {
         expression, index, ..
       } => expression.is_constant() && index.is_constant(),
       Expr::IndexAssignment { value, .. } => value.is_constant(),
+      Expr::FormatString { expressions, .. } => expressions.iter().all(|e| e.is_constant()),
     }
   }
 }

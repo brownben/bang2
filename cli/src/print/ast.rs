@@ -142,6 +142,23 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
       print_expression(source, index, prefix_list_indent_start, prefix_list_indent);
       print_expression(source, value, prefix_start_indent, prefix_blank_indent);
     }
+    Expr::FormatString {
+      strings,
+      expressions,
+    } => {
+      println!("{}Format String", prefix);
+
+      println!("{}'{}'", prefix_list_inline_start, strings[0]);
+      for (index, item) in expressions.iter().enumerate() {
+        print_expression(source, item, prefix_list_inline_start, prefix_list_inline);
+
+        if index == expressions.len() - 1 {
+          println!("{}'{}'", prefix_start, strings[index + 1]);
+        } else {
+          println!("{}'{}'", prefix_list_inline_start, strings[index + 1]);
+        }
+      }
+    }
   }
 }
 

@@ -60,6 +60,11 @@ pub enum TokenType {
   False,
   Null,
 
+  // Format String
+  FormatStringStart,
+  FormatStringPart,
+  FormatStringEnd,
+
   // Keywords
   As,
   Else,
@@ -126,6 +131,10 @@ impl Token {
 
     str::from_utf8(&source[start..end]).expect("Source to be valid utf8")
   }
+
+  pub fn len(&self) -> CharacterPosition {
+    self.end - self.start
+  }
 }
 
 struct Tokeniser<'source> {
@@ -133,6 +142,8 @@ struct Tokeniser<'source> {
 
   line: LineNumber,
   position: usize,
+
+  quote_stack: Vec<u8>,
 }
 
 impl<'source> Tokeniser<'source> {
@@ -142,6 +153,8 @@ impl<'source> Tokeniser<'source> {
 
       line: 1,
       position: 0,
+
+      quote_stack: Vec::new(),
     }
   }
 
@@ -184,6 +197,7 @@ impl<'source> Tokeniser<'source> {
       b'_' | b'a'..=b'z' | b'A'..=b'Z' => self.identifier(),
       b'/' if matches!(next_character, Some(b'/')) => self.comment(),
       b'.' if matches!(next_character, Some(b'0'..=b'9')) => self.number(),
+      b'}' if !self.quote_stack.is_empty() => self.format_string(),
       b'\n' => (TokenType::EndOfLine, 1),
       b'(' => (TokenType::LeftParen, 1),
       b')' => (TokenType::RightParen, 1),
@@ -257,20 +271,49 @@ impl<'source> Tokeniser<'source> {
   }
 
   fn string(&mut self, quote: u8) -> (TokenType, TokenLength) {
-    let mut position = self.position + 1;
+    let mut pos = self.position + 1;
 
-    while !self.at_end(position) && self.source[position] != quote {
-      if self.source[position] == b'\n' {
+    loop {
+      if self.at_end(pos) {
+        break (TokenType::String, pos - self.position);
+      } else if self.source[pos] == quote {
+        break (TokenType::String, pos - self.position + 1);
+      } else if self.source[pos] == b'$' && self.source.get(pos + 1) == Some(&b'{') {
+        self.quote_stack.push(quote);
+        break (TokenType::FormatStringStart, pos - self.position + 2);
+      }
+
+      if self.source[pos] == b'\n' {
         self.line += 1;
       }
 
-      position += 1;
+      pos += 1;
     }
+  }
 
-    if self.at_end(position) {
-      (TokenType::String, position - self.position)
-    } else {
-      (TokenType::String, position - self.position + 1)
+  fn format_string(&mut self) -> (TokenType, TokenLength) {
+    let quote = *self
+      .quote_stack
+      .last()
+      .expect("Only called when quote_stack is not empty");
+    let mut pos = self.position + 1;
+
+    loop {
+      if self.at_end(pos) {
+        break (TokenType::FormatStringEnd, pos - self.position);
+      } else if self.source[pos] == quote {
+        self.quote_stack.pop();
+        break (TokenType::FormatStringEnd, pos - self.position + 1);
+      } else if self.source[pos] == b'$' && self.source.get(pos + 1) == Some(&b'{') {
+        self.quote_stack.push(quote);
+        break (TokenType::FormatStringPart, pos - self.position + 2);
+      }
+
+      if self.source[pos] == b'\n' {
+        self.line += 1;
+      }
+
+      pos += 1;
     }
   }
 
@@ -442,6 +485,38 @@ mod tests {
 
     let tokens = tokenize("'hello' `world`");
     assert_eq!(tokens.len(), 3);
+  }
+
+  #[test]
+  fn should_tokenize_format_strings() {
+    let tokens = tokenize("'${}'");
+    assert_eq!(tokens.len(), 2);
+    assert_eq!(tokens[0].ttype, TokenType::FormatStringStart);
+    assert_eq!(tokens[1].ttype, TokenType::FormatStringEnd);
+
+    let tokens = tokenize("'a ${}'");
+    assert_eq!(tokens.len(), 2);
+    assert_eq!(tokens[0].ttype, TokenType::FormatStringStart);
+    assert_eq!(tokens[1].ttype, TokenType::FormatStringEnd);
+
+    let tokens = tokenize("'a ${3}'");
+    assert_eq!(tokens.len(), 3);
+    assert_eq!(tokens[0].ttype, TokenType::FormatStringStart);
+    assert_eq!(tokens[1].ttype, TokenType::Number);
+    assert_eq!(tokens[2].ttype, TokenType::FormatStringEnd);
+
+    let tokens = tokenize("'a ${1} b ${false} c'");
+    assert_eq!(tokens.len(), 5);
+    assert_eq!(tokens[0].ttype, TokenType::FormatStringStart);
+    assert_eq!(tokens[1].ttype, TokenType::Number);
+    assert_eq!(tokens[2].ttype, TokenType::FormatStringPart);
+    assert_eq!(tokens[3].ttype, TokenType::False);
+    assert_eq!(tokens[4].ttype, TokenType::FormatStringEnd);
+    assert_eq!(tokens[0].len(), 5);
+    assert_eq!(tokens[1].len(), 1);
+    assert_eq!(tokens[2].len(), 6);
+    assert_eq!(tokens[3].len(), 5);
+    assert_eq!(tokens[4].len(), 4);
   }
 
   #[test]

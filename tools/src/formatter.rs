@@ -214,6 +214,15 @@ impl<'source> Formatter<'source> {
         self.fmt_expression(expression, indentation, f)?;
         write!(f, " // {}", message.trim())?;
       }
+      Expr::FormatString { expressions, strings } => {
+        write!(f, "'{}", strings[0])?;
+        for (index, expression) in expressions.iter().enumerate() {
+          write!(f, "${{")?;
+          self.fmt_expression(expression, indentation, f)?;
+          write!(f, "}}{}", strings[index + 1])?;
+        }
+        write!(f, "'")?;
+      },
       Expr::Function {
         parameters,
         body,

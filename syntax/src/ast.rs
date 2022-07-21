@@ -117,6 +117,10 @@ pub trait Visitor {
         self.visit_expression(expression);
         arguments.iter().for_each(|arg| self.visit_expression(arg));
       }
+      Expr::FormatString {
+        strings: _,
+        expressions,
+      } => expressions.iter().for_each(|e| self.visit_expression(e)),
       Expr::Function { body, .. } => self.visit_statement(body),
       Expr::Literal { .. } | Expr::Variable { .. } => {}
       Expr::List { items } => items.iter().for_each(|item| self.visit_expression(item)),

@@ -33,11 +33,13 @@ while (4 > 5)
   do_stuff()
 while (question() > 4)
   do_stuff()
+while ('${stuff}')
+  do_stuff()
 
 if ([])
   go_to_next_step()
 "
-  "No Constant Conditions" [2 8 10 15]
+  "No Constant Conditions" [2 8 10 17]
 );
 
 bang_lint!(no_negative_zero

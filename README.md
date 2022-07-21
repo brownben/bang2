@@ -33,7 +33,6 @@ Future plans for additions to the language include:
 - more builtin datastructures (set, dictionary, etc.)
 - closures
 - modules/ importing bang code
-- format strings (f strings)
 - configuration for formatter
 - lint for unused variables
 

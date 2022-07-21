@@ -188,3 +188,20 @@ let e = 1000.2 - 0.2
   d == 1001.0
   e == 1005.0
 );
+
+bang_test!(format_string
+"
+let a = 'hello ${7}'
+let b = 'hello ${3 + 1} world'
+let c = 'hello ${7} world ${false}!'
+let d = '${7} world'
+let e = `hello ${'world'}`
+let f = 'hello ${`world ${'nested'}`}'
+"
+  a == "hello 7"
+  b == "hello 4 world"
+  // c == "hello 7 world false!"
+  d == "7 world"
+  e == "hello world"
+  f == "hello world nested"
+);

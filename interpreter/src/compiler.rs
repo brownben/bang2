@@ -1,8 +1,9 @@
 use crate::{
   chunk::{Builder as ChunkBuilder, Chunk, OpCode},
   context::Context,
-  value::{Arity, Function, Value},
+  value::{Arity, Function, NativeFunction, Value},
 };
+use ahash::AHashMap as HashMap;
 use bang_syntax::{
   ast::{
     expression::{
@@ -73,6 +74,7 @@ struct Local<'s> {
 struct Compiler<'s, 'c> {
   source: &'s str,
   context: &'c dyn Context,
+  hidden_functions: HashMap<&'static str, u8>,
 
   locals: Vec<Local<'s>>,
   scope_depth: u8,
@@ -166,11 +168,15 @@ impl<'s, 'c> Compiler<'s, 'c> {
     Self {
       source,
       context,
+      hidden_functions: HashMap::new(),
+
       chunk: ChunkBuilder::new(),
       chunk_stack: Vec::new(),
       finished_chunks: Vec::new(),
+
       locals: Vec::new(),
       scope_depth: 0,
+
       error: None,
     }
   }
@@ -205,6 +211,27 @@ impl<'s, 'c> Compiler<'s, 'c> {
 
   fn error(&mut self, error: Error, span: Span, value: &str) {
     self.error = Some(error.into_diagnostic(value, span, self.source));
+  }
+
+  fn get_hidden_function(&mut self, name: &'static str, span: Span) -> u8 {
+    if let Some(constant_position) = self.hidden_functions.get(name) {
+      return *constant_position;
+    }
+    let position = self.base_chunk().add_constant(Value::from(match name {
+      "toString" => NativeFunction::new("toString", 1, |args| match &args[0] {
+        value @ Value::String(_) => value.clone(),
+        value => value.to_string().into(),
+      }),
+      _ => unreachable!("Unknown Function '{name}'"),
+    }));
+
+    if let Ok(position) = u8::try_from(position) {
+      self.hidden_functions.insert(name, position);
+      position
+    } else {
+      self.error(Error::TooManyConstants, span, "");
+      0
+    }
   }
 
   fn compile_statement(&mut self, statement: &Statement<'s>) {
@@ -531,6 +558,24 @@ impl<'s, 'c> Compiler<'s, 'c> {
         self.emit_opcode(span, OpCode::SetIndex);
 
         self.end_scope();
+      }
+      Expr::FormatString {
+        expressions,
+        strings,
+      } => {
+        let to_string = self.get_hidden_function("toString", span);
+
+        self.emit_constant(span, strings[0].clone().into());
+        for (index, expression) in expressions.iter().enumerate() {
+          self.emit_opcode(span, OpCode::Constant);
+          self.emit_value(span, to_string);
+          self.compile_expression(expression);
+          self.emit_opcode(span, OpCode::Call);
+          self.emit_value(span, 1);
+          self.emit_opcode(span, OpCode::Add);
+          self.emit_constant(span, strings[index + 1].clone().into());
+          self.emit_opcode(span, OpCode::Add);
+        }
       }
     }
   }

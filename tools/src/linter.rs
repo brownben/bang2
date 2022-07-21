@@ -186,6 +186,9 @@ fn expression_has_possible_side_effect(expression: &Expr) -> bool {
     Expr::List { items } => items
       .iter()
       .any(|expression| expression_has_possible_side_effect(&expression.expr)),
+    Expr::FormatString { expressions, .. } => expressions
+      .iter()
+      .any(|expression| expression_has_possible_side_effect(&expression.expr)),
   }
 }
 

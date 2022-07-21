@@ -481,3 +481,13 @@ fn list_destructuring() {
   assert_format!("let[a,b]=[1,2,3]", "let [a, b] = [1, 2, 3]");
   assert_format!("let [c,] =  list", "let [c] = list");
 }
+
+#[test]
+fn format_string() {
+  assert_format!("'hello ${7}'");
+  assert_format!("'hello ${   7 }'", "'hello ${7}'");
+  assert_format!("'hello ${3 + 1} world'");
+  assert_format!("'${7} world'");
+  assert_format!("call('${7} world')");
+  assert_format!("'hello ${7} world ${false}!'");
+}

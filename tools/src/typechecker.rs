@@ -609,6 +609,12 @@ impl<'s> Typechecker<'s> {
 
     match &expr.expr {
       Expr::Literal { type_, .. } => Type::Literal(*type_),
+      Expr::FormatString { expressions, .. } => {
+        for expr in expressions {
+          self.synthesize_expression(expr);
+        }
+        Type::Literal(LiteralType::String)
+      }
       Expr::Comment { expression, .. } | Expr::Group { expression } => {
         self.synthesize_expression(expression)
       }

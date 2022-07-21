@@ -11,7 +11,7 @@ use crate::{
   tokens::{tokenize, Token, TokenType},
   LineNumber,
 };
-use std::{error, fmt};
+use std::{error, fmt, str};
 
 #[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Eq)]
 enum Precedence {
@@ -357,6 +357,7 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
       | TokenType::True
       | TokenType::False
       | TokenType::Null => self.literal(),
+      TokenType::FormatStringStart => self.format_string(),
       TokenType::LeftSquare => self.list(),
       TokenType::Unknown => Err(Error::UnexpectedCharacter),
       _ => Err(Error::ExpectedExpression),
@@ -751,7 +752,7 @@ impl<'source> Parser<'source, '_> {
 
     let value = if token.ttype != TokenType::String {
       Ok(string)
-    } else if string[0..1] == string[string.len() - 1..string.len()] {
+    } else if string.chars().next() == string.chars().last() && string.len() > 1 {
       Ok(&string[1..string.len() - 1])
     } else {
       Err(Error::UnterminatedString)
@@ -763,6 +764,43 @@ impl<'source> Parser<'source, '_> {
         type_: LiteralType::from(token.ttype)
       },
       token
+    ))
+  }
+
+  fn format_string(&mut self) -> ExpressionResult<'source> {
+    let token = self.current_advance();
+    let start = token.get_value(self.source);
+    let quote = start.as_bytes()[0] as char;
+
+    let mut strings: Vec<String> = vec![start[1..start.len() - 2].into()];
+    let mut expressions = Vec::new();
+
+    let end_token = loop {
+      expressions.push(self.expression()?);
+
+      match self.current().ttype {
+        TokenType::FormatStringPart => {
+          let part = self.current_advance().get_value(self.source);
+          strings.push(part[1..part.len() - 2].into());
+        }
+        TokenType::FormatStringEnd => {
+          let part = self.current().get_value(self.source);
+          if !part.ends_with(quote) {
+            Err(Error::UnterminatedString)?;
+          }
+          strings.push(part[1..part.len() - 1].into());
+          break self.current_advance();
+        }
+        _ => Err(Error::UnterminatedString)?,
+      }
+    };
+
+    Ok(expression!(
+      FormatString {
+        expressions,
+        strings
+      },
+      (token, end_token)
     ))
   }
 
@@ -1361,5 +1399,24 @@ mod tests {
     } else {
       panic!("Expected list");
     }
+  }
+
+  #[test]
+  fn should_parse_format_string() {
+    assert!(matches!(super::parse("'hello ${7}'"), Ok(_)));
+    assert!(matches!(super::parse("'hello ${   7 }'"), Ok(_)));
+    assert!(matches!(super::parse("'hello ${7} world'"), Ok(_)));
+    assert!(matches!(super::parse("'${7} world'"), Ok(_)));
+    assert!(matches!(super::parse("'${`hi`} world'"), Ok(_)));
+    assert!(matches!(super::parse("call('${7} world')"), Ok(_)));
+    assert!(matches!(
+      super::parse("'hello ${ 7 } world ${false}!'"),
+      Ok(_)
+    ));
+    assert!(matches!(super::parse("'hello ${}'"), Err(_)));
+    assert!(matches!(super::parse("'hello ${7}"), Err(_)));
+    assert!(matches!(super::parse("`hello ${7}'"), Err(_)));
+    assert!(matches!(super::parse("'hello ${"), Err(_)));
+    assert!(matches!(super::parse("'hello ${'"), Err(_)));
   }
 }

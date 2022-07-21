@@ -26,6 +26,7 @@ fn literals() {
   assert_correct!("let a: boolean = true");
   assert_correct!("let a: boolean = false");
   assert_correct!("let a: null = null");
+  assert_correct!("let a: string = 'Hello, ${2 + 5}!'");
 }
 
 #[test]
