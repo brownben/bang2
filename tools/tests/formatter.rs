@@ -410,6 +410,15 @@ fn import_statement() {
   assert_format!("from maths import { sqrt, pow, abs }");
   assert_format!("from maths import {\n  sqrt, pow, abs, floor, \n}");
   assert_format!("from maths import {\n  sqrt,\n  pow,\n  abs,\n  floor,\n}");
+  assert_format!("from 'maths' import { sqrt }", "from maths import { sqrt }");
+  assert_format!(
+    "from './maths' import { sqrt }",
+    "from './maths' import { sqrt }"
+  );
+  assert_format!(
+    "from `./maths` import { sqrt }",
+    "from './maths' import { sqrt }"
+  );
 }
 
 #[test]

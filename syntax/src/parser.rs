@@ -597,7 +597,15 @@ impl<'source> Parser<'source, '_> {
 
   fn import_statement(&mut self) -> StatementResult<'source> {
     let token = self.current_advance();
-    let module = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+    let module = if self.current().ttype == TokenType::String {
+      let string = self.current_advance().get_value(self.source);
+      Self::check_string(string)?
+    } else {
+      self
+        .consume(TokenType::Identifier, Error::ExpectedIdentifier)?
+        .get_value(self.source)
+    };
+
     self.consume(TokenType::Import, Error::ExpectedImportKeyword)?;
     self.consume(TokenType::LeftBrace, Error::ExpectedOpeningBrace)?;
 
@@ -630,13 +638,7 @@ impl<'source> Parser<'source, '_> {
 
     self.expect_newline()?;
 
-    Ok(statement!(
-      Import {
-        module: module.get_value(self.source),
-        items,
-      },
-      (token, end_token)
-    ))
+    Ok(statement!(Import { module, items }, (token, end_token)))
   }
 }
 
@@ -750,12 +752,10 @@ impl<'source> Parser<'source, '_> {
     let token = self.current_advance();
     let string = token.get_value(self.source);
 
-    let value = if token.ttype != TokenType::String {
-      Ok(string)
-    } else if string.chars().next() == string.chars().last() && string.len() > 1 {
-      Ok(&string[1..string.len() - 1])
+    let value = if token.ttype == TokenType::String {
+      Self::check_string(string)
     } else {
-      Err(Error::UnterminatedString)
+      Ok(string)
     }?;
 
     Ok(expression!(
@@ -765,6 +765,14 @@ impl<'source> Parser<'source, '_> {
       },
       token
     ))
+  }
+
+  fn check_string(string: &str) -> Result<&str, Error> {
+    if string.chars().next() == string.chars().last() && string.len() > 1 {
+      Ok(&string[1..string.len() - 1])
+    } else {
+      Err(Error::UnterminatedString)
+    }
   }
 
   fn format_string(&mut self) -> ExpressionResult<'source> {
@@ -1310,6 +1318,27 @@ mod tests {
     {
       panic!("Expected return statement");
     }
+  }
+
+  #[test]
+  fn should_parse_imports() {
+    let statements = super::parse("from x import {}\n").unwrap();
+    if let Stmt::Import { module, items } = &statements[0].stmt {
+      assert_eq!(items.len(), 0);
+      assert_eq!(module, &"x");
+    } else {
+      panic!("Not import statement")
+    }
+
+    let statements = super::parse("from './abc/ef.bang' import { g, h, i }\n").unwrap();
+    if let Stmt::Import { module, items } = &statements[0].stmt {
+      assert_eq!(items.len(), 3);
+      assert_eq!(module, &"./abc/ef.bang");
+    } else {
+      panic!("Not import statement")
+    }
+
+    assert!(super::parse("from 'agd import {}\n").is_err())
   }
 
   #[test]

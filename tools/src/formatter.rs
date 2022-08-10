@@ -416,7 +416,11 @@ impl<'source> Formatter<'source> {
         }
       }
       Stmt::Import { module, items, .. } => {
-        write!(f, "from {module} import {{")?;
+        if module.chars().all(char::is_alphanumeric) {
+          write!(f, "from {module} import {{")?;
+        } else {
+          write!(f, "from '{module}' import {{")?;
+        }
         Self::write_list(
           items,
           |item| self.line(item.span),
