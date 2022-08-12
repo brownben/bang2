@@ -1,4 +1,3 @@
-use ahash::AHashMap as HashMap;
 pub use std::rc::Rc;
 
 pub mod bang {
@@ -19,15 +18,15 @@ fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
   bang::compile(source, &ast, &bang::StdContext)
 }
 
-pub fn run(source: &str) -> (RunResult, HashMap<Rc<str>, bang::Value>) {
+pub fn run(source: &str) -> (RunResult, bang::VM) {
   let chunk = match compile(source) {
     Ok(chunk) => chunk,
-    Err(_) => return (RunResult::CompileError, HashMap::new()),
+    Err(_) => return (RunResult::CompileError, Default::default()),
   };
 
   let mut vm = bang::VM::new(&bang::StdContext);
   match vm.run(&chunk) {
-    Ok(_) => (RunResult::Success, vm.get_globals()),
+    Ok(_) => (RunResult::Success, vm),
     Err(_) => (RunResult::RuntimeError, Default::default()),
   }
 }
@@ -37,15 +36,15 @@ macro_rules! bang_test {
   ($name:ident $code:literal $( $var:ident == $expected:literal)*) => {
     #[test]
     fn $name(){
-      let (result, globals) = run($code);
+      let (result, vm) = run($code);
       assert_eq!(result, RunResult::Success);
 
       $(
         {
-          let variable = globals.get(stringify!($var)).unwrap();
+          let variable = vm.get_global(stringify!($var)).unwrap();
           let expected = bang::Value::from($expected);
 
-          assert!(variable == &expected, "Expected {expected}, got {variable}");
+          assert!(variable == expected, "Expected {expected}, got {variable}");
         };
       )*
     }
@@ -54,7 +53,7 @@ macro_rules! bang_test {
   ($name:ident $code:literal RuntimeError) => {
     #[test]
     fn $name(){
-      let (result, _globals) = run($code);
+      let (result, _vm) = run($code);
       assert_eq!(result, RunResult::RuntimeError);
     }
   };
@@ -62,7 +61,7 @@ macro_rules! bang_test {
   ($name:ident $code:literal CompileError) => {
     #[test]
     fn $name(){
-      let (result, _globals) = run($code);
+      let (result, _vm) = run($code);
       assert_eq!(result, RunResult::CompileError);
     }
   };

@@ -78,21 +78,15 @@ struct CallFrame {
   offset: usize,
 }
 
-pub type VMGlobals = HashMap<Rc<str>, Value>;
-
 pub struct VM {
   stack: Vec<Value>,
   frames: Vec<CallFrame>,
-  globals: VMGlobals,
+  globals: HashMap<Rc<str>, Value>,
 }
 
 impl VM {
   pub fn new(context: &dyn Context) -> Self {
-    let mut vm = Self {
-      stack: Vec::with_capacity(64),
-      frames: Vec::with_capacity(16),
-      globals: HashMap::new(),
-    };
+    let mut vm = Self::default();
     context.define_globals(&mut vm);
     vm
   }
@@ -447,8 +441,8 @@ impl VM {
     self.globals.insert(Rc::from(name), value);
   }
 
-  pub fn get_globals(&self) -> HashMap<Rc<str>, Value> {
-    self.globals.clone()
+  pub fn get_global(&self, name: &str) -> Option<Value> {
+    self.globals.get(name).cloned()
   }
 
   #[cfg(feature = "debug")]
@@ -462,5 +456,15 @@ impl VM {
         .collect::<Vec<_>>()
         .join(", ")
     );
+  }
+}
+
+impl Default for VM {
+  fn default() -> Self {
+    Self {
+      stack: Vec::with_capacity(64),
+      frames: Vec::with_capacity(16),
+      globals: HashMap::new(),
+    }
   }
 }
