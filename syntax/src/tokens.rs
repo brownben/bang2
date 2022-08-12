@@ -305,7 +305,6 @@ impl<'source> Tokeniser<'source> {
         self.quote_stack.pop();
         break (TokenType::FormatStringEnd, pos - self.position + 1);
       } else if self.source[pos] == b'$' && self.source.get(pos + 1) == Some(&b'{') {
-        self.quote_stack.push(quote);
         break (TokenType::FormatStringPart, pos - self.position + 2);
       }
 

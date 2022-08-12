@@ -1432,20 +1432,24 @@ mod tests {
 
   #[test]
   fn should_parse_format_string() {
-    assert!(matches!(super::parse("'hello ${7}'"), Ok(_)));
-    assert!(matches!(super::parse("'hello ${   7 }'"), Ok(_)));
-    assert!(matches!(super::parse("'hello ${7} world'"), Ok(_)));
-    assert!(matches!(super::parse("'${7} world'"), Ok(_)));
-    assert!(matches!(super::parse("'${`hi`} world'"), Ok(_)));
-    assert!(matches!(super::parse("call('${7} world')"), Ok(_)));
-    assert!(matches!(
-      super::parse("'hello ${ 7 } world ${false}!'"),
-      Ok(_)
-    ));
-    assert!(matches!(super::parse("'hello ${}'"), Err(_)));
-    assert!(matches!(super::parse("'hello ${7}"), Err(_)));
-    assert!(matches!(super::parse("`hello ${7}'"), Err(_)));
-    assert!(matches!(super::parse("'hello ${"), Err(_)));
-    assert!(matches!(super::parse("'hello ${'"), Err(_)));
+    assert!(super::parse("'hello ${7}'").is_ok());
+    assert!(super::parse("'hello ${   7 }'").is_ok());
+    assert!(super::parse("'hello ${7} world'").is_ok());
+    assert!(super::parse("'${7} world'").is_ok());
+    assert!(super::parse("'${`hi`} world'").is_ok());
+    assert!(super::parse("call('${7} world')").is_ok());
+    assert!(super::parse("'hello ${ 7 } world ${false}!'").is_ok());
+    assert!(super::parse("'Hello ${'I can interpolate'}, ${`multiple things`}'").is_ok());
+
+    assert!(super::parse("'hello ${}'").is_err());
+    assert!(super::parse("'hello ${7}").is_err());
+    assert!(super::parse("`hello ${7}'").is_err());
+    assert!(super::parse("'hello ${").is_err());
+    assert!(super::parse("'hello ${'").is_err());
+
+    let with_import_after = "
+let a = 'Hello ${'I can interpolate'}, ${`multiple things`}'
+from maths import { sin }";
+    assert_eq!(super::parse(with_import_after).unwrap().len(), 2);
   }
 }
