@@ -82,7 +82,7 @@ lint_rule! {
     fn exit_statement(&mut self, statement: &Statement) {
       match &statement.stmt {
         Stmt::If { condition, .. } | Stmt::While { condition, .. } => {
-          if condition.is_constant() {
+          if condition.expr.is_constant() {
             self.issues.push(statement.span);
           }
         }
@@ -176,12 +176,14 @@ fn expression_has_possible_side_effect(expression: &Expr) -> bool {
     Expr::Function { .. } | Expr::Literal { .. } | Expr::Variable { .. } => false,
     Expr::Comment { expression, .. }
     | Expr::Group { expression }
-    | Expr::Unary { expression, .. } => expression_has_possible_side_effect(expression),
+    | Expr::Unary { expression, .. } => expression_has_possible_side_effect(&expression.expr),
     Expr::Index { expression, index } => {
-      expression_has_possible_side_effect(expression) || expression_has_possible_side_effect(index)
+      expression_has_possible_side_effect(&expression.expr)
+        || expression_has_possible_side_effect(&index.expr)
     }
     Expr::Binary { left, right, .. } => {
-      expression_has_possible_side_effect(left) || expression_has_possible_side_effect(right)
+      expression_has_possible_side_effect(&left.expr)
+        || expression_has_possible_side_effect(&right.expr)
     }
     Expr::List { items } => items
       .iter()
@@ -199,7 +201,7 @@ lint_rule! {
   visitor: {
     fn exit_expression(&mut self, expression: &Expression) {
       if let Expr::IndexAssignment { index, .. } = &expression.expr
-        && expression_has_possible_side_effect(index) {
+        && expression_has_possible_side_effect(&index.expr) {
         self.issues.push(index.span);
       }
     }

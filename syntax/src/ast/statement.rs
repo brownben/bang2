@@ -1,18 +1,12 @@
 use super::expression::Expression;
 use super::types::TypeExpression;
 use super::Span;
-use std::{fmt, ops};
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Statement<'s> {
   pub stmt: Stmt<'s>,
   pub span: Span,
-}
-impl<'s> ops::Deref for Statement<'s> {
-  type Target = Stmt<'s>;
-  fn deref(&self) -> &Stmt<'s> {
-    &self.stmt
-  }
 }
 
 macro_rules! statement {

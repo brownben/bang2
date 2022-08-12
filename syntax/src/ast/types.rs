@@ -1,16 +1,9 @@
 use super::Span;
-use std::ops;
 
 #[derive(Clone, Debug)]
 pub struct TypeExpression<'s> {
   pub type_: Type<'s>,
   pub span: Span,
-}
-impl<'s> ops::Deref for TypeExpression<'s> {
-  type Target = Type<'s>;
-  fn deref(&self) -> &Type<'s> {
-    &self.type_
-  }
 }
 
 #[derive(Debug, Clone)]

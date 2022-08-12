@@ -2,18 +2,12 @@ use super::statement::Statement;
 use super::types::TypeExpression;
 use super::Span;
 use crate::tokens::TokenType;
-use std::{fmt, ops};
+use std::fmt;
 
 #[derive(Clone, Debug)]
 pub struct Expression<'s> {
   pub expr: Expr<'s>,
   pub span: Span,
-}
-impl<'s> ops::Deref for Expression<'s> {
-  type Target = Expr<'s>;
-  fn deref(&self) -> &Expr<'s> {
-    &self.expr
-  }
 }
 
 macro_rules! expression {
@@ -98,19 +92,21 @@ impl<'s> Expr<'s> {
       Expr::Group { expression, .. }
       | Expr::Unary { expression, .. }
       | Expr::Assignment { expression, .. }
-      | Expr::Comment { expression, .. } => expression.is_constant(),
+      | Expr::Comment { expression, .. } => expression.expr.is_constant(),
       Expr::Binary {
         left,
         right,
         operator,
         ..
-      } => left.is_constant() && right.is_constant() && *operator != BinaryOperator::Pipeline,
-      Expr::List { items } => items.iter().all(|item| item.is_constant()),
+      } => {
+        left.expr.is_constant() && right.expr.is_constant() && *operator != BinaryOperator::Pipeline
+      }
+      Expr::List { items } => items.iter().all(|item| item.expr.is_constant()),
       Expr::Index {
         expression, index, ..
-      } => expression.is_constant() && index.is_constant(),
-      Expr::IndexAssignment { value, .. } => value.is_constant(),
-      Expr::FormatString { expressions, .. } => expressions.iter().all(|e| e.is_constant()),
+      } => expression.expr.is_constant() && index.expr.is_constant(),
+      Expr::IndexAssignment { value, .. } => value.expr.is_constant(),
+      Expr::FormatString { expressions, .. } => expressions.iter().all(|e| e.expr.is_constant()),
     }
   }
 }

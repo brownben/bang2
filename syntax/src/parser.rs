@@ -1152,7 +1152,7 @@ mod tests {
     let statements = super::parse("('hello world')\n").unwrap();
 
     if let Expr::Group { expression, .. } = unwrap_expression(&statements[0]) {
-      assert_literal(expression, "hello world", LiteralType::String);
+      assert_literal(&expression.expr, "hello world", LiteralType::String);
     } else {
       panic!("Expected group expression statement");
     }
@@ -1167,7 +1167,7 @@ mod tests {
       expression,
     } = unwrap_expression(&statements[0])
     {
-      assert_literal(expression, "false", LiteralType::False);
+      assert_literal(&expression.expr, "false", LiteralType::False);
       assert_eq!(*operator, UnaryOperator::Not);
     } else {
       panic!("Expected unary expression statement");
@@ -1184,8 +1184,8 @@ mod tests {
       right,
     } = unwrap_expression(&statements[0])
     {
-      assert_literal(left, "10", LiteralType::Number);
-      assert_literal(right, "5", LiteralType::Number);
+      assert_literal(&left.expr, "10", LiteralType::Number);
+      assert_literal(&right.expr, "5", LiteralType::Number);
       assert_eq!(*operator, BinaryOperator::Plus);
     } else {
       panic!("Expected binary expression statement");
@@ -1202,9 +1202,9 @@ mod tests {
       ..
     } = unwrap_expression(&statements[0])
     {
-      assert_literal(&arguments[0], "7", LiteralType::Number);
-      assert_literal(&arguments[1], "null", LiteralType::Null);
-      assert_variable(expression, "function");
+      assert_literal(&arguments[0].expr, "7", LiteralType::Number);
+      assert_literal(&arguments[1].expr, "null", LiteralType::Null);
+      assert_variable(&expression.expr, "function");
     } else {
       panic!("Expected binary expression statement");
     }
@@ -1225,7 +1225,7 @@ mod tests {
         ..
       } = &body.stmt
       {
-        assert_literal(expression, "null", LiteralType::Null);
+        assert_literal(&expression.expr, "null", LiteralType::Null);
       }
     } else {
       panic!("Expected return statement");
@@ -1302,7 +1302,7 @@ mod tests {
       ..
     } = &statements[0].stmt
     {
-      assert_variable(expression, "value");
+      assert_variable(&expression.expr, "value");
     } else {
       panic!("Expected return statement");
     }
@@ -1367,7 +1367,7 @@ mod tests {
       ..
     } = &statements[0].stmt
     {
-      assert_literal(condition, "true", LiteralType::True);
+      assert_literal(&condition.expr, "true", LiteralType::True);
       assert_variable(unwrap_expression(then), "doStuff");
       assert!(otherwise.is_none());
     } else {
@@ -1385,7 +1385,7 @@ mod tests {
       ..
     } = &statements[0].stmt
     {
-      assert_literal(condition, "true", LiteralType::True);
+      assert_literal(&condition.expr, "true", LiteralType::True);
       assert!(otherwise.is_some());
     } else {
       panic!("Expected if statement");
@@ -1410,9 +1410,9 @@ mod tests {
     let statements = super::parse("[44, null, 'hello']\n").unwrap();
 
     if let Expr::List { items } = unwrap_expression(&statements[0]) {
-      assert_literal(&items[0], "44", LiteralType::Number);
-      assert_literal(&items[1], "null", LiteralType::Null);
-      assert_literal(&items[2], "hello", LiteralType::String);
+      assert_literal(&items[0].expr, "44", LiteralType::Number);
+      assert_literal(&items[1].expr, "null", LiteralType::Null);
+      assert_literal(&items[2].expr, "hello", LiteralType::String);
     } else {
       panic!("Expected list");
     }
@@ -1423,8 +1423,8 @@ mod tests {
     let statements = super::parse("a[5]\n").unwrap();
 
     if let Expr::Index { expression, index } = unwrap_expression(&statements[0]) {
-      assert_literal(&index, "5", LiteralType::Number);
-      assert_variable(expression, "a");
+      assert_literal(&index.expr, "5", LiteralType::Number);
+      assert_variable(&expression.expr, "a");
     } else {
       panic!("Expected list");
     }
