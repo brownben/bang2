@@ -88,6 +88,21 @@ bang_test!(cant_index_null
   RuntimeError
 );
 
+bang_test!(cant_index_list_with_null
+  "[1, 2, 3][null]"
+  RuntimeError
+);
+
+bang_test!(cant_index_assign_list_with_null
+  "[1, 2, 3][null] = 9"
+  RuntimeError
+);
+
+bang_test!(cant_index_string_with_null
+  "'hello'[null]"
+  RuntimeError
+);
+
 bang_test!(cant_assign_to_string_index
   "'hello'[0] = 'H'"
   RuntimeError

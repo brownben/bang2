@@ -90,32 +90,6 @@ impl TokenType {
       Self::PlusEqual | Self::MinusEqual | Self::StarEqual | Self::SlashEqual
     )
   }
-
-  pub fn is_illegal_line_start(self) -> bool {
-    matches!(
-      self,
-      Self::Plus
-        | Self::Minus
-        | Self::Slash
-        | Self::Star
-        | Self::Bang
-        | Self::And
-        | Self::Or
-        | Self::QuestionQuestion
-        | Self::BangEqual
-        | Self::Equal
-        | Self::EqualEqual
-        | Self::Greater
-        | Self::GreaterEqual
-        | Self::Less
-        | Self::LessEqual
-        | Self::PlusEqual
-        | Self::MinusEqual
-        | Self::StarEqual
-        | Self::SlashEqual
-        | Self::RightRight
-    )
-  }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -361,20 +335,20 @@ impl<'source> Tokeniser<'source> {
 
   fn identifier_type(&self, length: TokenLength) -> TokenType {
     match self.source[self.position] {
-      b'a' => match self.source[self.position + 1] {
-        b'n' => self.check_keyword(length, "and", TokenType::And),
-        b's' => self.check_keyword(length, "as", TokenType::As),
+      b'a' => match self.source.get(self.position + 1) {
+        Some(b'n') => self.check_keyword(length, "and", TokenType::And),
+        Some(b's') => self.check_keyword(length, "as", TokenType::As),
         _ => TokenType::Identifier,
       },
       b'e' => self.check_keyword(length, "else", TokenType::Else),
-      b'f' => match self.source[self.position + 1] {
-        b'a' => self.check_keyword(length, "false", TokenType::False),
-        b'r' => self.check_keyword(length, "from", TokenType::From),
+      b'f' => match self.source.get(self.position + 1) {
+        Some(b'a') => self.check_keyword(length, "false", TokenType::False),
+        Some(b'r') => self.check_keyword(length, "from", TokenType::From),
         _ => TokenType::Identifier,
       },
-      b'i' => match self.source[self.position + 1] {
-        b'f' => self.check_keyword(length, "if", TokenType::If),
-        b'm' => self.check_keyword(length, "import", TokenType::Import),
+      b'i' => match self.source.get(self.position + 1) {
+        Some(b'f') => self.check_keyword(length, "if", TokenType::If),
+        Some(b'm') => self.check_keyword(length, "import", TokenType::Import),
         _ => TokenType::Identifier,
       },
       b'l' => self.check_keyword(length, "let", TokenType::Let),

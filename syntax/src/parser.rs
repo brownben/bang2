@@ -1157,6 +1157,11 @@ mod tests {
     } else {
       panic!("Expected group expression statement");
     }
+
+    assert!(super::parse("(a)").is_ok());
+    assert!(super::parse("(a").is_err());
+    assert!(super::parse("(").is_err());
+    assert!(super::parse("()").is_err());
   }
 
   #[test]
@@ -1231,6 +1236,9 @@ mod tests {
     } else {
       panic!("Expected return statement");
     }
+
+    assert!(super::parse("(..all) => all[0]").is_ok());
+    assert!(super::parse("(..) => all[0]").is_err());
   }
 
   #[test]
@@ -1429,6 +1437,8 @@ mod tests {
     } else {
       panic!("Expected list");
     }
+
+    assert!(super::parse("a[5").is_err());
   }
 
   #[test]
@@ -1438,6 +1448,7 @@ mod tests {
     assert!(super::parse("'hello ${7} world'").is_ok());
     assert!(super::parse("'${7} world'").is_ok());
     assert!(super::parse("'${`hi`} world'").is_ok());
+    assert!(super::parse("'${`hi`} \n world'").is_ok());
     assert!(super::parse("call('${7} world')").is_ok());
     assert!(super::parse("'hello ${ 7 } world ${false}!'").is_ok());
     assert!(super::parse("'Hello ${'I can interpolate'}, ${`multiple things`}'").is_ok());
@@ -1447,10 +1458,30 @@ mod tests {
     assert!(super::parse("`hello ${7}'").is_err());
     assert!(super::parse("'hello ${").is_err());
     assert!(super::parse("'hello ${'").is_err());
+    assert!(super::parse("'hello ${77").is_err());
+    assert!(super::parse("'Hello ${'I can interpolate'}, ${`multiple things`}").is_err());
 
     let with_import_after = "
 let a = 'Hello ${'I can interpolate'}, ${`multiple things`}'
 from maths import { sin }";
     assert_eq!(super::parse(with_import_after).unwrap().len(), 2);
+  }
+
+  #[test]
+  fn should_parse_import() {
+    assert!(super::parse("from maths import { sin }").is_ok());
+    assert!(super::parse("from maths import { sin, cos }").is_ok());
+
+    assert!(super::parse("from maths import sin }").is_err());
+    assert!(super::parse("from maths import { sin ").is_err());
+    assert!(super::parse("from maths import { sin }sin() ").is_err());
+  }
+
+  #[test]
+  fn should_parse_type_groups() {
+    assert!(super::parse("let a: (null | number)").is_ok());
+    assert!(super::parse("let a: number").is_ok());
+
+    assert!(super::parse("let a: (null").is_err());
   }
 }

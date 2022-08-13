@@ -37,6 +37,11 @@ bang_test!(unknown_module_import
   CompileError
 );
 
+bang_test!(unknown_module_value
+  "from maths import { stuff }"
+  CompileError
+);
+
 bang_test!(misformed_import
   "from unknown_module { stuff }"
   CompileError

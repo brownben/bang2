@@ -1,5 +1,4 @@
 use crate::tokens::{CharacterPosition, LineNumber, Token};
-use std::fmt;
 
 pub mod expression;
 pub mod statement;
@@ -49,11 +48,6 @@ impl From<Token> for Span {
       start: token.start,
       end: token.end,
     }
-  }
-}
-impl fmt::Display for Span {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "{}..{}", self.start, self.end)
   }
 }
 

@@ -38,8 +38,12 @@ while ('${stuff}')
 
 if ([])
   go_to_next_step()
+if ([1, 2, 3][0])
+  go_to_next_step()
+if (a[0] = 7)
+  go_to_next_step()
 "
-  "No Constant Conditions" [2 8 10 17]
+  "No Constant Conditions" [2 8 10 17 19 21]
 );
 
 bang_lint!(no_negative_zero
@@ -128,6 +132,7 @@ x[
   4 // comment
 ] = 0
 x[[1,2,3]] = 8
+x[`${4} hello`]
 "
   "No Side Effects in Index Assignment" [2 3 4]
 

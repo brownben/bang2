@@ -387,6 +387,26 @@ let block = (n: null) ->
 block(25)
     ";
   assert_format!(source);
+
+  let source = "
+let block = (n: null) ->
+  if (true)
+    let a = [
+      2,
+      4,
+      6,
+    ]
+    return a
+  else
+    let a = [
+      1,
+      3,
+      5,
+    ]
+    return a
+block(25)
+    ";
+  assert_format!(source);
 }
 
 #[test]
