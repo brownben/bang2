@@ -5,7 +5,7 @@ use bang_syntax::{
     types::{Type, TypeExpression},
     Span,
   },
-  parse_number, LineNumber,
+  LineNumber, Parser,
 };
 
 const INDENTATION: &str = "  ";
@@ -303,7 +303,7 @@ impl<'source> Formatter<'source> {
             if str::contains(value, "_") {
               write!(f, "{value}")?;
             } else {
-              write!(f, "{}", parse_number(value))?;
+              write!(f, "{}", Parser::number(value))?;
             }
           }
           LiteralType::True => write!(f, "true")?,

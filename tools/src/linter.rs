@@ -4,7 +4,7 @@ use bang_syntax::{
     statement::{Statement, Stmt},
     Span, Visitor,
   },
-  parse_number, Diagnostic as ParserDiagnostic, LineNumber,
+  Diagnostic as ParserDiagnostic, LineNumber, Parser,
 };
 use std::{error, fmt};
 
@@ -117,7 +117,7 @@ lint_rule! {
     fn exit_expression(&mut self, expression: &Expression) {
       if let Expr::Unary { expression, .. } = &expression.expr
         && let Expr::Literal { value,  .. } = &expression.expr
-        && parse_number(value) == 0.0
+        && Parser::number(value) == 0.0
       {
         self.issues.push(expression.span);
       }

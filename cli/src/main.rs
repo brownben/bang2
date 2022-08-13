@@ -1,6 +1,6 @@
-use bang_interpreter::{compile as compile_ast, Chunk, RuntimeError, VM};
+use bang_interpreter::{compile, Chunk, RuntimeError, VM};
 use bang_std::StdContext as Context;
-use bang_syntax::{parse, Diagnostic};
+use bang_syntax::parse;
 use bang_tools::{format, lint, typecheck};
 use clap::{Arg, Command};
 use rustyline::error::ReadlineError;
@@ -18,12 +18,6 @@ fn read_file(filename: &str) -> String {
   }
 }
 
-fn compile(source: &str) -> Result<Chunk, Diagnostic> {
-  let ast = parse(source)?;
-
-  compile_ast(source, &ast, &Context)
-}
-
 fn run(chunk: &Chunk) -> Result<(), RuntimeError> {
   let mut vm = VM::new(&Context);
   vm.run(chunk)
@@ -39,7 +33,7 @@ fn repl() {
       Ok(line) => {
         rl.add_history_entry(&line);
 
-        match compile(&format!("{}\n", line)) {
+        match compile(&format!("print({})\n", line), &Context) {
           Ok(chunk) => match vm.run(&chunk) {
             Ok(_) => {}
             Err(error) => print::runtime_error("REPL", &line, error),
@@ -118,7 +112,7 @@ fn main() {
     }
 
     match command {
-      "run" => match compile(&source) {
+      "run" => match compile(&source, &Context) {
         Ok(chunk) => match run(&chunk) {
           Ok(_) => {}
           Err(error) => print::runtime_error(filename, &source, error),
@@ -138,7 +132,7 @@ fn main() {
         Ok(ast) => print::ast(&source, &ast),
         Err(details) => print::error(filename, &source, &details),
       },
-      "bytecode" => match compile(&source) {
+      "bytecode" => match compile(&source, &Context) {
         Ok(chunk) => print::chunk(&chunk),
         Err(details) => print::error(filename, &source, &details),
       },

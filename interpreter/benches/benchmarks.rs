@@ -43,11 +43,6 @@ macro_rules! bang_benchmark {
 
       const SOURCE: &'static str = $source;
 
-      fn compile() -> Result<bang::Chunk, bang::Diagnostic> {
-        let ast = bang::parse(SOURCE)?;
-        bang::compile(SOURCE, &ast, &bang::StdContext)
-      }
-
       #[bench]
       fn parse(b: &mut Bencher) {
         b.iter(|| bang::parse(SOURCE));
@@ -55,12 +50,12 @@ macro_rules! bang_benchmark {
 
       #[bench]
       fn to_bytecode(b: &mut Bencher) {
-        b.iter(|| compile());
+        b.iter(|| bang::compile(SOURCE, &bang::StdContext));
       }
 
       #[bench]
       fn vm(b: &mut Bencher) {
-        let chunk = compile().unwrap();
+        let chunk = bang::compile(SOURCE, &bang::StdContext).unwrap();
 
         b.iter(|| {
           let mut vm = bang::VM::new(&bang::StdContext);
@@ -71,7 +66,7 @@ macro_rules! bang_benchmark {
       #[bench]
       fn all(b: &mut Bencher) {
         b.iter(|| {
-          let chunk = compile().expect("Successful compile");
+          let chunk = bang::compile(SOURCE, &bang::StdContext).unwrap();
           let mut vm = bang::VM::new(&bang::StdContext);
           vm.run(&chunk).expect("No runtime errors");
         })

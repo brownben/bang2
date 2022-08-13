@@ -165,7 +165,7 @@ type ExpressionResult<'source> = Result<Expression<'source>, Error>;
 type StatementResult<'source> = Result<Statement<'source>, Error>;
 type TypeResult<'source> = Result<TypeExpression<'source>, Error>;
 
-struct Parser<'source> {
+pub struct Parser<'source> {
   source: &'source [u8],
   tokeniser: iter::Peekable<Tokeniser<'source>>,
 
@@ -174,7 +174,7 @@ struct Parser<'source> {
 }
 
 impl<'source> Parser<'source> {
-  fn new(source: &'source str) -> Self {
+  pub fn new(source: &'source str) -> Self {
     let mut tokeniser = Tokeniser::new(source).peekable();
     let current = tokeniser.next().unwrap_or_default();
 
@@ -185,6 +185,13 @@ impl<'source> Parser<'source> {
       current,
       previous: Token::default(),
     }
+  }
+
+  pub fn number(string: &str) -> f64 {
+    string
+      .replace('_', "")
+      .parse()
+      .expect("String to be valid number representation")
   }
 
   fn at_end(&mut self) -> bool {
@@ -1072,33 +1079,34 @@ impl<'source> Parser<'source> {
   }
 }
 
-pub fn parse(source: &str) -> Result<Vec<Statement>, Diagnostic> {
-  let mut parser = Parser::new(source);
-  let mut statements = Vec::new();
+impl<'source> Iterator for Parser<'source> {
+  type Item = Result<Statement<'source>, Diagnostic>;
 
-  while !parser.at_end() {
-    match parser.statement() {
-      Ok(stmt) => statements.push(stmt),
-      Err(Error::EmptyStatement) => {}
+  fn next(&mut self) -> Option<Self::Item> {
+    if self.at_end() {
+      return None;
+    }
+
+    match self.statement() {
+      Ok(stmt) => Some(Ok(stmt)),
+      Err(Error::EmptyStatement) => None,
       Err(err) => {
-        let last_token = if parser.current.ttype == TokenType::EndOfFile {
-          parser.previous
+        let last_token = if self.current.ttype == TokenType::EndOfFile {
+          self.previous
         } else {
-          parser.current
+          self.current
         };
-        return Err(err.get_diagnostic(source, last_token));
+        Some(Err(err.get_diagnostic(
+          str::from_utf8(self.source).unwrap(),
+          last_token,
+        )))
       }
     }
   }
-
-  Ok(statements)
 }
 
-pub fn parse_number(string: &str) -> f64 {
-  string
-    .replace('_', "")
-    .parse()
-    .expect("String to be valid number representation")
+pub fn parse(source: &str) -> Result<Vec<Statement>, Diagnostic> {
+  Parser::new(source).collect()
 }
 
 #[cfg(test)]

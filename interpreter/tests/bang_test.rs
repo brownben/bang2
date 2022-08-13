@@ -1,3 +1,4 @@
+use bang_std::StdContext;
 pub use std::rc::Rc;
 
 pub mod bang {
@@ -13,13 +14,8 @@ pub enum RunResult {
   CompileError,
 }
 
-fn compile(source: &str) -> Result<bang::Chunk, bang::Diagnostic> {
-  let ast = bang::parse(source)?;
-  bang::compile(source, &ast, &bang::StdContext)
-}
-
 pub fn run(source: &str) -> (RunResult, bang::VM) {
-  let chunk = match compile(source) {
+  let chunk = match bang::compile(source, &StdContext) {
     Ok(chunk) => chunk,
     Err(_) => return (RunResult::CompileError, Default::default()),
   };

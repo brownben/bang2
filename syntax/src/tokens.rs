@@ -1,3 +1,4 @@
+use smallvec::SmallVec;
 use std::str;
 
 pub type LineNumber = u16;
@@ -153,7 +154,7 @@ pub struct Tokeniser<'source> {
   line: LineNumber,
   position: usize,
 
-  quote_stack: Vec<u8>,
+  quote_stack: SmallVec<[u8; 8]>,
   last_type: TokenType,
 }
 
@@ -165,7 +166,7 @@ impl<'source> Tokeniser<'source> {
       line: 1,
       position: 0,
 
-      quote_stack: Vec::new(),
+      quote_stack: SmallVec::new(),
       last_type: TokenType::Unknown,
     }
   }

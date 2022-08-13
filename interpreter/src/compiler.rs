@@ -12,7 +12,7 @@ use bang_syntax::{
     statement::{DeclarationIdentifier, Statement, Stmt},
     Span,
   },
-  parse_number, Diagnostic,
+  Diagnostic, Parser,
 };
 use std::{mem, rc::Rc};
 
@@ -179,6 +179,25 @@ impl<'s, 'c> Compiler<'s, 'c> {
 
       error: None,
     }
+  }
+
+  fn finish(mut self) -> Chunk {
+    self.emit_opcode_blank(OpCode::Return);
+
+    let mut chunk = self.chunk.finalize();
+    let chunk_locations: Vec<_> = self
+      .finished_chunks
+      .iter()
+      .map(|c| chunk.merge(c))
+      .collect();
+
+    for constant in &mut chunk.constants {
+      if let Value::Function(func) = constant {
+        Rc::get_mut(func).unwrap().start = chunk_locations[func.start];
+      };
+    }
+
+    chunk
   }
 
   fn begin_scope(&mut self) {
@@ -364,7 +383,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
         LiteralType::True => self.emit_opcode(span, OpCode::True),
         LiteralType::False => self.emit_opcode(span, OpCode::False),
         LiteralType::Null => self.emit_opcode(span, OpCode::Null),
-        LiteralType::Number => self.emit_constant(span, Value::from(parse_number(value))),
+        LiteralType::Number => self.emit_constant(span, Value::from(Parser::number(value))),
         LiteralType::String => self.emit_constant(span, Value::from(*value)),
       },
       Expr::Group { expression, .. } => {
@@ -682,35 +701,17 @@ impl<'s, 'c> Compiler<'s, 'c> {
   }
 }
 
-pub fn compile(
-  source: &str,
-  ast: &[Statement],
-  context: &dyn Context,
-) -> Result<Chunk, Diagnostic> {
+pub fn compile(source: &str, context: &dyn Context) -> Result<Chunk, Diagnostic> {
+  let parser = Parser::new(source);
   let mut compiler = Compiler::new(source, context);
 
-  for statement in ast {
-    compiler.compile_statement(statement);
+  for statement in parser {
+    compiler.compile_statement(&statement?);
 
     if let Some(error) = compiler.error {
       return Err(error);
     }
   }
 
-  compiler.emit_opcode_blank(OpCode::Return);
-
-  let mut chunk = compiler.chunk.finalize();
-  let chunk_locations: Vec<_> = compiler
-    .finished_chunks
-    .iter()
-    .map(|c| chunk.merge(c))
-    .collect();
-
-  for constant in &mut chunk.constants {
-    if let Value::Function(func) = constant {
-      Rc::get_mut(func).unwrap().start = chunk_locations[func.start];
-    };
-  }
-
-  Ok(chunk)
+  Ok(compiler.finish())
 }
