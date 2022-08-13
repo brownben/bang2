@@ -136,14 +136,25 @@ impl Token {
     self.end - self.start
   }
 }
+impl Default for Token {
+  fn default() -> Self {
+    Self {
+      ttype: TokenType::EndOfFile,
+      start: 0,
+      end: 0,
+      line: 0,
+    }
+  }
+}
 
-struct Tokeniser<'source> {
+pub struct Tokeniser<'source> {
   source: &'source [u8],
 
   line: LineNumber,
   position: usize,
 
   quote_stack: Vec<u8>,
+  last_type: TokenType,
 }
 
 impl<'source> Tokeniser<'source> {
@@ -155,14 +166,11 @@ impl<'source> Tokeniser<'source> {
       position: 0,
 
       quote_stack: Vec::new(),
+      last_type: TokenType::Unknown,
     }
   }
 
-  pub fn tokens_left(&self) -> bool {
-    self.position < self.source.len()
-  }
-
-  pub fn next_token(&mut self) -> Token {
+  fn next_token(&mut self) -> Token {
     let (ttype, len) = self.next_token_type();
 
     #[allow(clippy::cast_possible_truncation)]
@@ -393,20 +401,31 @@ impl<'source> Tokeniser<'source> {
   }
 }
 
-pub fn tokenize(source: &str) -> Vec<Token> {
-  let mut tokeniser = Tokeniser::new(source);
-  let mut tokens = Vec::with_capacity(source.len() / 5);
+impl Iterator for Tokeniser<'_> {
+  type Item = Token;
 
-  while tokeniser.tokens_left() {
-    tokens.push(tokeniser.next_token());
+  fn next(&mut self) -> Option<Self::Item> {
+    if self.at_end(self.position) {
+      return None;
+    }
+
+    let token = self.next_token();
+    if token.ttype == TokenType::Whitespace && self.last_type != TokenType::EndOfLine {
+      self.next()
+    } else {
+      self.last_type = token.ttype;
+      Some(token)
+    }
   }
-
-  tokens
 }
 
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  fn tokenize(source: &str) -> Vec<Token> {
+    Tokeniser::new(source).collect()
+  }
 
   #[test]
   fn should_have_no_tokens_for_empty_string() {
@@ -433,20 +452,16 @@ mod tests {
   #[test]
   fn should_tokenize_whitespace() {
     let tokens = tokenize(" ");
-    assert_eq!(tokens.len(), 1);
-    assert_eq!(tokens[0].ttype, TokenType::Whitespace);
+    assert_eq!(tokens.len(), 0);
 
     let tokens = tokenize("\t");
-    assert_eq!(tokens.len(), 1);
-    assert_eq!(tokens[0].ttype, TokenType::Whitespace);
+    assert_eq!(tokens.len(), 0);
 
     let tokens = tokenize("\r");
-    assert_eq!(tokens.len(), 1);
-    assert_eq!(tokens[0].ttype, TokenType::Whitespace);
+    assert_eq!(tokens.len(), 0);
 
     let tokens = tokenize(" \r \t ");
-    assert_eq!(tokens.len(), 1);
-    assert_eq!(tokens[0].ttype, TokenType::Whitespace);
+    assert_eq!(tokens.len(), 0);
 
     let tokens = tokenize("\n ");
     assert_eq!(tokens.len(), 2);
@@ -483,7 +498,7 @@ mod tests {
     assert_eq!(tokens.len(), 1);
 
     let tokens = tokenize("'hello' `world`");
-    assert_eq!(tokens.len(), 3);
+    assert_eq!(tokens.len(), 2);
   }
 
   #[test]
@@ -552,17 +567,17 @@ mod tests {
   #[test]
   fn should_tokenize_keywords() {
     let tokens = tokenize("and else false if let null or return true while");
-    assert_eq!(tokens.len(), 19);
+    assert_eq!(tokens.len(), 10);
     assert_eq!(tokens[0].ttype, TokenType::And);
-    assert_eq!(tokens[2].ttype, TokenType::Else);
-    assert_eq!(tokens[4].ttype, TokenType::False);
-    assert_eq!(tokens[6].ttype, TokenType::If);
-    assert_eq!(tokens[8].ttype, TokenType::Let);
-    assert_eq!(tokens[10].ttype, TokenType::Null);
-    assert_eq!(tokens[12].ttype, TokenType::Or);
-    assert_eq!(tokens[14].ttype, TokenType::Return);
-    assert_eq!(tokens[16].ttype, TokenType::True);
-    assert_eq!(tokens[18].ttype, TokenType::While);
+    assert_eq!(tokens[1].ttype, TokenType::Else);
+    assert_eq!(tokens[2].ttype, TokenType::False);
+    assert_eq!(tokens[3].ttype, TokenType::If);
+    assert_eq!(tokens[4].ttype, TokenType::Let);
+    assert_eq!(tokens[5].ttype, TokenType::Null);
+    assert_eq!(tokens[6].ttype, TokenType::Or);
+    assert_eq!(tokens[7].ttype, TokenType::Return);
+    assert_eq!(tokens[8].ttype, TokenType::True);
+    assert_eq!(tokens[9].ttype, TokenType::While);
   }
 
   #[test]

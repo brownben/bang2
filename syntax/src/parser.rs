@@ -8,10 +8,10 @@ use crate::{
     types::{types, Type, TypeExpression},
     Span,
   },
-  tokens::{tokenize, Token, TokenType},
+  tokens::{Token, TokenType, Tokeniser},
   LineNumber,
 };
-use std::{error, fmt, str};
+use std::{error, fmt, iter, str};
 
 #[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Eq)]
 enum Precedence {
@@ -108,7 +108,7 @@ impl Error {
     }
   }
 
-  fn get_message(&self, source: &[u8], token: &Token) -> String {
+  fn get_message(&self, source: &[u8], token: Token) -> String {
     match self {
       Self::ExpectedOpeningBracket
       | Self::ExpectedClosingBracket
@@ -131,7 +131,7 @@ impl Error {
     }
   }
 
-  fn get_diagnostic(&self, source: &str, token: &Token) -> Diagnostic {
+  fn get_diagnostic(&self, source: &str, token: Token) -> Diagnostic {
     let span: Span = token.into();
 
     Diagnostic {
@@ -165,30 +165,37 @@ type ExpressionResult<'source> = Result<Expression<'source>, Error>;
 type StatementResult<'source> = Result<Statement<'source>, Error>;
 type TypeResult<'source> = Result<TypeExpression<'source>, Error>;
 
-struct Parser<'source, 'tokens> {
+struct Parser<'source> {
   source: &'source [u8],
-  tokens: &'tokens [Token],
-  position: usize,
+  tokeniser: iter::Peekable<Tokeniser<'source>>,
+
+  current: Token,
+  previous: Token,
 }
 
-impl<'source, 'tokens> Parser<'source, 'tokens> {
-  fn new(source: &'source str, tokens: &'tokens [Token]) -> Self {
+impl<'source> Parser<'source> {
+  fn new(source: &'source str) -> Self {
+    let mut tokeniser = Tokeniser::new(source).peekable();
+    let current = tokeniser.next().unwrap_or_default();
+
     Self {
       source: source.as_bytes(),
-      tokens,
-      position: 0,
+      tokeniser,
+
+      current,
+      previous: Token::default(),
     }
   }
 
-  fn at_end(&self) -> bool {
-    self.position >= self.tokens.len()
-      || self.current().ttype == TokenType::EndOfFile
-      || self.peek() == TokenType::EndOfFile
+  fn at_end(&mut self) -> bool {
+    self.current.ttype == TokenType::EndOfFile
   }
 
-  fn next(&mut self) -> &'tokens Token {
-    self.position += 1;
-    let token = self.current();
+  fn next(&mut self) -> Token {
+    let token = self.tokeniser.next().unwrap_or_default();
+
+    self.previous = self.current;
+    self.current = token;
 
     if token.ttype == TokenType::Whitespace {
       self.next()
@@ -197,45 +204,21 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
     }
   }
 
-  fn peek(&self) -> TokenType {
-    let mut position = self.position + 1;
-    if position >= self.tokens.len() {
-      position = self.tokens.len() - 1;
-    }
-    let mut token = self.tokens[position];
-
-    while position < self.tokens.len() - 1 && token.ttype == TokenType::Whitespace {
-      position += 1;
-      token = self.tokens[position];
-    }
-
-    if token.ttype == TokenType::Whitespace {
-      TokenType::EndOfFile
-    } else {
-      token.ttype
-    }
+  fn peek(&mut self) -> TokenType {
+    self.tokeniser.peek().copied().unwrap_or_default().ttype
   }
 
-  fn get(&self, position: usize) -> &'tokens Token {
-    self.tokens.get(position).unwrap_or(&Token {
-      ttype: TokenType::EndOfFile,
-      line: 0,
-      end: 0,
-      start: 0,
-    })
+  fn current(&self) -> Token {
+    self.current
   }
 
-  fn current(&self) -> &'tokens Token {
-    self.get(self.position)
-  }
-
-  fn current_advance(&mut self) -> &'tokens Token {
+  fn current_advance(&mut self) -> Token {
     let token = self.current();
     self.next();
     token
   }
 
-  fn expect(&mut self, token_type: TokenType, message: Error) -> Result<&'tokens Token, Error> {
+  fn expect(&mut self, token_type: TokenType, message: Error) -> Result<Token, Error> {
     let current = self.current();
     if current.ttype == token_type {
       Ok(current)
@@ -244,17 +227,13 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
     }
   }
 
-  fn consume(&mut self, token_type: TokenType, message: Error) -> Result<&'tokens Token, Error> {
+  fn consume(&mut self, token_type: TokenType, message: Error) -> Result<Token, Error> {
     let result = self.expect(token_type, message)?;
     self.next();
     Ok(result)
   }
 
-  fn consume_next(
-    &mut self,
-    token_type: TokenType,
-    message: Error,
-  ) -> Result<&'tokens Token, Error> {
+  fn consume_next(&mut self, token_type: TokenType, message: Error) -> Result<Token, Error> {
     self.next();
     self.consume(token_type, message)
   }
@@ -285,12 +264,6 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
     matches
   }
 
-  fn skip_newline_if_illegal_line_start(&mut self) {
-    if self.current().ttype == TokenType::EndOfLine && self.peek().is_illegal_line_start() {
-      self.next();
-    }
-  }
-
   fn parse_expression(&mut self, precedence: Precedence) -> ExpressionResult<'source> {
     self.ignore_newline();
     let token = self.current();
@@ -298,7 +271,6 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
     let can_assign = precedence <= Precedence::Assignment;
     let prefix = self.prefix_rule(token.ttype, can_assign)?;
     let mut previous = vec![prefix];
-    self.skip_newline_if_illegal_line_start();
 
     while precedence <= Precedence::from(self.current().ttype) {
       let token = self.current();
@@ -307,8 +279,6 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
       if let Some(value) = self.infix_rule(token.ttype, previous.pop().unwrap(), can_assign)? {
         previous.push(value);
       }
-
-      self.skip_newline_if_illegal_line_start();
     }
 
     if can_assign && self.matches(TokenType::Equal) {
@@ -365,10 +335,10 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
 }
 
 // Statements
-impl<'source> Parser<'source, '_> {
-  fn block_depth(whitespace: &str) -> i32 {
+impl<'source> Parser<'source> {
+  fn block_depth(&self, token: Token) -> i32 {
     let mut depth = 0;
-    for c in whitespace.chars() {
+    for c in token.get_value(self.source).chars() {
       match c {
         ' ' => depth += 1,
         '\t' => depth += 2,
@@ -382,10 +352,8 @@ impl<'source> Parser<'source, '_> {
   fn statement(&mut self) -> StatementResult<'source> {
     self.ignore_newline();
 
-    let last = self.position.saturating_sub(1);
-    let mut last_token = self.get(last);
-
-    let depth = Parser::block_depth(last_token.get_value(self.source));
+    let mut last_token = self.previous;
+    let depth = self.block_depth(last_token);
 
     if last_token.ttype != TokenType::Whitespace || depth == 0 {
       return self.stmt();
@@ -394,16 +362,20 @@ impl<'source> Parser<'source, '_> {
     let mut statements = Vec::new();
 
     while last_token.ttype == TokenType::Whitespace
-      && Parser::block_depth(last_token.get_value(self.source)) >= depth
+      && self.block_depth(last_token) >= depth
       && self.current().ttype != TokenType::EndOfFile
     {
-      if Parser::block_depth(last_token.get_value(self.source)) > depth {
+      if self.block_depth(last_token) > depth {
         statements.push(self.statement()?);
       } else {
         statements.push(self.stmt()?);
       }
       self.ignore_newline();
-      last_token = self.get(self.position - 1);
+      last_token = self.previous;
+    }
+
+    if statements.is_empty() {
+      Err(Error::EmptyStatement)?;
     }
 
     Ok(statement!(
@@ -614,7 +586,7 @@ impl<'source> Parser<'source, '_> {
 }
 
 // Expressions
-impl<'source> Parser<'source, '_> {
+impl<'source> Parser<'source> {
   fn expression(&mut self) -> ExpressionResult<'source> {
     self.parse_expression(Precedence::Assignment)
   }
@@ -663,7 +635,7 @@ impl<'source> Parser<'source, '_> {
     }
   }
 
-  fn function(&mut self, opening_bracket: &Token) -> ExpressionResult<'source> {
+  fn function(&mut self, opening_bracket: Token) -> ExpressionResult<'source> {
     let mut parameters = Vec::new();
     loop {
       self.ignore_newline();
@@ -701,7 +673,7 @@ impl<'source> Parser<'source, '_> {
 
   fn function_body(
     &mut self,
-    opening_bracket: &Token,
+    opening_bracket: Token,
     parameters: Vec<Parameter<'source>>,
   ) -> ExpressionResult<'source> {
     let (body, return_type) = if self.matches(TokenType::FatRightArrow) {
@@ -738,7 +710,7 @@ impl<'source> Parser<'source, '_> {
     ))
   }
 
-  fn grouping(&mut self, opening_bracket: &Token) -> ExpressionResult<'source> {
+  fn grouping(&mut self, opening_bracket: Token) -> ExpressionResult<'source> {
     let expression = self.expression()?;
     self.ignore_newline();
     let end_token = self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
@@ -999,7 +971,7 @@ impl<'source> Parser<'source, '_> {
 }
 
 // Types
-impl<'source> Parser<'source, '_> {
+impl<'source> Parser<'source> {
   fn optional_types(&mut self) -> Result<Option<TypeExpression<'source>>, Error> {
     if matches!(
       self.current().ttype,
@@ -1086,7 +1058,7 @@ impl<'source> Parser<'source, '_> {
 
   fn type_function(
     &mut self,
-    start_token: &Token,
+    start_token: Token,
     first_parameter: TypeExpression<'source>,
   ) -> TypeResult<'source> {
     let mut parameters = vec![first_parameter];
@@ -1108,7 +1080,7 @@ impl<'source> Parser<'source, '_> {
 
   fn type_function_body(
     &mut self,
-    start_token: &Token,
+    start_token: Token,
     parameters: Vec<TypeExpression<'source>>,
   ) -> TypeResult<'source> {
     self.consume(TokenType::RightArrow, Error::ExpectedFunctionArrow)?;
@@ -1122,8 +1094,7 @@ impl<'source> Parser<'source, '_> {
 }
 
 pub fn parse(source: &str) -> Result<Vec<Statement>, Diagnostic> {
-  let tokens = tokenize(source);
-  let mut parser = Parser::new(source, &tokens);
+  let mut parser = Parser::new(source);
   let mut statements = Vec::new();
 
   while !parser.at_end() {
@@ -1132,11 +1103,11 @@ pub fn parse(source: &str) -> Result<Vec<Statement>, Diagnostic> {
       Err(Error::EmptyStatement) => {}
       Err(err) => {
         let last_token = if parser.current().ttype == TokenType::EndOfFile {
-          parser.tokens[parser.tokens.len().saturating_sub(1)]
+          parser.previous
         } else {
-          *parser.current()
+          parser.current
         };
-        return Err(err.get_diagnostic(source, &last_token));
+        return Err(err.get_diagnostic(source, last_token));
       }
     }
   }

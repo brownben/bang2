@@ -49,6 +49,11 @@ macro_rules! bang_benchmark {
       }
 
       #[bench]
+      fn parse(b: &mut Bencher) {
+        b.iter(|| bang::parse(SOURCE));
+      }
+
+      #[bench]
       fn to_bytecode(b: &mut Bencher) {
         b.iter(|| compile());
       }

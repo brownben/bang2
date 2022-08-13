@@ -43,8 +43,8 @@ impl Span {
     line
   }
 }
-impl From<&Token> for Span {
-  fn from(token: &Token) -> Self {
+impl From<Token> for Span {
+  fn from(token: Token) -> Self {
     Self {
       start: token.start,
       end: token.end,
