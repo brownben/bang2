@@ -208,20 +208,14 @@ impl<'source> Parser<'source> {
     self.tokeniser.peek().copied().unwrap_or_default().ttype
   }
 
-  fn current(&self) -> Token {
-    self.current
-  }
-
   fn current_advance(&mut self) -> Token {
-    let token = self.current();
     self.next();
-    token
+    self.previous
   }
 
   fn expect(&mut self, token_type: TokenType, message: Error) -> Result<Token, Error> {
-    let current = self.current();
-    if current.ttype == token_type {
-      Ok(current)
+    if self.current.ttype == token_type {
+      Ok(self.current)
     } else {
       Err(message)
     }
@@ -231,11 +225,6 @@ impl<'source> Parser<'source> {
     let result = self.expect(token_type, message)?;
     self.next();
     Ok(result)
-  }
-
-  fn consume_next(&mut self, token_type: TokenType, message: Error) -> Result<Token, Error> {
-    self.next();
-    self.consume(token_type, message)
   }
 
   fn expect_newline(&mut self) -> Result<(), Error> {
@@ -257,7 +246,7 @@ impl<'source> Parser<'source> {
   }
 
   fn matches(&mut self, token_type: TokenType) -> bool {
-    let matches = self.current().ttype == token_type;
+    let matches = self.current.ttype == token_type;
     if matches {
       self.next();
     }
@@ -266,25 +255,20 @@ impl<'source> Parser<'source> {
 
   fn parse_expression(&mut self, precedence: Precedence) -> ExpressionResult<'source> {
     self.ignore_newline();
-    let token = self.current();
 
     let can_assign = precedence <= Precedence::Assignment;
-    let prefix = self.prefix_rule(token.ttype, can_assign)?;
-    let mut previous = vec![prefix];
+    let prefix = self.prefix_rule(self.current.ttype, can_assign)?;
 
-    while precedence <= Precedence::from(self.current().ttype) {
-      let token = self.current();
+    let mut previous = prefix;
+    while precedence <= Precedence::from(self.current.ttype) {
       let can_assign = precedence <= Precedence::Assignment;
-
-      if let Some(value) = self.infix_rule(token.ttype, previous.pop().unwrap(), can_assign)? {
-        previous.push(value);
-      }
+      previous = self.infix_rule(self.current.ttype, previous, can_assign)?;
     }
 
     if can_assign && self.matches(TokenType::Equal) {
       Err(Error::InvalidAssignmentTarget)
     } else {
-      Ok(previous.pop().unwrap())
+      Ok(previous)
     }
   }
 
@@ -310,11 +294,11 @@ impl<'source> Parser<'source> {
     token_type: TokenType,
     previous: Expression<'source>,
     can_assign: bool,
-  ) -> Result<Option<Expression<'source>>, Error> {
+  ) -> Result<Expression<'source>, Error> {
     match token_type {
-      TokenType::LeftParen => Ok(Some(self.call(previous)?)),
-      TokenType::LeftSquare => Ok(Some(self.index(previous, can_assign)?)),
-      TokenType::Comment => Ok(Some(self.comment(previous))),
+      TokenType::LeftParen => Ok(self.call(previous)?),
+      TokenType::LeftSquare => Ok(self.index(previous, can_assign)?),
+      TokenType::Comment => Ok(self.comment(previous)),
       TokenType::Plus
       | TokenType::Minus
       | TokenType::Star
@@ -328,8 +312,8 @@ impl<'source> Parser<'source> {
       | TokenType::And
       | TokenType::Or
       | TokenType::QuestionQuestion
-      | TokenType::RightRight => Ok(Some(self.binary(previous)?)),
-      _ => Ok(None),
+      | TokenType::RightRight => Ok(self.binary(previous)?),
+      _ => unreachable!(),
     }
   }
 }
@@ -363,7 +347,7 @@ impl<'source> Parser<'source> {
 
     while last_token.ttype == TokenType::Whitespace
       && self.block_depth(last_token) >= depth
-      && self.current().ttype != TokenType::EndOfFile
+      && self.current.ttype != TokenType::EndOfFile
     {
       if self.block_depth(last_token) > depth {
         statements.push(self.statement()?);
@@ -385,9 +369,7 @@ impl<'source> Parser<'source> {
   }
 
   fn stmt(&mut self) -> StatementResult<'source> {
-    let token = self.current();
-
-    match token.ttype {
+    match self.current.ttype {
       TokenType::Let => self.var_declaration(),
       TokenType::If => self.if_statement(),
       TokenType::Return => self.return_statement(),
@@ -402,7 +384,7 @@ impl<'source> Parser<'source> {
   fn var_declaration(&mut self) -> StatementResult<'source> {
     let token = self.current_advance();
 
-    let (identifier, identifier_span) = match self.current().ttype {
+    let (identifier, identifier_span) = match self.current.ttype {
       TokenType::Identifier => {
         let token = self.current_advance();
         (
@@ -413,7 +395,7 @@ impl<'source> Parser<'source> {
       TokenType::LeftSquare => {
         self.next();
         let mut identifiers = Vec::new();
-        while self.current().ttype == TokenType::Identifier {
+        while self.current.ttype == TokenType::Identifier {
           identifiers.push(self.current_advance().get_value(self.source));
           self.matches(TokenType::Comma);
         }
@@ -421,7 +403,7 @@ impl<'source> Parser<'source> {
 
         (
           DeclarationIdentifier::List(identifiers),
-          self.current().into(),
+          self.current.into(),
         )
       }
       _ => Err(Error::ExpectedIdentifier)?,
@@ -474,8 +456,8 @@ impl<'source> Parser<'source> {
   }
 
   fn if_statement(&mut self) -> StatementResult<'source> {
-    let if_token = self.current();
-    self.consume_next(TokenType::LeftParen, Error::ExpectedOpeningBracket)?;
+    let if_token = self.current_advance();
+    self.consume(TokenType::LeftParen, Error::ExpectedOpeningBracket)?;
     let condition = self.expression()?;
     self.ignore_newline();
     self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
@@ -505,8 +487,8 @@ impl<'source> Parser<'source> {
   }
 
   fn while_statement(&mut self) -> StatementResult<'source> {
-    let token = self.current();
-    self.consume_next(TokenType::LeftParen, Error::ExpectedOpeningBracket)?;
+    let token = self.current_advance();
+    self.consume(TokenType::LeftParen, Error::ExpectedOpeningBracket)?;
     let condition = self.expression()?;
     self.ignore_newline();
     self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
@@ -540,7 +522,7 @@ impl<'source> Parser<'source> {
 
   fn import_statement(&mut self) -> StatementResult<'source> {
     let token = self.current_advance();
-    let module = if self.current().ttype == TokenType::String {
+    let module = if self.current.ttype == TokenType::String {
       let string = self.current_advance().get_value(self.source);
       Self::check_string(string)?
     } else {
@@ -555,8 +537,8 @@ impl<'source> Parser<'source> {
     let mut items = Vec::new();
     let end_token = loop {
       self.ignore_newline();
-      if self.current().ttype == TokenType::RightBrace {
-        break self.current();
+      if self.current.ttype == TokenType::RightBrace {
+        break self.current;
       }
 
       let item = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
@@ -595,14 +577,14 @@ impl<'source> Parser<'source> {
     let opening_bracket = self.current_advance();
     self.ignore_newline();
 
-    match self.current().ttype {
+    match self.current.ttype {
       TokenType::Identifier => match self.peek() {
         TokenType::Colon | TokenType::Comma => self.function(opening_bracket),
         TokenType::RightParen => {
           let identifier = self.current_advance();
           let closing_bracket = self.current_advance();
 
-          match self.current().ttype {
+          match self.current.ttype {
             TokenType::RightArrow | TokenType::FatRightArrow => {
               let parameter = Parameter {
                 name: identifier.get_value(self.source),
@@ -774,13 +756,13 @@ impl<'source> Parser<'source> {
     let end_token = loop {
       expressions.push(self.expression()?);
 
-      match self.current().ttype {
+      match self.current.ttype {
         TokenType::FormatStringPart => {
           let part = self.current_advance().get_value(self.source);
           strings.push(part[1..part.len() - 2].into());
         }
         TokenType::FormatStringEnd => {
-          let part = self.current().get_value(self.source);
+          let part = self.current.get_value(self.source);
           if !part.ends_with(quote) {
             Err(Error::UnterminatedString)?;
           }
@@ -806,7 +788,7 @@ impl<'source> Parser<'source> {
     let mut items = Vec::new();
     let end_token = loop {
       self.ignore_newline();
-      if self.current().ttype == TokenType::RightSquare {
+      if self.current.ttype == TokenType::RightSquare {
         break self.current_advance();
       }
 
@@ -824,7 +806,7 @@ impl<'source> Parser<'source> {
   fn variable(&mut self, can_assign: bool) -> ExpressionResult<'source> {
     let identifier = self.current_advance();
     let name = identifier.get_value(self.source);
-    let is_assignment_operator = self.current().ttype.is_assignment_operator();
+    let is_assignment_operator = self.current.ttype.is_assignment_operator();
 
     if (true, true) == (can_assign, is_assignment_operator) {
       let operator = self.current_advance();
@@ -878,7 +860,7 @@ impl<'source> Parser<'source> {
     self.ignore_newline();
     let end_token = self.consume(TokenType::RightSquare, Error::ExpectedClosingSquare)?;
 
-    let is_assignment_operator = self.current().ttype.is_assignment_operator();
+    let is_assignment_operator = self.current.ttype.is_assignment_operator();
 
     if (true, true) == (can_assign, is_assignment_operator) {
       let operator = self.current_advance();
@@ -921,7 +903,7 @@ impl<'source> Parser<'source> {
     let mut arguments = Vec::new();
     let end_token = loop {
       self.ignore_newline();
-      if self.current().ttype == TokenType::RightParen {
+      if self.current.ttype == TokenType::RightParen {
         break self.current_advance();
       }
 
@@ -973,10 +955,7 @@ impl<'source> Parser<'source> {
 // Types
 impl<'source> Parser<'source> {
   fn optional_types(&mut self) -> Result<Option<TypeExpression<'source>>, Error> {
-    if matches!(
-      self.current().ttype,
-      TokenType::EndOfLine | TokenType::Comma
-    ) {
+    if let TokenType::EndOfLine | TokenType::Comma = self.current.ttype {
       Ok(None)
     } else {
       Ok(Some(self.types()?))
@@ -984,7 +963,7 @@ impl<'source> Parser<'source> {
   }
 
   fn types(&mut self) -> TypeResult<'source> {
-    let token = self.current();
+    let token = self.current;
 
     let mut t = match token.ttype {
       TokenType::Identifier | TokenType::Null | TokenType::True | TokenType::False => {
@@ -999,7 +978,7 @@ impl<'source> Parser<'source> {
       t = self.type_list(t?);
     }
 
-    match self.current().ttype {
+    match self.current.ttype {
       TokenType::Pipe => self.type_union(t?),
       TokenType::Question => Ok(self.type_optional(t?)),
       _ => t,
@@ -1037,7 +1016,7 @@ impl<'source> Parser<'source> {
 
     let types = self.types()?;
 
-    match self.current().ttype {
+    match self.current.ttype {
       TokenType::Comma => {
         self.next();
         self.type_function(opening_bracket, types)
@@ -1045,7 +1024,7 @@ impl<'source> Parser<'source> {
       TokenType::RightParen => {
         let end_token = self.current_advance();
 
-        match self.current().ttype {
+        match self.current.ttype {
           TokenType::RightArrow | TokenType::FatRightArrow => {
             self.type_function_body(opening_bracket, vec![types])
           }
@@ -1088,7 +1067,7 @@ impl<'source> Parser<'source> {
 
     Ok(types!(
       Function(Box::new(return_type), parameters),
-      (start_token, self.current())
+      (start_token, self.current)
     ))
   }
 }
@@ -1102,7 +1081,7 @@ pub fn parse(source: &str) -> Result<Vec<Statement>, Diagnostic> {
       Ok(stmt) => statements.push(stmt),
       Err(Error::EmptyStatement) => {}
       Err(err) => {
-        let last_token = if parser.current().ttype == TokenType::EndOfFile {
+        let last_token = if parser.current.ttype == TokenType::EndOfFile {
           parser.previous
         } else {
           parser.current
