@@ -291,35 +291,6 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
     }
   }
 
-  fn is_function_bracket(&self) -> bool {
-    let mut position = self.position + 1;
-    let mut token = self.get(position);
-    let mut depth = 0;
-
-    loop {
-      if depth == 0 && token.ttype == TokenType::RightParen {
-        position += 1;
-        break;
-      } else if token.ttype == TokenType::EndOfFile {
-        return false;
-      } else if token.ttype == TokenType::RightParen {
-        depth += 1;
-      } else if token.ttype == TokenType::LeftParen {
-        depth -= 1;
-      }
-
-      position += 1;
-      token = self.get(position);
-    }
-
-    while self.get(position).ttype == TokenType::Whitespace {
-      position += 1;
-    }
-
-    token = self.get(position);
-    token.ttype == TokenType::FatRightArrow || token.ttype == TokenType::RightArrow
-  }
-
   fn parse_expression(&mut self, precedence: Precedence) -> ExpressionResult<'source> {
     self.ignore_newline();
     let token = self.current();
@@ -349,7 +320,7 @@ impl<'source, 'tokens> Parser<'source, 'tokens> {
 
   fn prefix_rule(&mut self, token_type: TokenType, can_assign: bool) -> ExpressionResult<'source> {
     match token_type {
-      TokenType::LeftParen => self.grouping(),
+      TokenType::LeftParen => self.grouping_or_function(),
       TokenType::Minus | TokenType::Bang => self.unary(),
       TokenType::Identifier => self.variable(can_assign),
       TokenType::Number
@@ -648,9 +619,51 @@ impl<'source> Parser<'source, '_> {
     self.parse_expression(Precedence::Assignment)
   }
 
-  fn function(&mut self) -> ExpressionResult<'source> {
-    let token = self.current_advance();
+  fn grouping_or_function(&mut self) -> ExpressionResult<'source> {
+    let opening_bracket = self.current_advance();
+    self.ignore_newline();
 
+    match self.current().ttype {
+      TokenType::Identifier => match self.peek() {
+        TokenType::Colon | TokenType::Comma => self.function(opening_bracket),
+        TokenType::RightParen => {
+          let identifier = self.current_advance();
+          let closing_bracket = self.current_advance();
+
+          match self.current().ttype {
+            TokenType::RightArrow | TokenType::FatRightArrow => {
+              let parameter = Parameter {
+                name: identifier.get_value(self.source),
+                span: identifier.into(),
+                type_: None,
+                catch_remaining: false,
+              };
+              self.function_body(opening_bracket, vec![parameter])
+            }
+            _ => {
+              let identifier = expression!(
+                Variable {
+                  name: identifier.get_value(self.source)
+                },
+                identifier
+              );
+              Ok(expression!(
+                Group {
+                  expression: identifier.into()
+                },
+                (opening_bracket, closing_bracket)
+              ))
+            }
+          }
+        }
+        _ => self.grouping(opening_bracket),
+      },
+      TokenType::DotDot | TokenType::RightParen => self.function(opening_bracket),
+      _ => self.grouping(opening_bracket),
+    }
+  }
+
+  fn function(&mut self, opening_bracket: &Token) -> ExpressionResult<'source> {
     let mut parameters = Vec::new();
     loop {
       self.ignore_newline();
@@ -683,6 +696,14 @@ impl<'source> Parser<'source, '_> {
       }
     }
 
+    self.function_body(opening_bracket, parameters)
+  }
+
+  fn function_body(
+    &mut self,
+    opening_bracket: &Token,
+    parameters: Vec<Parameter<'source>>,
+  ) -> ExpressionResult<'source> {
     let (body, return_type) = if self.matches(TokenType::FatRightArrow) {
       let expression = self.expression()?;
 
@@ -691,7 +712,7 @@ impl<'source> Parser<'source, '_> {
           Return {
             expression: Some(expression)
           },
-          (token, expression.span)
+          (opening_bracket, expression.span)
         )),
         None,
       )
@@ -713,16 +734,11 @@ impl<'source> Parser<'source, '_> {
         name: None,
         return_type
       },
-      (token, body.span)
+      (opening_bracket, body.span)
     ))
   }
 
-  fn grouping(&mut self) -> ExpressionResult<'source> {
-    if self.is_function_bracket() {
-      return self.function();
-    }
-
-    let token = self.current_advance();
+  fn grouping(&mut self, opening_bracket: &Token) -> ExpressionResult<'source> {
     let expression = self.expression()?;
     self.ignore_newline();
     let end_token = self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
@@ -731,7 +747,7 @@ impl<'source> Parser<'source, '_> {
       Group {
         expression: Box::new(expression),
       },
-      (token, end_token)
+      (opening_bracket, end_token)
     ))
   }
 
@@ -1041,20 +1057,39 @@ impl<'source> Parser<'source, '_> {
   }
 
   fn type_group(&mut self) -> TypeResult<'source> {
-    if self.is_function_bracket() {
-      return self.type_function();
+    let opening_bracket = self.current_advance();
+
+    if self.matches(TokenType::RightParen) {
+      return self.type_function_body(opening_bracket, vec![]);
     }
 
-    let token = self.current_advance();
     let types = self.types()?;
-    let end_token = self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
 
-    Ok(types!(Group(Box::new(types)), (token, end_token)))
+    match self.current().ttype {
+      TokenType::Comma => {
+        self.next();
+        self.type_function(opening_bracket, types)
+      }
+      TokenType::RightParen => {
+        let end_token = self.current_advance();
+
+        match self.current().ttype {
+          TokenType::RightArrow | TokenType::FatRightArrow => {
+            self.type_function_body(opening_bracket, vec![types])
+          }
+          _ => Ok(types!(Group(Box::new(types)), (opening_bracket, end_token))),
+        }
+      }
+      _ => Err(Error::ExpectedClosingBrace)?,
+    }
   }
 
-  fn type_function(&mut self) -> TypeResult<'source> {
-    let start_token = *self.next();
-    let mut parameters = Vec::new();
+  fn type_function(
+    &mut self,
+    start_token: &Token,
+    first_parameter: TypeExpression<'source>,
+  ) -> TypeResult<'source> {
+    let mut parameters = vec![first_parameter];
     loop {
       if self.matches(TokenType::RightParen) {
         break;
@@ -1068,6 +1103,14 @@ impl<'source> Parser<'source, '_> {
       }
     }
 
+    self.type_function_body(start_token, parameters)
+  }
+
+  fn type_function_body(
+    &mut self,
+    start_token: &Token,
+    parameters: Vec<TypeExpression<'source>>,
+  ) -> TypeResult<'source> {
     self.consume(TokenType::RightArrow, Error::ExpectedFunctionArrow)?;
     let return_type = self.types()?;
 
