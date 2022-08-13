@@ -33,7 +33,7 @@ macro_rules! bang_benchmark {
   ($name:ident, $source:expr) => {
     mod $name {
       extern crate test;
-      use test::Bencher;
+      use test::{black_box, Bencher};
 
       mod bang {
         pub use bang_interpreter::*;
@@ -45,12 +45,12 @@ macro_rules! bang_benchmark {
 
       #[bench]
       fn parse(b: &mut Bencher) {
-        b.iter(|| bang::parse(SOURCE));
+        b.iter(|| bang::parse(black_box(SOURCE)));
       }
 
       #[bench]
       fn to_bytecode(b: &mut Bencher) {
-        b.iter(|| bang::compile(SOURCE, &bang::StdContext));
+        b.iter(|| bang::compile(black_box(SOURCE), &bang::StdContext));
       }
 
       #[bench]
@@ -59,14 +59,14 @@ macro_rules! bang_benchmark {
 
         b.iter(|| {
           let mut vm = bang::VM::new(&bang::StdContext);
-          vm.run(&chunk).expect("No runtime errors");
+          vm.run(black_box(&chunk)).expect("No runtime errors");
         });
       }
 
       #[bench]
       fn all(b: &mut Bencher) {
         b.iter(|| {
-          let chunk = bang::compile(SOURCE, &bang::StdContext).unwrap();
+          let chunk = bang::compile(black_box(SOURCE), &bang::StdContext).unwrap();
           let mut vm = bang::VM::new(&bang::StdContext);
           vm.run(&chunk).expect("No runtime errors");
         })
