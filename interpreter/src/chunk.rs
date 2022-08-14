@@ -1,8 +1,13 @@
 use crate::value::Value;
 use bang_syntax::LineNumber;
 
+#[cfg(not(feature = "no_unsafe"))]
+use std::mem;
+
+#[non_exhaustive]
+#[repr(u8)]
 pub enum OpCode {
-  Constant,
+  Constant = 0,
   ConstantLong,
   Null,
   True,
@@ -37,6 +42,8 @@ pub enum OpCode {
   SetIndex,
   Unknown,
 }
+
+#[cfg(feature = "no_unsafe")]
 impl From<u8> for OpCode {
   fn from(code: u8) -> Self {
     match code {
@@ -213,20 +220,9 @@ pub struct Chunk {
   lines: LineInfo,
 }
 impl Chunk {
-  pub fn get(&self, position: usize) -> OpCode {
-    OpCode::from(self.code[position])
-  }
-
-  pub fn get_value(&self, position: usize) -> u8 {
-    self.code[position]
-  }
-
+  #[inline]
   pub fn get_long_value(&self, position: usize) -> u16 {
     u16::from_be_bytes([self.get_value(position), self.get_value(position + 1)])
-  }
-
-  pub fn get_constant(&self, pointer: usize) -> Value {
-    self.constants[pointer].clone()
   }
 
   pub fn get_line_number(&self, opcode_position: usize) -> LineNumber {
@@ -238,5 +234,44 @@ impl Chunk {
     self.code.extend_from_slice(&chunk.code);
     self.lines.lines.extend_from_slice(&chunk.lines.lines);
     offset
+  }
+}
+
+#[cfg(not(feature = "no_unsafe"))]
+impl Chunk {
+  #[inline]
+  pub fn get(&self, position: usize) -> OpCode {
+    // Assume bytecode is valid, so position exists and OpCode is valid
+    unsafe { mem::transmute(*self.code.get_unchecked(position)) }
+  }
+
+  #[inline]
+  pub fn get_value(&self, position: usize) -> u8 {
+    // Assume bytecode is valid, so position exists
+    unsafe { *self.code.get_unchecked(position) }
+  }
+
+  #[inline]
+  pub fn get_constant(&self, pointer: usize) -> Value {
+    // Assume bytecode is valid, so position exists
+    unsafe { self.constants.get_unchecked(pointer) }.clone()
+  }
+}
+
+#[cfg(feature = "no_unsafe")]
+impl Chunk {
+  #[inline]
+  pub fn get(&self, position: usize) -> OpCode {
+    OpCode::from(self.code[position])
+  }
+
+  #[inline]
+  pub fn get_value(&self, position: usize) -> u8 {
+    self.code[position]
+  }
+
+  #[inline]
+  pub fn get_constant(&self, pointer: usize) -> Value {
+    self.constants[pointer].clone()
   }
 }

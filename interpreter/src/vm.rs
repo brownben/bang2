@@ -427,7 +427,7 @@ impl VM {
           ip += 1;
         }
 
-        OpCode::Unknown => {
+        _ => {
           break runtime_error!((self, chunk, ip), "Unknown OpCode");
         }
       }
@@ -464,7 +464,7 @@ impl Default for VM {
     Self {
       stack: Vec::with_capacity(64),
       frames: Vec::with_capacity(16),
-      globals: HashMap::new(),
+      globals: HashMap::with_capacity(8),
     }
   }
 }

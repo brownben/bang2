@@ -12,3 +12,4 @@ bang-std = { path = "../std" }
 
 [features]
 debug = []
+no_unsafe = []
