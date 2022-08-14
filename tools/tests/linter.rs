@@ -137,3 +137,20 @@ x[`${4} hello`]
   "No Side Effects in Index Assignment" [2 3 4]
 
 );
+
+bang_lint!(no_unused_variables
+"
+let a = 7
+let b = 5
+print(b)
+  let c = false
+  let d = null
+  print(c)
+    let e = 8
+let [f, g, h] = [1, 2, 3, 4]
+print(f)
+let [i, _j] = [1, 2, 3, 4]
+(x) => 7
+"
+  "No Unused Variables" [8 6 12 11 9 9 2]
+);

@@ -54,10 +54,12 @@ impl From<Token> for Span {
 pub trait Visitor {
   fn visit(&mut self, statements: &[statement::Statement]) {
     statements.iter().for_each(|s| self.visit_statement(s));
+    self.exit_ast();
   }
 
   fn visit_statement(&mut self, statement: &statement::Statement) {
     use statement::Stmt;
+    self.enter_statement(statement);
 
     match &statement.stmt {
       Stmt::Block { body, .. } => body.iter().for_each(|s| self.visit_statement(s)),
@@ -93,6 +95,7 @@ pub trait Visitor {
 
   fn visit_expression(&mut self, expression: &expression::Expression) {
     use expression::Expr;
+    self.enter_expression(expression);
 
     match &expression.expr {
       Expr::Assignment { expression, .. }
@@ -137,6 +140,11 @@ pub trait Visitor {
     self.exit_expression(expression);
   }
 
+  fn enter_expression(&mut self, _expression: &expression::Expression) {}
+  fn enter_statement(&mut self, _statement: &statement::Statement) {}
+
   fn exit_expression(&mut self, _expression: &expression::Expression) {}
   fn exit_statement(&mut self, _statement: &statement::Statement) {}
+
+  fn exit_ast(&mut self) {}
 }

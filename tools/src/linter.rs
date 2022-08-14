@@ -47,7 +47,30 @@ impl From<ParserDiagnostic> for Diagnostic {
   }
 }
 
+#[macro_export]
 macro_rules! lint_rule {
+  {
+    name: $rule_name:ident;
+    title: $title:expr;
+    message: $message:expr;
+    data: $type:ty;
+    visitor: $visitor:tt
+  } => {
+    pub struct $rule_name {
+      issues: Vec<Span>,
+      data: $type
+    }
+    impl Default for $rule_name {
+      fn default() -> Self {
+        Self {
+          issues: Vec::new(),
+          data: Default::default()
+        }
+      }
+    }
+    lint_rule! { trait $rule_name; $title; $message; $visitor }
+  };
+
   {
     name: $rule_name:ident;
     title: $title:expr;
@@ -57,9 +80,18 @@ macro_rules! lint_rule {
     pub struct $rule_name {
       issues: Vec<Span>,
     }
+    impl Default for $rule_name {
+      fn default() -> Self {
+        Self { issues: Vec::new() }
+      }
+    }
+    lint_rule! { trait $rule_name; $title; $message; $visitor }
+  };
+
+  { trait $rule_name:ident; $title:expr; $message:expr; $visitor:tt } => {
     impl LintRule for $rule_name {
       fn check(source: &str, ast: &[Statement]) -> Diagnostic {
-        let mut visitor = Self { issues: Vec::new() };
+        let mut visitor = Self::default();
         visitor.visit(ast);
 
         Diagnostic {
@@ -208,6 +240,9 @@ lint_rule! {
   }
 }
 
+mod unused_variables;
+pub use unused_variables::NoUnusedVariables;
+
 pub fn lint(source: &str, ast: &[Statement]) -> Vec<Diagnostic> {
   let mut results = vec![
     NoConstantCondition::check(source, ast),
@@ -216,6 +251,7 @@ pub fn lint(source: &str, ast: &[Statement]) -> Vec<Diagnostic> {
     NoSelfAssign::check(source, ast),
     NoUnreachable::check(source, ast),
     NoSideEffectInIndex::check(source, ast),
+    NoUnusedVariables::check(source, ast),
   ];
 
   results.retain(|r| !r.lines.is_empty());

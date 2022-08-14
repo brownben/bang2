@@ -34,7 +34,6 @@ Future plans for additions to the language include:
 - closures
 - modules/ importing bang code
 - configuration for formatter
-- lint for unused variables
 
 ### License
 
