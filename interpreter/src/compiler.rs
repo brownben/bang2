@@ -69,6 +69,7 @@ impl Error {
 struct Local<'s> {
   name: &'s str,
   depth: u8,
+  function_depth: u8,
 }
 
 struct Compiler<'s, 'c> {
@@ -78,6 +79,7 @@ struct Compiler<'s, 'c> {
 
   locals: Vec<Local<'s>>,
   scope_depth: u8,
+  function_depth: u8,
 
   chunk: ChunkBuilder,
   chunk_stack: Vec<ChunkBuilder>,
@@ -176,6 +178,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
 
       locals: Vec::new(),
       scope_depth: 0,
+      function_depth: 0,
 
       error: None,
     }
@@ -222,11 +225,13 @@ impl<'s, 'c> Compiler<'s, 'c> {
   fn new_chunk(&mut self) {
     let chunk = mem::replace(&mut self.chunk, ChunkBuilder::new());
     self.chunk_stack.push(chunk);
+    self.function_depth += 1;
     self.begin_scope();
   }
 
   fn finish_chunk(&mut self) -> usize {
     self.end_scope();
+    self.function_depth -= 1;
 
     let chunk = mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
     let chunk_id = self.finished_chunks.len();
@@ -445,7 +450,12 @@ impl<'s, 'c> Compiler<'s, 'c> {
 
         self.compile_expression(expression);
 
-        if let Some(index) = local_index && let Ok(index) = u8::try_from(index) {
+        if let Some(index) = local_index
+          && self.locals[index].function_depth != self.function_depth
+          && self.locals[index].function_depth != 0
+        {
+          unimplemented!("Closure");
+        } else if let Some(index) = local_index && let Ok(index) = u8::try_from(index) {
           self.emit_opcode(span, OpCode::SetLocal);
           self.emit_value(span, index);
         } else if local_index.is_some() {
@@ -458,7 +468,12 @@ impl<'s, 'c> Compiler<'s, 'c> {
       Expr::Variable { name } => {
         let local_index = self.locals.iter().rposition(|local| local.name == *name);
 
-        if let Some(index) = local_index && let Ok(index) = u8::try_from(index) {
+        if let Some(index) = local_index
+          && self.locals[index].function_depth != self.function_depth
+          && self.locals[index].function_depth != 0
+        {
+          unimplemented!("Closure");
+        } else if let Some(index) = local_index && let Ok(index) = u8::try_from(index) {
           self.emit_opcode(span, OpCode::GetLocal);
           self.emit_value(span, index);
         } else if local_index.is_some() {
@@ -501,10 +516,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
 
         self.new_chunk();
         for parameter in parameters {
-          self.locals.push(Local {
-            name: parameter.name,
-            depth: self.scope_depth,
-          });
+          self.define_variable(parameter.name, parameter.span);
         }
         self.compile_statement(body);
         self.emit_opcode(span, OpCode::Null);
@@ -623,6 +635,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
         self.locals.push(Local {
           name: identifier,
           depth: self.scope_depth,
+          function_depth: self.function_depth,
         });
       }
     } else {
