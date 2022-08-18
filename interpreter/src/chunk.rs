@@ -1,5 +1,6 @@
 use crate::value::Value;
 use bang_syntax::LineNumber;
+use std::rc::Rc;
 
 #[cfg(not(feature = "no_unsafe"))]
 use std::mem;
@@ -150,6 +151,7 @@ impl LineInfo {
 pub struct Builder {
   code: Vec<u8>,
   constants: Vec<Value>,
+  strings: Vec<Rc<str>>,
   lines: LineInfoBuilder,
 }
 impl Builder {
@@ -157,6 +159,7 @@ impl Builder {
     Self {
       code: Vec::new(),
       constants: Vec::new(),
+      strings: Vec::new(),
       lines: LineInfoBuilder::new(),
     }
   }
@@ -194,8 +197,15 @@ impl Builder {
   }
 
   pub fn add_constant_string(&mut self, string: &str) -> usize {
-    let value = Value::from(string);
-    self.add_constant(value)
+    let value = Rc::from(string);
+    self
+      .strings
+      .iter()
+      .position(|x| value == *x)
+      .unwrap_or_else(|| {
+        self.strings.push(value);
+        self.strings.len() - 1
+      })
   }
 
   pub fn set_long_value(&mut self, offset: usize, value: u16) {
@@ -208,6 +218,7 @@ impl Builder {
     Chunk {
       code: self.code,
       constants: self.constants,
+      strings: self.strings,
       lines: self.lines.finalize(),
     }
   }
@@ -217,6 +228,7 @@ impl Builder {
 pub struct Chunk {
   pub code: Vec<u8>,
   pub constants: Vec<Value>,
+  pub strings: Vec<Rc<str>>,
   lines: LineInfo,
 }
 impl Chunk {
@@ -256,6 +268,12 @@ impl Chunk {
     // Assume bytecode is valid, so position exists
     unsafe { self.constants.get_unchecked(pointer) }.clone()
   }
+
+  #[inline]
+  pub fn get_string(&self, pointer: usize) -> Rc<str> {
+    // Assume bytecode is valid, so position exists
+    unsafe { self.strings.get_unchecked(pointer) }.clone()
+  }
 }
 
 #[cfg(feature = "no_unsafe")]
@@ -273,5 +291,10 @@ impl Chunk {
   #[inline]
   pub fn get_constant(&self, pointer: usize) -> Value {
     self.constants[pointer].clone()
+  }
+
+  #[inline]
+  pub fn get_string(&self, pointer: usize) -> Rc<str> {
+    self.strings[pointer].clone()
   }
 }

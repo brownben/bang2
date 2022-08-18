@@ -234,36 +234,36 @@ impl VM {
 
         OpCode::DefineGlobal => {
           let name_location = chunk.get_value(ip + 1);
-          let name = chunk.get_constant(name_location as usize);
+          let name = chunk.get_string(name_location as usize);
 
           let value = self.pop();
-          self.globals.insert(name.as_str(), value);
+          self.globals.insert(name, value);
 
           ip += 2;
         }
         OpCode::GetGlobal => {
           let name_location = chunk.get_value(ip + 1);
-          let name = chunk.get_constant(name_location as usize);
+          let name = chunk.get_string(name_location as usize);
 
-          let value = self.globals.get(&name.as_str()).cloned();
+          let value = self.globals.get(&name).cloned();
 
           if let Some(value) = value {
             self.push(value);
           } else {
-            break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name.as_str());
+            break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name);
           }
 
           ip += 2;
         }
         OpCode::SetGlobal => {
           let name_location = chunk.get_value(ip + 1);
-          let name = chunk.get_constant(name_location as usize);
+          let name = chunk.get_string(name_location as usize);
           let value = self.peek().clone();
 
-          if let hash_map::Entry::Occupied(mut entry) = self.globals.entry(name.as_str()) {
+          if let hash_map::Entry::Occupied(mut entry) = self.globals.entry(name.clone()) {
             entry.insert(value);
           } else {
-            break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name.as_str());
+            break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name);
           }
 
           ip += 2;

@@ -43,9 +43,9 @@ fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
     OpCode::LessEqual => simple_instruction("Less Equal", position),
     OpCode::Pop => simple_instruction("Pop", position),
     OpCode::Return => simple_instruction("Return", position),
-    OpCode::DefineGlobal => constant_instruction("Define Global", chunk, position),
-    OpCode::GetGlobal => constant_instruction("Get Global", chunk, position),
-    OpCode::SetGlobal => constant_instruction("Set Global", chunk, position),
+    OpCode::DefineGlobal => string_instruction("Define Global", chunk, position),
+    OpCode::GetGlobal => string_instruction("Get Global", chunk, position),
+    OpCode::SetGlobal => string_instruction("Set Global", chunk, position),
     OpCode::Jump => jump_instruction("Jump", 1, chunk, position),
     OpCode::JumpIfFalse => jump_instruction("Jump If False", 1, chunk, position),
     OpCode::JumpIfNull => jump_instruction("Jump If Null", 1, chunk, position),
@@ -71,6 +71,15 @@ fn constant_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   let constant = chunk.get_constant(constant_location as usize);
 
   println!("{} {} ({})", name, constant, constant_location);
+
+  position + 2
+}
+
+fn string_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
+  let string_location = chunk.get_value(position + 1);
+  let string = chunk.get_string(string_location as usize);
+
+  println!("{} {} ({})", name, string, string_location);
 
   position + 2
 }

@@ -72,13 +72,6 @@ pub enum Value {
 }
 
 impl Value {
-  pub fn as_str(&self) -> Rc<str> {
-    match self {
-      Self::String(string) => string.clone(),
-      _ => Rc::from(""),
-    }
-  }
-
   pub fn is_falsy(&self) -> bool {
     match self {
       Self::Boolean(value) => !value,
