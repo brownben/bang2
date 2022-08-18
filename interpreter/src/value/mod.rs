@@ -1,64 +1,14 @@
+mod functions;
+mod indexing;
+
+pub use functions::{Arity, Function, NativeFunction};
+pub use indexing::{calculate_index, Index};
 use std::{
   cell::RefCell,
   fmt::{self, Display},
   rc::Rc,
   str,
 };
-
-pub struct Arity {
-  count: u8,
-  catch_all: bool,
-}
-impl Arity {
-  pub fn new(count: u8, catch_all: bool) -> Self {
-    Self { count, catch_all }
-  }
-
-  pub fn has_varadic_param(&self) -> bool {
-    self.catch_all
-  }
-
-  pub fn get_count(&self) -> u8 {
-    self.count
-  }
-
-  pub fn check_arg_count(&self, provided: u8) -> bool {
-    if self.has_varadic_param() {
-      provided >= self.count.saturating_sub(1)
-    } else {
-      self.count == provided
-    }
-  }
-}
-impl From<u8> for Arity {
-  fn from(count: u8) -> Self {
-    Self {
-      count,
-      catch_all: false,
-    }
-  }
-}
-
-pub struct Function {
-  pub name: String,
-  pub arity: Arity,
-  pub start: usize,
-}
-
-pub struct NativeFunction {
-  pub name: &'static str,
-  pub arity: Arity,
-  pub func: fn(args: &[Value]) -> Value,
-}
-impl NativeFunction {
-  pub fn new(name: &'static str, arity: u8, func: fn(args: &[Value]) -> Value) -> Self {
-    Self {
-      name,
-      func,
-      arity: arity.into(),
-    }
-  }
-}
 
 #[derive(Clone)]
 pub enum Value {
@@ -135,79 +85,6 @@ impl Display for Value {
           .collect::<Vec<String>>()
           .join(", ")
       ),
-    }
-  }
-}
-
-#[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
-pub fn calculate_index(number: f64, length: usize) -> usize {
-  let index = number.round().abs() as usize;
-
-  if index > length {
-    length
-  } else if number < 0.0 {
-    length - index
-  } else {
-    index
-  }
-}
-
-pub trait Index {
-  fn get_property(&self, _index: Value) -> Option<Value> {
-    None
-  }
-  fn set_property(&mut self, _index: Value, _value: Value) -> bool {
-    false
-  }
-}
-impl Index for Value {
-  fn get_property(&self, index: Value) -> Option<Value> {
-    match self {
-      Self::List(list) => list.borrow().get_property(index),
-      Self::String(string) => string.get_property(index),
-      _ => None,
-    }
-  }
-
-  fn set_property(&mut self, index: Value, value: Value) -> bool {
-    match self {
-      Self::List(list) => list.borrow_mut().set_property(index, value),
-      _ => false,
-    }
-  }
-}
-impl Index for Rc<str> {
-  fn get_property(&self, index: Value) -> Option<Value> {
-    match index {
-      Value::Number(n) => self
-        .chars()
-        .nth(calculate_index(n, self.len()))
-        .map(Value::from),
-      _ => None,
-    }
-  }
-}
-impl Index for Vec<Value> {
-  fn get_property(&self, index: Value) -> Option<Value> {
-    if let Value::Number(number) = index {
-      let index = calculate_index(number, self.len());
-      self.get(index).cloned()
-    } else {
-      None
-    }
-  }
-
-  fn set_property(&mut self, index: Value, value: Value) -> bool {
-    if let Value::Number(number) = index {
-      let index = calculate_index(number, self.len());
-      if index < self.len() {
-        self[index] = value;
-        true
-      } else {
-        false
-      }
-    } else {
-      false
     }
   }
 }
