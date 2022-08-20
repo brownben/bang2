@@ -1,4 +1,4 @@
-use bang_interpreter::{calculate_index, NativeFunction, Value};
+use bang_interpreter::{calculate_index, NativeFunction, Object, Value};
 use std::fs;
 
 module!(maths, {
@@ -47,7 +47,7 @@ module!(string, {
 });
 
 module!(fs, {
-  fn read(String) -> fs::read;
+  fn read(String) -> fs::read_to_string;
   fn write(String, String) -> fs::write;
 });
 

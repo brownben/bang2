@@ -19,17 +19,11 @@ impl Context for StdContext {
 
   fn define_globals(&self, vm: &mut VM) {
     let print = NativeFunction::new("print", 1, |args| {
-      match &args[0] {
-        Value::String(string) => println!("{}", string),
-        value => println!("{}", value),
-      };
+      println!("{}", &args[0]);
       args[0].clone()
     });
     let type_ = NativeFunction::new("type", 1, |args| args[0].get_type().into());
-    let to_string = NativeFunction::new("toString", 1, |args| match &args[0] {
-      value @ Value::String(_) => value.clone(),
-      value => value.to_string().into(),
-    });
+    let to_string = NativeFunction::new("toString", 1, |args| args[0].to_string().into());
 
     vm.define_global("print", print.into());
     vm.define_global("type", type_.into());

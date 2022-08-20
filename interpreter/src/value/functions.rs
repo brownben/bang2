@@ -1,6 +1,6 @@
 use super::Value;
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Arity {
   count: u8,
   catch_all: bool,
@@ -10,15 +10,15 @@ impl Arity {
     Self { count, catch_all }
   }
 
-  pub fn has_varadic_param(&self) -> bool {
+  pub fn has_varadic_param(self) -> bool {
     self.catch_all
   }
 
-  pub fn get_count(&self) -> u8 {
+  pub fn get_count(self) -> u8 {
     self.count
   }
 
-  pub fn check_arg_count(&self, provided: u8) -> bool {
+  pub fn check_arg_count(self, provided: u8) -> bool {
     if self.has_varadic_param() {
       provided >= self.count.saturating_sub(1)
     } else {
@@ -35,13 +35,14 @@ impl From<u8> for Arity {
   }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Function {
   pub name: String,
   pub arity: Arity,
   pub(crate) start: usize,
 }
 
+#[derive(Clone)]
 pub struct NativeFunction {
   pub name: &'static str,
   pub arity: Arity,

@@ -1,3 +1,5 @@
+#![feature(strict_provenance)]
+
 mod chunk;
 mod compiler;
 mod context;
@@ -7,5 +9,5 @@ mod vm;
 pub use chunk::{Chunk, OpCode};
 pub use compiler::compile;
 pub use context::{Context, Empty as EmptyContext};
-pub use value::{calculate_index, NativeFunction, Value};
+pub use value::{calculate_index, NativeFunction, Object, Value};
 pub use vm::{RuntimeError, VM};

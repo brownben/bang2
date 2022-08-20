@@ -1,5 +1,4 @@
-use super::Value;
-use std::rc::Rc;
+use super::{Object, Value};
 
 pub trait Index {
   fn get_property(&self, _index: Value) -> Option<Value> {
@@ -25,35 +24,44 @@ pub fn calculate_index(number: f64, length: usize) -> usize {
 
 impl Index for Value {
   fn get_property(&self, index: Value) -> Option<Value> {
-    match self {
-      Self::List(list) => list.borrow().get_property(index),
-      Self::String(string) => string.get_property(index),
-      _ => None,
+    if self.is_object() {
+      match &*self.as_object() {
+        Object::List(list) => list.borrow().get_property(index),
+        Object::String(string) => string.get_property(index),
+        _ => None,
+      }
+    } else {
+      None
     }
   }
 
   fn set_property(&mut self, index: Value, value: Value) -> bool {
-    match self {
-      Self::List(list) => list.borrow_mut().set_property(index, value),
-      _ => false,
+    if self.is_object() {
+      match &*self.as_object() {
+        Object::List(list) => list.borrow_mut().set_property(index, value),
+        _ => false,
+      }
+    } else {
+      false
     }
   }
 }
-impl Index for Rc<str> {
+impl Index for String {
   fn get_property(&self, index: Value) -> Option<Value> {
-    match index {
-      Value::Number(n) => self
+    if index.is_number() {
+      self
         .chars()
-        .nth(calculate_index(n, self.len()))
-        .map(Value::from),
-      _ => None,
+        .nth(calculate_index(index.as_number(), self.len()))
+        .map(Value::from)
+    } else {
+      None
     }
   }
 }
 impl Index for Vec<Value> {
   fn get_property(&self, index: Value) -> Option<Value> {
-    if let Value::Number(number) = index {
-      let index = calculate_index(number, self.len());
+    if index.is_number() {
+      let index = calculate_index(index.as_number(), self.len());
       self.get(index).cloned()
     } else {
       None
@@ -61,16 +69,14 @@ impl Index for Vec<Value> {
   }
 
   fn set_property(&mut self, index: Value, value: Value) -> bool {
-    if let Value::Number(number) = index {
-      let index = calculate_index(number, self.len());
+    if index.is_number() {
+      let index = calculate_index(index.as_number(), self.len());
       if index < self.len() {
         self[index] = value;
-        true
-      } else {
-        false
+        return true;
       }
-    } else {
-      false
     }
+
+    false
   }
 }

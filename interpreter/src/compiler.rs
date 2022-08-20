@@ -1,7 +1,7 @@
 use crate::{
   chunk::{Builder as ChunkBuilder, Chunk, OpCode},
   context::Context,
-  value::{Arity, Function, NativeFunction, Value},
+  value::{Arity, Function, NativeFunction, Object, Value},
 };
 use ahash::AHashMap as HashMap;
 use bang_syntax::{
@@ -14,7 +14,7 @@ use bang_syntax::{
   },
   Diagnostic, Parser,
 };
-use std::{mem, rc::Rc};
+use std::mem;
 
 enum Error {
   TooBigJump,
@@ -191,9 +191,15 @@ impl<'s, 'c> Compiler<'s, 'c> {
       .map(|c| chunk.merge(c))
       .collect();
 
-    for constant in &mut chunk.constants {
-      if let Value::Function(func) = constant {
-        Rc::get_mut(func).unwrap().start = chunk_locations[func.start];
+    for constant in &mut chunk.constants.iter_mut() {
+      if constant.is_object() {
+        if let Object::Function(func) = &*constant.as_object() {
+          *constant = Value::from(Function {
+            name: func.name.clone(),
+            arity: func.arity,
+            start: chunk_locations[func.start],
+          });
+        }
       };
     }
 
@@ -237,10 +243,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
       return *constant_position;
     }
     let position = self.base_chunk().add_constant(Value::from(match name {
-      "toString" => NativeFunction::new("toString", 1, |args| match &args[0] {
-        value @ Value::String(_) => value.clone(),
-        value => value.to_string().into(),
-      }),
+      "toString" => NativeFunction::new("toString", 1, |args| args[0].to_string().into()),
       _ => unreachable!("Unknown Function '{name}'"),
     }));
 

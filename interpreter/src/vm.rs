@@ -1,7 +1,7 @@
 use crate::{
   chunk::{Chunk, OpCode},
   context::Context,
-  value::{Index, Value},
+  value::{Index, Object, Value},
 };
 use ahash::AHashMap as HashMap;
 use bang_syntax::LineNumber;
@@ -44,13 +44,10 @@ macro_rules! numeric_expression {
   ($vm:expr, $token:tt,  $chunk:expr, $ip:expr) => {
     let (right, left) = ($vm.pop(), $vm.pop());
 
-    match (left, right) {
-      (Value::Number(left), Value::Number(right)) => {
-        $vm.push(Value::Number(left $token right));
-      }
-      _ => {
-        break runtime_error!(($vm, $chunk, $ip), "Both operands must be numbers.");
-      }
+    if left.is_number() && right.is_number() {
+      $vm.push(Value::from(left.as_number() $token right.as_number()));
+    } else {
+      break runtime_error!(($vm, $chunk, $ip), "Both operands must be numbers.");
     }
   };
 }
@@ -59,16 +56,20 @@ macro_rules! comparison_expression {
   ($vm:expr, $token:tt,  $chunk:expr, $ip:expr) => {
     let (right, left) = ($vm.pop(), $vm.pop());
 
-    match (left, right) {
-      (Value::Number(left), Value::Number(right)) => {
-        $vm.push(Value::Boolean(left $token right));
-      }
-      (Value::String(left), Value::String(right)) => {
-        $vm.push(Value::Boolean(left $token right));
-      }
-      _ => {
+    if left.is_number() && right.is_number() {
+      $vm.push(Value::from(left.as_number() $token right.as_number()));
+    } else if left.is_object() && right.is_object() {
+      if let Object::String(left) = &*left.as_object() {
+        if let Object::String(right) = &*right.as_object(){
+          $vm.push(Value::from(left $token right));
+        } else {
+          break runtime_error!(($vm, $chunk, $ip), "Operands must be two numbers or two strings.");
+        }
+      } else {
         break runtime_error!(($vm, $chunk, $ip), "Operands must be two numbers or two strings.");
       }
+    } else {
+      break runtime_error!(($vm, $chunk, $ip), "Operands must be two numbers or two strings.");
     }
   };
 }
@@ -137,33 +138,43 @@ impl VM {
           ip += 3;
         }
         OpCode::Null => {
-          self.push(Value::Null);
+          self.push(Value::NULL);
           ip += 1;
         }
         OpCode::True => {
-          self.push(Value::Boolean(true));
+          self.push(Value::TRUE);
           ip += 1;
         }
         OpCode::False => {
-          self.push(Value::Boolean(false));
+          self.push(Value::FALSE);
           ip += 1;
         }
         OpCode::Add => {
           let (right, left) = (self.pop(), self.pop());
 
-          match (left, right) {
-            (Value::Number(left), Value::Number(right)) => {
-              self.push(Value::Number(left + right));
-            }
-            (Value::String(left), Value::String(right)) => {
-              self.push(Value::from([left, right].concat()));
-            }
-            _ => {
+          if left.is_number() && right.is_number() {
+            self.push(Value::from(left.as_number() + right.as_number()));
+          } else if left.is_object() && right.is_object() {
+            if let Object::String(left) = &*left.as_object() {
+              if let Object::String(right) = &*right.as_object() {
+                self.push(Value::from(format!("{left}{right}")));
+              } else {
+                break runtime_error!(
+                  (self, chunk, ip),
+                  "Operands must be two numbers or two strings."
+                );
+              }
+            } else {
               break runtime_error!(
                 (self, chunk, ip),
-                "Operands must be two numbers or two strings.",
+                "Operands must be two numbers or two strings."
               );
             }
+          } else {
+            break runtime_error!(
+              (self, chunk, ip),
+              "Operands must be two numbers or two strings."
+            );
           }
 
           ip += 1;
@@ -182,8 +193,8 @@ impl VM {
         }
         OpCode::Negate => {
           let value = self.pop();
-          if let Value::Number(n) = value {
-            self.push(Value::Number(-n));
+          if value.is_number() {
+            self.push(Value::from(-value.as_number()));
           } else {
             break runtime_error!(
               (self, chunk, ip),
@@ -196,18 +207,18 @@ impl VM {
         }
         OpCode::Not => {
           let value = self.pop();
-          self.push(Value::Boolean(value.is_falsy()));
+          self.push(Value::from(value.is_falsy()));
           ip += 1;
         }
 
         OpCode::Equal => {
           let (right, left) = (self.pop(), self.pop());
-          self.push(Value::Boolean(left == right));
+          self.push(Value::from(left == right));
           ip += 1;
         }
         OpCode::NotEqual => {
           let (right, left) = (self.pop(), self.pop());
-          self.push(Value::Boolean(left != right));
+          self.push(Value::from(left != right));
           ip += 1;
         }
         OpCode::Less => {
@@ -289,9 +300,10 @@ impl VM {
         }
         OpCode::JumpIfNull => {
           let offset = chunk.get_long_value(ip + 1);
-          ip += match self.peek() {
-            Value::Null => offset as usize + 1,
-            _ => 3,
+          ip += if *self.peek() == Value::NULL {
+            offset as usize + 1
+          } else {
+            3
           };
         }
         OpCode::Jump => {
@@ -322,60 +334,60 @@ impl VM {
           let pos = self.stack.len() - arg_count as usize - 1;
           let callee = self.stack[pos].clone();
 
-          match callee {
-            Value::Function(func) => {
-              if !func.arity.check_arg_count(arg_count) {
-                break runtime_error!(
-                  (self, chunk, ip),
-                  "Expected {} arguments but got {}.",
-                  func.arity.get_count(),
-                  arg_count
-                );
-              }
+          if !callee.is_object() {
+            break runtime_error!((self, chunk, ip), "Can only call functions.");
+          }
 
-              // If more arguments than expected, wrap the overflowing ones into a list
-              if func.arity.has_varadic_param() && func.arity.check_arg_count(arg_count) {
-                let overflow_count = arg_count + 1 - func.arity.get_count();
-                let start_of_items = self.stack.len() - overflow_count as usize;
-                let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
-                self.push(Value::from(items));
-              }
-
-              self.store_frame(ip + 2, offset);
-              offset = self.stack.len() - func.arity.get_count() as usize;
-              ip = func.start;
+          if let Object::Function(func) = &*callee.as_object() {
+            if !func.arity.check_arg_count(arg_count) {
+              break runtime_error!(
+                (self, chunk, ip),
+                "Expected {} arguments but got {}.",
+                func.arity.get_count(),
+                arg_count
+              );
             }
-            Value::NativeFunction(func) => {
-              if !func.arity.check_arg_count(arg_count) {
-                break runtime_error!(
-                  (self, chunk, ip),
-                  "Expected {} arguments but got {}.",
-                  func.arity.get_count(),
-                  arg_count
-                );
-              }
 
-              // If more arguments than expected, wrap the overflowing ones into a list
-              if func.arity.has_varadic_param() && func.arity.check_arg_count(arg_count) {
-                let overflow_count = arg_count + 1 - func.arity.get_count();
-                let start_of_items = self.stack.len() - overflow_count as usize;
-                let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
-                self.push(Value::from(items));
-              }
-
-              let start_of_args = self.stack.len() - arg_count as usize;
-              let result = {
-                let args = self.stack.drain(start_of_args..);
-                (func.func)(args.as_slice())
-              };
-              self.pop();
-              self.push(result);
-
-              ip += 2;
+            // If more arguments than expected, wrap the overflowing ones into a list
+            if func.arity.has_varadic_param() && func.arity.check_arg_count(arg_count) {
+              let overflow_count = arg_count + 1 - func.arity.get_count();
+              let start_of_items = self.stack.len() - overflow_count as usize;
+              let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
+              self.push(Value::from(items));
             }
-            _ => {
-              break runtime_error!((self, chunk, ip), "Can only call functions.");
+
+            self.store_frame(ip + 2, offset);
+            offset = self.stack.len() - func.arity.get_count() as usize;
+            ip = func.start;
+          } else if let Object::NativeFunction(func) = &*callee.as_object() {
+            if !func.arity.check_arg_count(arg_count) {
+              break runtime_error!(
+                (self, chunk, ip),
+                "Expected {} arguments but got {}.",
+                func.arity.get_count(),
+                arg_count
+              );
             }
+
+            // If more arguments than expected, wrap the overflowing ones into a list
+            if func.arity.has_varadic_param() && func.arity.check_arg_count(arg_count) {
+              let overflow_count = arg_count + 1 - func.arity.get_count();
+              let start_of_items = self.stack.len() - overflow_count as usize;
+              let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
+              self.push(Value::from(items));
+            }
+
+            let start_of_args = self.stack.len() - arg_count as usize;
+            let result = {
+              let args = self.stack.drain(start_of_args..);
+              (func.func)(args.as_slice())
+            };
+            self.pop();
+            self.push(result);
+
+            ip += 2;
+          } else {
+            break runtime_error!((self, chunk, ip), "Can only call functions.");
           }
         }
 
