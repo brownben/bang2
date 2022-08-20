@@ -29,8 +29,6 @@ jobs:
         run: cargo clippy --all -- -D warnings
       - name: Test
         run: cargo test --all --verbose
-      - name: Test (No Unsafe)
-        run: cargo test --all --verbose --features no_unsafe
 
   miri:
     name: Miri (Pointer Tagging Tests)

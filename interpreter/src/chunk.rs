@@ -2,7 +2,6 @@ use crate::value::Value;
 use bang_syntax::LineNumber;
 use std::rc::Rc;
 
-#[cfg(not(feature = "no_unsafe"))]
 use std::mem;
 
 #[non_exhaustive]
@@ -42,48 +41,6 @@ pub enum OpCode {
   GetIndex,
   SetIndex,
   Unknown,
-}
-
-#[cfg(feature = "no_unsafe")]
-impl From<u8> for OpCode {
-  fn from(code: u8) -> Self {
-    match code {
-      0 => Self::Constant,
-      1 => Self::ConstantLong,
-      2 => Self::Null,
-      3 => Self::True,
-      4 => Self::False,
-      5 => Self::Add,
-      6 => Self::Subtract,
-      7 => Self::Multiply,
-      8 => Self::Divide,
-      9 => Self::Negate,
-      10 => Self::Not,
-      11 => Self::Equal,
-      12 => Self::Greater,
-      13 => Self::Less,
-      14 => Self::NotEqual,
-      15 => Self::GreaterEqual,
-      16 => Self::LessEqual,
-      17 => Self::Pop,
-      18 => Self::DefineGlobal,
-      19 => Self::GetGlobal,
-      20 => Self::SetGlobal,
-      21 => Self::Jump,
-      22 => Self::JumpIfFalse,
-      23 => Self::JumpIfNull,
-      24 => Self::Loop,
-      25 => Self::GetLocal,
-      26 => Self::SetLocal,
-      27 => Self::Return,
-      28 => Self::Call,
-      29 => Self::List,
-      30 => Self::ListLong,
-      31 => Self::GetIndex,
-      32 => Self::SetIndex,
-      _ => Self::Unknown,
-    }
-  }
 }
 
 type TokensOnLine = u16;
@@ -249,7 +206,6 @@ impl Chunk {
   }
 }
 
-#[cfg(not(feature = "no_unsafe"))]
 impl Chunk {
   #[inline]
   pub fn get(&self, position: usize) -> OpCode {
@@ -273,28 +229,5 @@ impl Chunk {
   pub fn get_string(&self, pointer: usize) -> Rc<str> {
     // Assume bytecode is valid, so position exists
     unsafe { self.strings.get_unchecked(pointer) }.clone()
-  }
-}
-
-#[cfg(feature = "no_unsafe")]
-impl Chunk {
-  #[inline]
-  pub fn get(&self, position: usize) -> OpCode {
-    OpCode::from(self.code[position])
-  }
-
-  #[inline]
-  pub fn get_value(&self, position: usize) -> u8 {
-    self.code[position]
-  }
-
-  #[inline]
-  pub fn get_constant(&self, pointer: usize) -> Value {
-    self.constants[pointer].clone()
-  }
-
-  #[inline]
-  pub fn get_string(&self, pointer: usize) -> Rc<str> {
-    self.strings[pointer].clone()
   }
 }
