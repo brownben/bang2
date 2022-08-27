@@ -160,6 +160,7 @@ fn equality() {
 
   assert_eq!(Value::TRUE, Value::from(true));
   assert_ne!(Value::FALSE, Value::TRUE);
+  assert_eq!(Value::NULL, Value::from(()));
   assert_eq!(Value::from(4usize), Value::from(4.0));
   assert_ne!(Value::from(3.6), Value::from(3.61));
   assert_eq!(Value::from('a'), Value::from("a".to_string()));
@@ -175,4 +176,10 @@ fn equality() {
     Value::from(vec!["hello".into(), 7.into()]),
     Value::from(vec![])
   );
+
+  let result_ok: Result<f64, bool> = Ok(3.5);
+  let result_error: Result<f64, bool> = Err(false);
+  assert_eq!(Value::from(result_ok), Value::from(3.5));
+  assert_eq!(Value::from(result_error), Value::NULL);
+  assert_ne!(Value::from(result_error), Value::FALSE);
 }

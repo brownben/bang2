@@ -83,6 +83,11 @@ bang_test!(cant_index_bool
   RuntimeError
 );
 
+bang_test!(cant_index_function
+  "print[0]"
+  RuntimeError
+);
+
 bang_test!(cant_index_null
   "null[-77]"
   RuntimeError
@@ -100,6 +105,11 @@ bang_test!(cant_index_assign_list_with_null
 
 bang_test!(cant_index_string_with_null
   "'hello'[null]"
+  RuntimeError
+);
+
+bang_test!(cant_assign_to_number_index
+  "1[2] = 3"
   RuntimeError
 );
 

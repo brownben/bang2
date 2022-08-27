@@ -121,6 +121,20 @@ let a = \"Hello\" + 4
   RuntimeError
 );
 
+bang_test!(cant_add_function_and_string
+"
+let a = \"Hello\" + print
+"
+  RuntimeError
+);
+
+bang_test!(cant_add_string_and_function
+"
+let a = print + 'hello'
+"
+  RuntimeError
+);
+
 bang_test!(cant_add_boolean_and_number
 "
 let a = true + 4

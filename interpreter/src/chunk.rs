@@ -231,3 +231,24 @@ impl Chunk {
     unsafe { self.strings.get_unchecked(pointer) }.clone()
   }
 }
+
+#[cfg(test)]
+mod test {
+  use super::{Chunk, LineInfo};
+  use crate::VM;
+
+  #[test]
+  fn bytecode_with_invalid_bytecode() {
+    let chunk = Chunk {
+      code: vec![245],
+      constants: Vec::new(),
+      strings: Vec::new(),
+      lines: LineInfo {
+        lines: vec![(1, 1)],
+      },
+    };
+    let mut vm = VM::default();
+    let error = vm.run(&chunk).unwrap_err();
+    assert_eq!(error.message, "Unknown OpCode");
+  }
+}

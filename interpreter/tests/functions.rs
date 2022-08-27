@@ -1,6 +1,24 @@
 mod bang_test;
 use bang_test::*;
 
+bang_test!(top_level_return
+"
+let a = 8
+return
+a = 4
+"
+  a == 8
+);
+
+bang_test!(top_level_return_with_value
+"
+let a = 8
+return 'hello'
+a = 4
+"
+  a == 8
+);
+
 bang_test!(function_without_return_returns_null
 "
 let test = () ->
