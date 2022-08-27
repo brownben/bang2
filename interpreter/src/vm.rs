@@ -99,17 +99,17 @@ impl VM {
 
   #[inline]
   fn restore_frame(&mut self) -> CallFrame {
-    self.frames.pop().unwrap()
+    unsafe { self.frames.pop().unwrap_unchecked() }
   }
 
   #[inline]
   fn peek(&self) -> &Value {
-    self.stack.last().unwrap()
+    unsafe { self.stack.last().unwrap_unchecked() }
   }
 
   #[inline]
   fn pop(&mut self) -> Value {
-    self.stack.pop().unwrap()
+    unsafe { self.stack.pop().unwrap_unchecked() }
   }
 
   #[inline]
@@ -132,7 +132,7 @@ impl VM {
           ip += 2;
         }
         OpCode::ConstantLong => {
-          let constant_location = chunk.get_long_value(ip + 1) as u16;
+          let constant_location = chunk.get_long_value(ip + 1);
           let constant = chunk.get_constant(constant_location as usize);
           self.push(constant);
           ip += 3;
@@ -316,14 +316,13 @@ impl VM {
         }
 
         OpCode::Return => {
-          let result = self.stack.pop(); // Don't unwrap pop as it may be empty
-
           if self.frames.is_empty() {
             break Ok(());
           }
 
+          let result = self.pop();
           self.stack.drain(offset - 1..);
-          self.push(result.unwrap());
+          self.push(result);
 
           let frame = self.restore_frame();
           ip = frame.ip;
@@ -349,7 +348,7 @@ impl VM {
             }
 
             // If more arguments than expected, wrap the overflowing ones into a list
-            if func.arity.has_varadic_param() && func.arity.check_arg_count(arg_count) {
+            if func.arity.has_varadic_param() {
               let overflow_count = arg_count + 1 - func.arity.get_count();
               let start_of_items = self.stack.len() - overflow_count as usize;
               let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
@@ -370,7 +369,7 @@ impl VM {
             }
 
             // If more arguments than expected, wrap the overflowing ones into a list
-            if func.arity.has_varadic_param() && func.arity.check_arg_count(arg_count) {
+            if func.arity.has_varadic_param() {
               let overflow_count = arg_count + 1 - func.arity.get_count();
               let start_of_items = self.stack.len() - overflow_count as usize;
               let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
