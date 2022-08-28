@@ -73,6 +73,12 @@ lint_rule! {
       }
     }
 
+    fn enter_expression(&mut self, expression: &Expression) {
+      if let Expr::Function { parameters, .. } = &expression.expr {
+        parameters.iter().for_each(|param| self.data.define(param.name, param.span));
+      }
+    }
+
     fn exit_statement(&mut self, statement: &Statement) {
       if let Stmt::Block { .. } = statement.stmt {
         self.issues.extend(self.data.end().iter());
@@ -91,10 +97,6 @@ lint_rule! {
     fn exit_expression(&mut self, expression: &Expression) {
       if let Expr::Variable { name } = expression.expr {
         self.data.used(name);
-      }
-
-      if let Expr::Function { parameters, .. } = &expression.expr {
-        parameters.iter().for_each(|param| self.data.define(param.name, param.span));
       }
     }
 
