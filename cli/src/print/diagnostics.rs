@@ -43,24 +43,24 @@ pub fn runtime_error(filename: &str, source: &str, error: RuntimeError) {
   }
 }
 
+pub fn error_message(message: &str) {
+  eprintln!("{} {}", bold(&red("Error:")), bold(message),);
+}
+
 pub fn error(filename: &str, source: &str, diagnostic: &Diagnostic) {
-  eprintln!(
-    "{} {}\n{}\n",
-    bold(&red("Error:")),
-    bold(&diagnostic.title),
-    remove_carriage_returns(&diagnostic.message)
-  );
+  error_message(&diagnostic.title);
+  eprintln!("{}\n", remove_carriage_returns(&diagnostic.message));
 
   code_frame(filename, source, diagnostic.line);
 }
 
+pub fn warning_message(message: &str) {
+  eprintln!("{} {}", bold(&yellow("Warning:")), bold(message),);
+}
+
 pub fn warning(filename: &str, source: &str, diagnostic: LintDiagnostic) {
-  eprintln!(
-    "{} {}\n{}\n",
-    bold(&yellow("Warning:")),
-    bold(&diagnostic.title),
-    diagnostic.message
-  );
+  warning_message(&diagnostic.title);
+  eprintln!("{}\n", remove_carriage_returns(&diagnostic.message));
 
   for line_number in diagnostic.lines {
     code_frame(filename, source, line_number);

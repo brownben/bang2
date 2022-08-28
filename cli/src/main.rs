@@ -1,61 +1,21 @@
-use bang_interpreter::{compile, Chunk, RuntimeError, VM};
-use bang_std::StdContext as Context;
-use bang_syntax::parse;
-use bang_tools::{format, lint, typecheck};
-use clap::{Arg, Command};
-use rustyline::error::ReadlineError;
-use rustyline::Editor;
-use std::fs;
-
+mod bang {
+  pub use bang_interpreter::*;
+  pub use bang_std::*;
+  pub use bang_syntax::*;
+  pub use bang_tools::*;
+}
+mod helpers;
 mod print;
 
-fn read_file(filename: &str) -> String {
-  if let Ok(file) = fs::read_to_string(filename) {
-    file
-  } else {
-    println!("Problem reading file: {}", filename);
-    String::new()
-  }
-}
+use clap::{Arg, Command};
+use helpers::{compile, get_filename, parse, read_file, run};
+use std::fs;
 
-fn run(chunk: &Chunk) -> Result<(), RuntimeError> {
-  let mut vm = VM::new(&Context);
-  vm.run(chunk)
-}
-
-fn repl() {
-  let mut rl = Editor::<()>::new();
-  let mut vm = VM::new(&Context);
-
-  loop {
-    let readline = rl.readline("> ");
-    match readline {
-      Ok(line) => {
-        rl.add_history_entry(&line);
-
-        match compile(&format!("print({})\n", line), &Context) {
-          Ok(chunk) => match vm.run(&chunk) {
-            Ok(_) => {}
-            Err(error) => print::runtime_error("REPL", &line, error),
-          },
-          Err(details) => print::error("REPL", &line, &details),
-        }
-      }
-      Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
-        break;
-      }
-      Err(err) => {
-        println!("Error: {:?}", err);
-        break;
-      }
-    }
-  }
-}
+const VERSION: &str = "v2.0-alpha";
 
 fn main() {
-  let version = "v2.0-alpha";
   let app = Command::new("bang")
-    .version(version)
+    .version(VERSION)
     .subcommand(Command::new("").about("Open a REPL"))
     .subcommand(
       Command::new("run")
@@ -66,16 +26,6 @@ fn main() {
       Command::new("lint")
         .about("Run linter on a bang file")
         .arg(Arg::new("file").help("The file to lint").required(true)),
-    )
-    .subcommand(
-      Command::new("ast")
-        .about("Display the Abstract Syntax Tree for a file")
-        .arg(Arg::new("file").help("The file to parse").required(true)),
-    )
-    .subcommand(
-      Command::new("bytecode")
-        .about("Display the Bytecode from a file")
-        .arg(Arg::new("file").help("The file to compile").required(true)),
     )
     .subcommand(
       Command::new("format")
@@ -97,71 +47,130 @@ fn main() {
             .required(true),
         ),
     )
+    .subcommand(
+      Command::new("print")
+        .about("Print debugging information")
+        .subcommand_required(true)
+        .subcommand(
+          Command::new("ast")
+            .about("Display the Abstract Syntax Tree for a file")
+            .arg(Arg::new("file").help("The file to parse").required(true)),
+        )
+        .subcommand(
+          Command::new("bytecode")
+            .about("Display the Bytecode from a file")
+            .arg(Arg::new("file").help("The file to compile").required(true)),
+        ),
+    )
     .get_matches();
 
-  if let Some((
-    command @ ("lint" | "run" | "ast" | "bytecode" | "format" | "typecheck"),
-    subcommand,
-  )) = app.subcommand()
-  {
-    let filename = subcommand.value_of("file").unwrap();
-    let source = read_file(filename);
+  if run_command(&app).is_err() {
+    std::process::exit(1)
+  }
+}
 
-    if source.is_empty() {
-      return;
+fn run_command(app: &clap::ArgMatches) -> Result<(), ()> {
+  match app.subcommand() {
+    Some(("run", args)) => {
+      let filename = get_filename(args)?;
+      let source = &read_file(filename)?;
+      let bytecode = &compile(filename, source)?;
+
+      run(filename, source, bytecode);
     }
+    Some(("lint", args)) => {
+      let filename = get_filename(args)?;
+      let source = &read_file(filename)?;
+      let ast = parse(filename, source)?;
 
-    match command {
-      "run" => match compile(&source, &Context) {
-        Ok(chunk) => match run(&chunk) {
-          Ok(_) => {}
-          Err(error) => print::runtime_error(filename, &source, error),
-        },
+      for diagnostic in bang::lint(source, &ast) {
+        print::warning(filename, source, diagnostic);
+      }
+    }
+    Some(("typecheck", args)) => {
+      let filename = get_filename(args)?;
+      let source = &read_file(filename)?;
+      let ast = parse(filename, source)?;
 
-        Err(details) => print::error(filename, &source, &details),
-      },
-      "lint" => match parse(&source) {
-        Ok(ast) => {
-          for lint in lint(&source, &ast) {
-            print::warning(filename, &source, lint);
-          }
-        }
-        Err(details) => print::error(filename, &source, &details),
-      },
-      "ast" => match parse(&source) {
-        Ok(ast) => print::ast(&source, &ast),
-        Err(details) => print::error(filename, &source, &details),
-      },
-      "bytecode" => match compile(&source, &Context) {
-        Ok(chunk) => print::chunk(&chunk),
-        Err(details) => print::error(filename, &source, &details),
-      },
-      "format" => match parse(&source) {
-        Ok(ast) => {
-          let new_source = format(&source, &ast);
+      for diagnostic in bang::typecheck(source, &ast) {
+        print::error(filename, source, &diagnostic);
+      }
+    }
+    Some(("format", args)) => {
+      let filename = get_filename(args)?;
+      let source = &read_file(filename)?;
+      let ast = parse(filename, source)?;
+      let formatted_source = &bang::format(source, &ast);
 
-          if subcommand.is_present("dryrun") {
-            println!("{}", new_source);
-          } else if new_source != source {
-            fs::write(filename, new_source).unwrap();
-          } else {
-            println!("'{}' already matches the Bang format style!", filename);
-          }
-        }
-        Err(details) => print::error(filename, &source, &details),
-      },
-      "typecheck" => match parse(&source) {
-        Ok(ast) => {
-          for error in typecheck(&source, &ast) {
-            print::error(filename, &source, &error);
-          }
-        }
-        Err(details) => print::error(filename, &source, &details),
-      },
+      if args.is_present("dryrun") {
+        return Ok(println!("{formatted_source}"));
+      }
+
+      if formatted_source != source && fs::write(filename, formatted_source).is_err() {
+        print::error_message("Problem writing to file");
+      }
+    }
+    Some(("print", args)) => match args.subcommand() {
+      Some(("ast", args)) => {
+        let filename = get_filename(args)?;
+        let source = &read_file(filename)?;
+        let ast = &parse(filename, source)?;
+
+        print::ast(source, ast);
+      }
+      Some(("bytecode", args)) => {
+        let filename = get_filename(args)?;
+        let source = &read_file(filename)?;
+        let bytecode = &compile(filename, source)?;
+
+        print::chunk(bytecode);
+      }
       _ => unreachable!(),
+    },
+    _ => repl(),
+  };
+
+  Ok(())
+}
+
+fn repl() {
+  use rustyline::error::ReadlineError;
+
+  println!("Bang! ({VERSION})");
+  let mut rl = rustyline::Editor::<()>::new();
+  let mut vm = bang::VM::new(&bang::StdContext);
+
+  loop {
+    let readline = rl.readline("> ");
+    match readline {
+      Ok(line) => {
+        rl.add_history_entry(&line);
+
+        let source = if line.starts_with("from")
+          || line.starts_with("let")
+          || line.starts_with("if")
+          || line.starts_with("while")
+        {
+          line
+        } else if line.is_empty() {
+          continue;
+        } else {
+          format!("print({line})\n")
+        };
+
+        if let Ok(chunk) = compile("REPL", &source) {
+          if let Err(error) = vm.run(&chunk) {
+            print::runtime_error("REPL", &source, error);
+          }
+        }
+      }
+      Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
+        break;
+      }
+      Err(err) => {
+        print::error_message(&err.to_string());
+        break;
+      }
     }
-  } else {
-    println!("Bang! ({})", version);
-    repl();
   }
 }
