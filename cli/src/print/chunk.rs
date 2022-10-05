@@ -57,6 +57,7 @@ fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
     OpCode::ListLong => double_byte_instruction("List Long", chunk, position),
     OpCode::GetIndex => simple_instruction("Get Index", position),
     OpCode::SetIndex => simple_instruction("Set Index", position),
+    OpCode::ToString => simple_instruction("To String", position),
     _ => simple_instruction("Unknown OpCode", position),
   }
 }

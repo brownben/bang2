@@ -40,6 +40,7 @@ pub enum OpCode {
   ListLong,
   GetIndex,
   SetIndex,
+  ToString,
   Unknown,
 }
 

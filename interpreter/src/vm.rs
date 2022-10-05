@@ -438,6 +438,12 @@ impl VM {
           ip += 1;
         }
 
+        OpCode::ToString => {
+          let value = self.pop();
+          self.push(Value::from(value.to_string()));
+
+          ip += 1;
+        }
         _ => {
           break runtime_error!((self, chunk, ip), "Unknown OpCode");
         }
