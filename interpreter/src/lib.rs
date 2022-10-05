@@ -9,6 +9,6 @@ mod vm;
 
 pub use chunk::{Chunk, OpCode};
 pub use compiler::compile;
-pub use context::{Context, Empty as EmptyContext};
+pub use context::{Context, Empty as EmptyContext, ImportValue};
 pub use value::{calculate_index, NativeFunction, Object, Value};
 pub use vm::{RuntimeError, VM};

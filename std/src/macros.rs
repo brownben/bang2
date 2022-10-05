@@ -90,13 +90,13 @@ macro_rules! module {
     $(const $value_name:ident = $value:expr;)*
     $(fn $item_name:ident($($type:ident),+) -> $item_value:expr;)*
   }) => {
-    pub fn $name(key: &str) -> Option<Value> {
+    pub fn $name(key: &str) -> ImportValue {
       match key {
         $(
-          stringify!($value_name) => Some($value.into()),
+          stringify!($value_name) => ImportValue::Constant($value.into()),
         )*
         $(
-          stringify!($item_name) => Some(
+          stringify!($item_name) => ImportValue::Constant(
             NativeFunction::new(
               stringify!($item_name),
               count!($($type)+),
@@ -104,7 +104,7 @@ macro_rules! module {
             ).into()
           ),
         )*
-        _ => None,
+        _ => ImportValue::ItemNotFound,
       }
     }
   };

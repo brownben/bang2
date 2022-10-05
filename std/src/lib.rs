@@ -1,4 +1,4 @@
-use bang_interpreter::{Context, NativeFunction, Value, VM};
+use bang_interpreter::{Context, ImportValue, NativeFunction, VM};
 
 #[macro_use]
 mod macros;
@@ -7,13 +7,13 @@ pub mod modules;
 
 pub struct StdContext;
 impl Context for StdContext {
-  fn get_value(&self, module: &str, value: &str) -> Option<Value> {
+  fn get_value(&self, module: &str, value: &str) -> ImportValue {
     match module {
       "maths" => modules::maths(value),
       "string" => modules::string(value),
       "fs" => modules::fs(value),
       "list" => modules::list(value),
-      _ => None,
+      _ => ImportValue::ModuleNotFound,
     }
   }
 

@@ -1,6 +1,6 @@
 use crate::{
   chunk::{Builder as ChunkBuilder, Chunk, OpCode},
-  context::Context,
+  context::{Context, ImportValue},
   value::{Arity, Function, Object, Value},
 };
 use bang_syntax::{
@@ -23,7 +23,8 @@ enum Error {
   TooManyLocals,
   TooLongList,
   VariableAlreadyExists,
-  BuiltinNotFound,
+  ModuleNotFound,
+  ItemNotFound,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -33,7 +34,8 @@ impl Error {
       Self::TooManyArguments => "Too Many Arguments",
       Self::TooManyParameters => "Too Many Parameters",
       Self::VariableAlreadyExists => "Variable Already Exists",
-      Self::BuiltinNotFound => "Builtin Not Found",
+      Self::ModuleNotFound => "Module Not Found",
+      Self::ItemNotFound => "Item Not Found in Module",
       Self::TooManyLocals => "Too Many Local Variables",
       Self::TooLongList => "Too Long List",
     }
@@ -50,7 +52,8 @@ impl Error {
       Self::TooManyParameters => "There is a limit of 255 parameters for a function".to_string(),
       Self::TooManyLocals => "There is a limit of 255 local variables at once".to_string(),
       Self::VariableAlreadyExists => format!("Variable '{value}' has been defined already"),
-      Self::BuiltinNotFound => format!("Could not find value in module '{value}'"),
+      Self::ModuleNotFound => format!("Could not find module '{value}'"),
+      Self::ItemNotFound => format!("Could not find '{value}' in module"),
       Self::TooLongList => "List is too long, can have a maximum of 2^16 elements".to_string(),
     }
   }
@@ -303,17 +306,19 @@ impl<'s, 'c> Compiler<'s, 'c> {
       }
       Stmt::Import { module, items, .. } => {
         for item in items {
-          if let Some(value) = self.context.get_value(module, item.name) {
-            self.emit_constant(span, value);
+          match self.context.get_value(module, item.name) {
+            ImportValue::Constant(value) => {
+              self.emit_constant(span, value);
 
-            if let Some(alias) = item.alias {
-              self.define_variable(alias, item.span);
-            } else {
-              self.define_variable(item.name, item.span);
+              if let Some(alias) = item.alias {
+                self.define_variable(alias, item.span);
+              } else {
+                self.define_variable(item.name, item.span);
+              }
             }
-          } else {
-            self.error(Error::BuiltinNotFound, item.span, module);
-          }
+            ImportValue::ModuleNotFound => self.error(Error::ModuleNotFound, span, module),
+            ImportValue::ItemNotFound => self.error(Error::ItemNotFound, item.span, item.name),
+          };
         }
       }
       Stmt::While {

@@ -1,4 +1,4 @@
-use bang_interpreter::{calculate_index, NativeFunction, Object, Value};
+use bang_interpreter::{calculate_index, ImportValue, NativeFunction, Object, Value};
 use std::fs;
 
 module!(maths, {
