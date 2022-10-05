@@ -190,24 +190,6 @@ pub struct Chunk {
 }
 impl Chunk {
   #[inline]
-  pub fn get_long_value(&self, position: usize) -> u16 {
-    u16::from_be_bytes([self.get_value(position), self.get_value(position + 1)])
-  }
-
-  pub fn get_line_number(&self, opcode_position: usize) -> LineNumber {
-    self.lines.get(opcode_position)
-  }
-
-  pub fn merge(&mut self, chunk: &Self) -> usize {
-    let offset = self.code.len();
-    self.code.extend_from_slice(&chunk.code);
-    self.lines.lines.extend_from_slice(&chunk.lines.lines);
-    offset
-  }
-}
-
-impl Chunk {
-  #[inline]
   pub fn get(&self, position: usize) -> OpCode {
     // Assume bytecode is valid, so position exists and OpCode is valid
     unsafe { mem::transmute(*self.code.get_unchecked(position)) }
@@ -220,6 +202,11 @@ impl Chunk {
   }
 
   #[inline]
+  pub fn get_long_value(&self, position: usize) -> u16 {
+    u16::from_be_bytes([self.get_value(position), self.get_value(position + 1)])
+  }
+
+  #[inline]
   pub fn get_constant(&self, pointer: usize) -> Value {
     // Assume bytecode is valid, so position exists
     unsafe { self.constants.get_unchecked(pointer) }.clone()
@@ -229,6 +216,17 @@ impl Chunk {
   pub fn get_string(&self, pointer: usize) -> Rc<str> {
     // Assume bytecode is valid, so position exists
     unsafe { self.strings.get_unchecked(pointer) }.clone()
+  }
+
+  pub fn get_line_number(&self, opcode_position: usize) -> LineNumber {
+    self.lines.get(opcode_position)
+  }
+
+  pub fn merge(&mut self, chunk: &Self) -> usize {
+    let offset = self.code.len();
+    self.code.extend_from_slice(&chunk.code);
+    self.lines.lines.extend_from_slice(&chunk.lines.lines);
+    offset
   }
 }
 

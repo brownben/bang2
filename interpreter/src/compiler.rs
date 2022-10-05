@@ -89,7 +89,7 @@ struct Compiler<'s, 'c> {
 }
 
 // Emit Bytecode
-impl<'s> Compiler<'s, '_> {
+impl Compiler<'_, '_> {
   fn emit_opcode(&mut self, span: Span, code: OpCode) {
     self
       .chunk
@@ -134,7 +134,7 @@ impl<'s> Compiler<'s, '_> {
     }
   }
 
-  fn emit_constant_string(&mut self, span: Span, value: &'s str) {
+  fn emit_constant_string(&mut self, span: Span, value: &str) {
     let constant_position = self.base_chunk().add_constant_string(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
