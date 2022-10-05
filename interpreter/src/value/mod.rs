@@ -1,5 +1,5 @@
 mod functions;
-mod indexing;
+pub mod indexing;
 mod objects;
 
 #[cfg(target_pointer_width = "32")]
@@ -20,7 +20,7 @@ use bit64::{FALSE, NULL, TRUE};
 mod test;
 
 pub use functions::{Arity, Function, NativeFunction};
-pub use indexing::{calculate_index, Index};
+pub use indexing::calculate_index;
 pub use objects::Object;
 use std::{fmt, rc::Rc};
 

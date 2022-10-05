@@ -1,11 +1,32 @@
 use super::{Object, Value};
 
-pub trait Index {
-  fn get_property(&self, _index: Value) -> Option<Value> {
-    None
+pub enum GetResult {
+  Found(Value),
+  NotFound,
+  NotSupported,
+}
+impl From<Option<Value>> for GetResult {
+  fn from(value: Option<Value>) -> Self {
+    if let Some(value) = value {
+      Self::Found(value)
+    } else {
+      Self::NotFound
+    }
   }
-  fn set_property(&mut self, _index: Value, _value: Value) -> bool {
-    false
+}
+
+pub enum SetResult {
+  Set,
+  NotFound,
+  NotSupported,
+}
+
+pub trait Index {
+  fn get_property(&self, _index: Value) -> GetResult {
+    GetResult::NotSupported
+  }
+  fn set_property(&mut self, _index: Value, _value: Value) -> SetResult {
+    SetResult::NotSupported
   }
 }
 
@@ -23,60 +44,62 @@ pub fn calculate_index(number: f64, length: usize) -> usize {
 }
 
 impl Index for Value {
-  fn get_property(&self, index: Value) -> Option<Value> {
+  fn get_property(&self, index: Value) -> GetResult {
     if self.is_object() {
       match &*self.as_object() {
         Object::List(list) => list.borrow().get_property(index),
         Object::String(string) => string.get_property(index),
-        _ => None,
+        _ => GetResult::NotSupported,
       }
     } else {
-      None
+      GetResult::NotSupported
     }
   }
 
-  fn set_property(&mut self, index: Value, value: Value) -> bool {
+  fn set_property(&mut self, index: Value, value: Value) -> SetResult {
     if self.is_object() {
       match &*self.as_object() {
         Object::List(list) => list.borrow_mut().set_property(index, value),
-        _ => false,
+        _ => SetResult::NotSupported,
       }
     } else {
-      false
+      SetResult::NotSupported
     }
   }
 }
 impl Index for String {
-  fn get_property(&self, index: Value) -> Option<Value> {
+  fn get_property(&self, index: Value) -> GetResult {
     if index.is_number() {
       self
         .chars()
         .nth(calculate_index(index.as_number(), self.len()))
         .map(Value::from)
+        .into()
     } else {
-      None
+      GetResult::NotFound
     }
   }
 }
 impl Index for Vec<Value> {
-  fn get_property(&self, index: Value) -> Option<Value> {
+  fn get_property(&self, index: Value) -> GetResult {
     if index.is_number() {
       let index = calculate_index(index.as_number(), self.len());
-      self.get(index).cloned()
+      self.get(index).cloned().into()
     } else {
-      None
+      GetResult::NotFound
     }
   }
 
-  fn set_property(&mut self, index: Value, value: Value) -> bool {
+  fn set_property(&mut self, index: Value, value: Value) -> SetResult {
     if index.is_number() {
       let index = calculate_index(index.as_number(), self.len());
       if index < self.len() {
         self[index] = value;
-        return true;
+        return SetResult::Set;
       }
+      return SetResult::NotFound;
     }
 
-    false
+    SetResult::NotSupported
   }
 }

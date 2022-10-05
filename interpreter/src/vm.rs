@@ -1,7 +1,10 @@
 use crate::{
   chunk::{Chunk, OpCode},
   context::Context,
-  value::{Index, Object, Value},
+  value::{
+    indexing::{GetResult, Index, SetResult},
+    Object, Value,
+  },
 };
 use ahash::AHashMap as HashMap;
 use bang_syntax::LineNumber;
@@ -414,8 +417,11 @@ impl VM {
           let item = self.pop();
 
           match item.get_property(index) {
-            Some(value) => self.push(value),
-            None => {
+            GetResult::Found(value) => self.push(value),
+            GetResult::NotFound => {
+              break runtime_error!((self, chunk, ip), "Index not found");
+            }
+            GetResult::NotSupported => {
               break runtime_error!((self, chunk, ip), "Can't index type {}", item.get_type());
             }
           }
@@ -427,12 +433,14 @@ impl VM {
           let mut item = self.pop();
           let value = self.peek().clone();
 
-          if !item.set_property(index, value) {
-            break runtime_error!(
-              (self, chunk, ip),
-              "Can't assign to index of type {}",
-              item.get_type()
-            );
+          match item.set_property(index, value) {
+            SetResult::Set => {}
+            SetResult::NotFound => {
+              break runtime_error!((self, chunk, ip), "Index not found");
+            }
+            SetResult::NotSupported => {
+              break runtime_error!((self, chunk, ip), "Can't index type {}", item.get_type());
+            }
           }
 
           ip += 1;
