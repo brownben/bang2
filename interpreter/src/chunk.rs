@@ -95,7 +95,7 @@ impl LineInfo {
       let (_, repeated) = self.lines[line];
       count += repeated;
 
-      if count as usize > opcode_position {
+      if usize::from(count) > opcode_position {
         break;
       }
 
@@ -223,7 +223,7 @@ impl Chunk {
     self.lines.get(opcode_position)
   }
 
-  pub fn merge(&mut self, chunk: &Self) -> usize {
+  pub(crate) fn merge(&mut self, chunk: &Self) -> usize {
     let offset = self.code.len();
     self.code.extend_from_slice(&chunk.code);
     self.lines.lines.extend_from_slice(&chunk.lines.lines);

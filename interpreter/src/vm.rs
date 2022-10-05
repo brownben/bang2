@@ -130,13 +130,13 @@ impl VM {
       match instruction {
         OpCode::Constant => {
           let constant_location = chunk.get_value(ip + 1);
-          let constant = chunk.get_constant(constant_location as usize);
+          let constant = chunk.get_constant(constant_location.into());
           self.push(constant);
           ip += 2;
         }
         OpCode::ConstantLong => {
           let constant_location = chunk.get_long_value(ip + 1);
-          let constant = chunk.get_constant(constant_location as usize);
+          let constant = chunk.get_constant(constant_location.into());
           self.push(constant);
           ip += 3;
         }
@@ -248,7 +248,7 @@ impl VM {
 
         OpCode::DefineGlobal => {
           let name_location = chunk.get_value(ip + 1);
-          let name = chunk.get_string(name_location as usize);
+          let name = chunk.get_string(name_location.into());
 
           let value = self.pop();
           self.globals.insert(name, value);
@@ -257,7 +257,7 @@ impl VM {
         }
         OpCode::GetGlobal => {
           let name_location = chunk.get_value(ip + 1);
-          let name = chunk.get_string(name_location as usize);
+          let name = chunk.get_string(name_location.into());
 
           let value = self.globals.get(&name).cloned();
 
@@ -271,7 +271,7 @@ impl VM {
         }
         OpCode::SetGlobal => {
           let name_location = chunk.get_value(ip + 1);
-          let name = chunk.get_string(name_location as usize);
+          let name = chunk.get_string(name_location.into());
           let value = self.peek().clone();
 
           if let hash_map::Entry::Occupied(mut entry) = self.globals.entry(name.clone()) {
@@ -284,19 +284,19 @@ impl VM {
         }
         OpCode::GetLocal => {
           let slot = chunk.get_value(ip + 1);
-          self.push(self.stack[offset + slot as usize].clone());
+          self.push(self.stack[offset + usize::from(slot)].clone());
           ip += 2;
         }
         OpCode::SetLocal => {
           let slot = chunk.get_value(ip + 1);
-          self.stack[offset + slot as usize] = self.peek().clone();
+          self.stack[offset + usize::from(slot)] = self.peek().clone();
           ip += 2;
         }
 
         OpCode::JumpIfFalse => {
           let offset = chunk.get_long_value(ip + 1);
           if self.peek().is_falsy() {
-            ip += offset as usize + 1;
+            ip += usize::from(offset) + 1;
           } else {
             ip += 3;
           }
@@ -304,18 +304,18 @@ impl VM {
         OpCode::JumpIfNull => {
           let offset = chunk.get_long_value(ip + 1);
           ip += if *self.peek() == Value::NULL {
-            offset as usize + 1
+            usize::from(offset) + 1
           } else {
             3
           };
         }
         OpCode::Jump => {
           let offset = chunk.get_long_value(ip + 1);
-          ip += offset as usize + 1;
+          ip += usize::from(offset) + 1;
         }
         OpCode::Loop => {
           let offset = chunk.get_long_value(ip + 1);
-          ip -= offset as usize - 1;
+          ip -= usize::from(offset) - 1;
         }
 
         OpCode::Return => {
@@ -333,7 +333,7 @@ impl VM {
         }
         OpCode::Call => {
           let arg_count = chunk.get_value(ip + 1);
-          let pos = self.stack.len() - arg_count as usize - 1;
+          let pos = self.stack.len() - usize::from(arg_count) - 1;
           let callee = self.stack[pos].clone();
 
           if !callee.is_object() {
@@ -353,13 +353,13 @@ impl VM {
             // If more arguments than expected, wrap the overflowing ones into a list
             if func.arity.has_varadic_param() {
               let overflow_count = arg_count + 1 - func.arity.get_count();
-              let start_of_items = self.stack.len() - overflow_count as usize;
+              let start_of_items = self.stack.len() - usize::from(overflow_count);
               let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
               self.push(Value::from(items));
             }
 
             self.store_frame(ip + 2, offset);
-            offset = self.stack.len() - func.arity.get_count() as usize;
+            offset = self.stack.len() - usize::from(func.arity.get_count());
             ip = func.start;
           } else if let Object::NativeFunction(func) = &*callee.as_object() {
             if !func.arity.check_arg_count(arg_count) {
@@ -374,12 +374,12 @@ impl VM {
             // If more arguments than expected, wrap the overflowing ones into a list
             if func.arity.has_varadic_param() {
               let overflow_count = arg_count + 1 - func.arity.get_count();
-              let start_of_items = self.stack.len() - overflow_count as usize;
+              let start_of_items = self.stack.len() - usize::from(overflow_count);
               let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
               self.push(Value::from(items));
             }
 
-            let start_of_args = self.stack.len() - arg_count as usize;
+            let start_of_args = self.stack.len() - usize::from(arg_count);
             let result = {
               let args = self.stack.drain(start_of_args..);
               (func.func)(args.as_slice())
@@ -395,7 +395,7 @@ impl VM {
 
         OpCode::List => {
           let length = chunk.get_value(ip + 1);
-          let start_of_items = self.stack.len() - length as usize;
+          let start_of_items = self.stack.len() - usize::from(length);
 
           let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
           self.push(Value::from(items));
@@ -404,7 +404,7 @@ impl VM {
         }
         OpCode::ListLong => {
           let length = chunk.get_long_value(ip + 1);
-          let start_of_items = self.stack.len() - length as usize;
+          let start_of_items = self.stack.len() - usize::from(length);
 
           let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
           self.push(Value::from(items));
