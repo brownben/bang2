@@ -102,7 +102,7 @@ fn run_command(app: &clap::ArgMatches) -> Result<(), ()> {
       let ast = parse(filename, source)?;
       let formatted_source = &bang::format(source, &ast);
 
-      if args.is_present("dryrun") {
+      if args.get_flag("dryrun") {
         return Ok(println!("{formatted_source}"));
       }
 
@@ -137,7 +137,7 @@ fn repl() {
   use rustyline::error::ReadlineError;
 
   println!("Bang! ({VERSION})");
-  let mut rl = rustyline::Editor::<()>::new();
+  let mut rl = rustyline::Editor::<()>::new().expect("REPL Editor to be created");
   let mut vm = bang::VM::new(&bang::StdContext);
 
   loop {

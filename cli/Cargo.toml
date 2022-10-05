@@ -8,5 +8,5 @@ bang-interpreter = { path = "../interpreter" }
 bang-std = { path = "../std" }
 bang-syntax = { path = "../syntax" }
 bang-tools = { path = "../tools" }
-clap = "3.1.0"
-rustyline = "9.0.0"
+clap = "4"
+rustyline = "10"

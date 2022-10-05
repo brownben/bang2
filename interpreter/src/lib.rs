@@ -1,3 +1,4 @@
+#![feature(let_chains)]
 #![feature(strict_provenance)]
 
 mod chunk;

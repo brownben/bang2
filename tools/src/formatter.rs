@@ -114,36 +114,36 @@ impl<'source> Formatter<'source> {
     Ok(())
   }
 
-  fn fmt_type(&self, t: &TypeExpression, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+  fn fmt_type(t: &TypeExpression, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match &t.type_ {
       Type::Named(name) => write!(f, "{name}")?,
       Type::Union(a, b) => {
-        self.fmt_type(a, f)?;
+        Self::fmt_type(a, f)?;
         write!(f, " | ")?;
-        self.fmt_type(b, f)?;
+        Self::fmt_type(b, f)?;
       }
       Type::Function(return_type, parameters) => {
         write!(f, "(")?;
         for (i, param) in parameters.iter().enumerate() {
-          self.fmt_type(param, f)?;
+          Self::fmt_type(param, f)?;
           if i < parameters.len() - 1 {
             write!(f, ", ")?;
           }
         }
         write!(f, ") -> ")?;
-        self.fmt_type(return_type, f)?;
+        Self::fmt_type(return_type, f)?;
       }
       Type::Group(type_) => {
         write!(f, "(")?;
-        self.fmt_type(type_, f)?;
+        Self::fmt_type(type_, f)?;
         write!(f, ")")?;
       }
       Type::Optional(type_) => {
-        self.fmt_type(type_, f)?;
+        Self::fmt_type(type_, f)?;
         write!(f, "?")?;
       }
       Type::List(type_) => {
-        self.fmt_type(type_, f)?;
+        Self::fmt_type(type_, f)?;
         write!(f, "[]")?;
       }
     }
@@ -238,7 +238,7 @@ impl<'source> Formatter<'source> {
 
             if let Some(type_) = &parameter.type_ {
               write!(f, ": ")?;
-              self.fmt_type(type_, f)?;
+              Self::fmt_type(type_, f)?;
             }
             Ok(())
           },
@@ -259,7 +259,7 @@ impl<'source> Formatter<'source> {
           write!(f, ") ->")?;
           if let Some(return_type) = return_type {
             write!(f, " ")?;
-            self.fmt_type(return_type, f)?;
+            Self::fmt_type(return_type, f)?;
           }
           writeln!(f)?;
           self.fmt_statement(body, indentation, false, f)?;
@@ -390,7 +390,7 @@ impl<'source> Formatter<'source> {
 
         if let Some(type_) = type_ {
           write!(f, ": ")?;
-          self.fmt_type(type_, f)?;
+          Self::fmt_type(type_, f)?;
         }
         if let Some(expression) = expression {
           write!(f, " = ")?;

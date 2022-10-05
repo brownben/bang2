@@ -2,7 +2,7 @@ use super::{bang, print};
 use std::fs;
 
 pub fn get_filename(args: &clap::ArgMatches) -> Result<&str, ()> {
-  if let Some(filename) = args.value_of("file") {
+  if let Some(filename) = args.get_one::<String>("file") {
     Ok(filename)
   } else {
     print::error_message("No file specified");

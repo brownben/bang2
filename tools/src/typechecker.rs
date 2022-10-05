@@ -909,7 +909,7 @@ impl<'s> Typechecker<'s> {
         }
 
         let normal_parameter_end_index =
-          function.parameters.len() - if function.catch_all { 1 } else { 0 };
+          function.parameters.len() - usize::from(function.catch_all);
 
         function.parameters[..normal_parameter_end_index]
           .iter()
