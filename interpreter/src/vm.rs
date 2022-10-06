@@ -43,6 +43,27 @@ macro_rules! runtime_error {
   }};
 }
 
+macro_rules! function_arity_check {
+  (($vm:expr, $chunk:expr, $ip:expr), $arity:expr, $arg_count:expr) => {{
+    if !$arity.check_arg_count($arg_count) {
+      break runtime_error!(
+        ($vm, $chunk, $ip),
+        "Expected {} arguments but got {}.",
+        $arity.get_count(),
+        $arg_count
+      );
+    }
+
+    // If more arguments than expected, wrap the overflowing ones into a list
+    if $arity.has_varadic_param() {
+      let overflow_count = $arg_count + 1 - $arity.get_count();
+      let start_of_items = $vm.stack.len() - usize::from(overflow_count);
+      let items = $vm.stack.drain(start_of_items..).collect::<Vec<_>>();
+      $vm.push(Value::from(items));
+    }
+  }};
+}
+
 macro_rules! numeric_expression {
   ($vm:expr, $token:tt,  $chunk:expr, $ip:expr) => {
     let (right, left) = ($vm.pop(), $vm.pop());
@@ -341,43 +362,13 @@ impl VM {
           }
 
           if let Object::Function(func) = &*callee.as_object() {
-            if !func.arity.check_arg_count(arg_count) {
-              break runtime_error!(
-                (self, chunk, ip),
-                "Expected {} arguments but got {}.",
-                func.arity.get_count(),
-                arg_count
-              );
-            }
-
-            // If more arguments than expected, wrap the overflowing ones into a list
-            if func.arity.has_varadic_param() {
-              let overflow_count = arg_count + 1 - func.arity.get_count();
-              let start_of_items = self.stack.len() - usize::from(overflow_count);
-              let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
-              self.push(Value::from(items));
-            }
+            function_arity_check!((self, chunk, ip), func.arity, arg_count);
 
             self.store_frame(ip + 2, offset);
             offset = self.stack.len() - usize::from(func.arity.get_count());
             ip = func.start;
           } else if let Object::NativeFunction(func) = &*callee.as_object() {
-            if !func.arity.check_arg_count(arg_count) {
-              break runtime_error!(
-                (self, chunk, ip),
-                "Expected {} arguments but got {}.",
-                func.arity.get_count(),
-                arg_count
-              );
-            }
-
-            // If more arguments than expected, wrap the overflowing ones into a list
-            if func.arity.has_varadic_param() {
-              let overflow_count = arg_count + 1 - func.arity.get_count();
-              let start_of_items = self.stack.len() - usize::from(overflow_count);
-              let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
-              self.push(Value::from(items));
-            }
+            function_arity_check!((self, chunk, ip), func.arity, arg_count);
 
             let start_of_args = self.stack.len() - usize::from(arg_count);
             let result = {
