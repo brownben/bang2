@@ -69,8 +69,7 @@ fn is_falsy() {
 
   let function = Function {
     name: "hello".into(),
-    arity: 0.into(),
-    start: 0,
+    ..Default::default()
   };
   assert_eq!(Value::from(function).is_falsy(), false);
 
@@ -92,8 +91,7 @@ fn get_type() {
 
   let function = Function {
     name: "hello".into(),
-    arity: 0.into(),
-    start: 0,
+    ..Default::default()
   };
   assert_eq!(Value::from(function).get_type(), "function");
 
@@ -126,8 +124,7 @@ fn displays_correctly() {
   assert_eq!(
     Value::from(Function {
       name: "hello".into(),
-      arity: 0.into(),
-      start: 0
+      ..Default::default()
     })
     .to_string(),
     "<function hello>"
@@ -148,8 +145,7 @@ fn displays_correctly() {
 fn equality() {
   let function = Value::from(Function {
     name: "hello".into(),
-    arity: 0.into(),
-    start: 0,
+    ..Default::default()
   });
   let native_base = NativeFunction {
     name: "native",

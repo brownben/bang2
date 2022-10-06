@@ -13,6 +13,7 @@ use bang_syntax::{
   },
   Diagnostic, Parser,
 };
+use smallvec::SmallVec;
 use std::mem;
 
 enum Error {
@@ -71,6 +72,7 @@ impl Error {
 struct Local<'s> {
   name: &'s str,
   depth: u8,
+  closed: bool,
 }
 
 struct Compiler<'s, 'c> {
@@ -78,6 +80,7 @@ struct Compiler<'s, 'c> {
   context: &'c dyn Context,
 
   locals: Vec<Vec<Local<'s>>>,
+  closures: Vec<SmallVec<[(u8, bool); 8]>>,
   scope_depth: u8,
 
   chunk: ChunkBuilder,
@@ -159,6 +162,14 @@ impl Compiler<'_, '_> {
     }
   }
 
+  fn emit_local_index(&mut self, index: usize, span: Span) {
+    if let Ok(index) = u8::try_from(index) {
+      self.emit_value(span, index);
+    } else {
+      self.error(Error::TooManyLocals, span, "");
+    }
+  }
+
   fn length(&self) -> usize {
     self.chunk.length()
   }
@@ -175,6 +186,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
       finished_chunks: Vec::new(),
 
       locals: vec![Vec::new()],
+      closures: Vec::new(),
       scope_depth: 0,
 
       error: None,
@@ -198,6 +210,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
             name: func.name.clone(),
             arity: func.arity,
             start: chunk_locations[func.start],
+            upvalues: func.upvalues.clone(),
           });
         }
       };
@@ -432,14 +445,42 @@ impl<'s, 'c> Compiler<'s, 'c> {
         self.compile_expression(expression);
 
         let locals = self.locals.last().expect("Local stack to have item");
-
         if let Some(index) = locals.iter().rposition(|local| local.name == *identifier) {
-          if let Ok(index) = u8::try_from(index) {
-            self.emit_opcode(span, OpCode::SetLocal);
-            self.emit_value(span, index);
+          let local = &locals[index];
+
+          if local.closed {
+            self.emit_opcode(span, OpCode::SetUpvalueFromLocal);
           } else {
-            self.error(Error::TooManyLocals, span, "");
+            self.emit_opcode(span, OpCode::SetLocal);
           }
+          self.emit_local_index(index, span);
+
+          return;
+        }
+
+        let previous_scope_index = self.locals.len().saturating_sub(2);
+        if previous_scope_index > 0
+          && let locals = &self.locals[previous_scope_index]
+          && let Some(index) = locals.iter().rposition(|local| local.name == *identifier)
+        {
+          let local = &mut self.locals[previous_scope_index][index];
+          let previously_closed = mem::replace(&mut local.closed, true);
+          let closures = self
+            .closures
+            .last_mut()
+            .expect("Closure stack to have item");
+          let upvalue_index = closures
+            .iter()
+            .rposition(|(i, _)| usize::from(*i) == index)
+            .unwrap_or_else(|| {
+              let index = closures.len();
+              closures.push((u8::try_from(index).unwrap_or(0), previously_closed));
+              index
+            });
+
+          self.emit_opcode(span, OpCode::SetUpvalue);
+          self.emit_local_index(upvalue_index, span);
+
           return;
         }
 
@@ -448,9 +489,42 @@ impl<'s, 'c> Compiler<'s, 'c> {
       }
       Expr::Variable { name } => {
         let locals = self.locals.last().expect("Local stack to have item");
-
         if let Some(index) = locals.iter().rposition(|local| local.name == *name) {
-          self.get_local(index, span);
+          let local = &locals[index];
+
+          if local.closed {
+            self.emit_opcode(span, OpCode::GetUpvalueFromLocal);
+          } else {
+            self.emit_opcode(span, OpCode::GetLocal);
+          }
+          self.emit_local_index(index, span);
+
+          return;
+        }
+
+        let previous_scope_index = self.locals.len().saturating_sub(2);
+        if previous_scope_index > 0
+          && let locals = &self.locals[previous_scope_index]
+          && let Some(index) = locals.iter().rposition(|local| local.name == *name)
+        {
+          let local = &mut self.locals[previous_scope_index][index];
+          let previously_closed = mem::replace(&mut local.closed, true);
+          let closures = self
+            .closures
+            .last_mut()
+            .expect("Closure stack to have item");
+          let upvalue_index = closures
+            .iter()
+            .rposition(|(i, _)| usize::from(*i) == index)
+            .unwrap_or_else(|| {
+              let index = closures.len();
+              closures.push((u8::try_from(index).unwrap_or(0), previously_closed));
+              index
+            });
+
+          self.emit_opcode(span, OpCode::GetUpvalue);
+          self.emit_local_index(upvalue_index, span);
+
           return;
         }
 
@@ -488,6 +562,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
           255
         });
 
+        self.closures.push(SmallVec::new());
         self.new_chunk();
         for parameter in parameters {
           self.define_variable(parameter.name, parameter.span);
@@ -496,6 +571,9 @@ impl<'s, 'c> Compiler<'s, 'c> {
         self.emit_opcode(span, OpCode::Null);
         self.emit_opcode(span, OpCode::Return);
         let chunk = self.finish_chunk();
+
+        let upvalues = self.closures.pop().expect("Closure stack to have item");
+        let has_closure = !upvalues.is_empty();
 
         self.emit_constant(
           span,
@@ -506,8 +584,13 @@ impl<'s, 'c> Compiler<'s, 'c> {
               parameters.iter().any(|parameter| parameter.catch_remaining),
             ),
             start: chunk,
+            upvalues,
           }),
         );
+
+        if has_closure {
+          self.emit_opcode(span, OpCode::Closure);
+        }
       }
       Expr::Comment { expression, .. } => self.compile_expression(expression),
       Expr::List { items } => {
@@ -546,8 +629,11 @@ impl<'s, 'c> Compiler<'s, 'c> {
 
         // Calculate the value to assign
         if let Some(operator) = *assignment_operator {
-          self.get_local(expression_variable, span);
-          self.get_local(index_variable, span);
+          self.emit_opcode(span, OpCode::GetLocal);
+          self.emit_local_index(expression_variable, span);
+          self.emit_opcode(span, OpCode::GetLocal);
+          self.emit_local_index(index_variable, span);
+
           self.emit_opcode(span, OpCode::GetIndex);
           self.compile_expression(value);
           match operator {
@@ -561,8 +647,10 @@ impl<'s, 'c> Compiler<'s, 'c> {
         }
 
         // Set the index
-        self.get_local(expression_variable, span);
-        self.get_local(index_variable, span);
+        self.emit_opcode(span, OpCode::GetLocal);
+        self.emit_local_index(expression_variable, span);
+        self.emit_opcode(span, OpCode::GetLocal);
+        self.emit_local_index(index_variable, span);
         self.emit_opcode(span, OpCode::SetIndex);
 
         self.end_scope();
@@ -583,15 +671,6 @@ impl<'s, 'c> Compiler<'s, 'c> {
     }
   }
 
-  fn get_local(&mut self, index: usize, span: Span) {
-    if let Ok(index) = u8::try_from(index) {
-      self.emit_opcode(span, OpCode::GetLocal);
-      self.emit_value(span, index);
-    } else {
-      self.error(Error::TooManyLocals, span, "");
-    }
-  }
-
   fn define_variable(&mut self, identifier: &'s str, span: Span) -> usize {
     if self.scope_depth > 0 {
       let locals = self.locals.last_mut().expect("Local stack to have item");
@@ -605,6 +684,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
         locals.push(Local {
           name: identifier,
           depth: self.scope_depth,
+          closed: false,
         });
         return locals.len().saturating_sub(1);
       }

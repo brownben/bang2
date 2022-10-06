@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 ahash = "0.7.6"
 bang-syntax = { path = "../syntax" }
+smallvec = { version="1", features=["union"] }
 
 [dev-dependencies]
 bang-std = { path = "../std" }

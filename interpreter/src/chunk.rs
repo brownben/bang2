@@ -41,6 +41,11 @@ pub enum OpCode {
   GetIndex,
   SetIndex,
   ToString,
+  Closure,
+  GetUpvalue,
+  SetUpvalue,
+  GetUpvalueFromLocal,
+  SetUpvalueFromLocal,
   Unknown,
 }
 

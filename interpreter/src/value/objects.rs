@@ -1,10 +1,11 @@
-use super::{Function, NativeFunction, Value};
+use super::{Closure, Function, NativeFunction, Value};
 use std::{cell::RefCell, fmt, ptr, str};
 
 pub enum Object {
   String(String),
   Function(Function),
   NativeFunction(NativeFunction),
+  Closure(Closure),
   List(RefCell<Vec<Value>>),
 }
 
@@ -12,7 +13,7 @@ impl Object {
   pub fn is_falsy(&self) -> bool {
     match self {
       Self::String(value) => value.is_empty(),
-      Self::Function(_) | Self::NativeFunction(_) => false,
+      Self::Function(_) | Self::NativeFunction(_) | Self::Closure(_) => false,
       Self::List(value) => value.borrow().is_empty(),
     }
   }
@@ -20,7 +21,7 @@ impl Object {
   pub fn get_type(&self) -> &'static str {
     match self {
       Self::String(_) => "string",
-      Self::Function(_) | Self::NativeFunction(_) => "function",
+      Self::Function(_) | Self::NativeFunction(_) | Self::Closure(_) => "function",
       Self::List(_) => "list",
     }
   }
@@ -32,6 +33,7 @@ impl PartialEq for Object {
       (Self::String(value), Self::String(other)) => value == other,
       (Self::Function(value), Self::Function(other)) => value == other,
       (Self::NativeFunction(value), Self::NativeFunction(other)) => ptr::eq(value, other),
+      (Self::Closure(value), Self::Closure(other)) => ptr::eq(value, other),
       (Self::List(value), Self::List(other)) => {
         let a = value.borrow();
         let b = other.borrow();
@@ -48,6 +50,7 @@ impl fmt::Display for Object {
       Self::String(value) => write!(f, "{value}"),
       Self::Function(value) => write!(f, "<function {}>", value.name),
       Self::NativeFunction(value) => write!(f, "<function {}>", value.name),
+      Self::Closure(value) => write!(f, "<function {}>", value.func.name),
       Self::List(value) => {
         write!(f, "[")?;
         if let Some((last, elements)) = value.borrow().split_last() {
@@ -94,6 +97,11 @@ impl From<Function> for Object {
 impl From<NativeFunction> for Object {
   fn from(value: NativeFunction) -> Self {
     Self::NativeFunction(value)
+  }
+}
+impl From<Closure> for Object {
+  fn from(value: Closure) -> Self {
+    Self::Closure(value)
   }
 }
 

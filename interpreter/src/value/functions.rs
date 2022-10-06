@@ -1,6 +1,7 @@
 use super::Value;
+use smallvec::SmallVec;
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Arity {
   count: u8,
   catch_all: bool,
@@ -35,11 +36,12 @@ impl From<u8> for Arity {
   }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct Function {
   pub name: String,
   pub arity: Arity,
   pub(crate) start: usize,
+  pub(crate) upvalues: SmallVec<[(u8, bool); 8]>,
 }
 
 #[derive(Clone)]
@@ -55,5 +57,16 @@ impl NativeFunction {
       func,
       arity: arity.into(),
     }
+  }
+}
+
+#[derive(Clone)]
+pub struct Closure {
+  pub func: Function,
+  pub(crate) upvalues: SmallVec<[usize; 4]>,
+}
+impl Closure {
+  pub fn new(func: Function, upvalues: SmallVec<[usize; 4]>) -> Self {
+    Self { func, upvalues }
   }
 }

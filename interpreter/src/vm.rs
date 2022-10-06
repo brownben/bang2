@@ -3,11 +3,12 @@ use crate::{
   context::Context,
   value::{
     indexing::{GetResult, Index, SetResult},
-    Object, Value,
+    Closure, Object, Value,
   },
 };
 use ahash::AHashMap as HashMap;
 use bang_syntax::LineNumber;
+use smallvec::SmallVec;
 use std::{collections::hash_map, error, fmt, rc::Rc};
 
 #[derive(Debug)]
@@ -98,15 +99,33 @@ macro_rules! comparison_expression {
   };
 }
 
+fn memory_address_to_f64(address: usize) -> f64 {
+  #[cfg(target_pointer_width = "64")]
+  return f64::from_le_bytes(address.to_le_bytes());
+
+  #[cfg(target_pointer_width = "32")]
+  return f64::from_le_bytes(u64::try_from(address).unwrap().to_le_bytes());
+}
+
+fn memory_address_from_f64(value: f64) -> usize {
+  #[cfg(target_pointer_width = "64")]
+  return usize::from_le_bytes(value.to_le_bytes());
+
+  #[cfg(target_pointer_width = "32")]
+  return usize::try_from(u64::from_le_bytes(value.to_le_bytes())).unwrap();
+}
+
 struct CallFrame {
   ip: usize,
   offset: usize,
+  upvalues: SmallVec<[usize; 4]>,
 }
 
 pub struct VM {
   stack: Vec<Value>,
   frames: Vec<CallFrame>,
   globals: HashMap<Rc<str>, Value>,
+  memory: Vec<Value>,
 }
 
 impl VM {
@@ -117,8 +136,17 @@ impl VM {
   }
 
   #[inline]
-  fn store_frame(&mut self, ip: usize, offset: usize) {
-    self.frames.push(CallFrame { ip, offset });
+  fn store_frame(&mut self, ip: usize, offset: usize, upvalues: SmallVec<[usize; 4]>) {
+    self.frames.push(CallFrame {
+      ip,
+      offset,
+      upvalues,
+    });
+  }
+
+  #[inline]
+  fn peek_frame(&self) -> &CallFrame {
+    unsafe { self.frames.last().unwrap_unchecked() }
   }
 
   #[inline]
@@ -364,9 +392,15 @@ impl VM {
           if let Object::Function(func) = &*callee.as_object() {
             function_arity_check!((self, chunk, ip), func.arity, arg_count);
 
-            self.store_frame(ip + 2, offset);
+            self.store_frame(ip + 2, offset, SmallVec::new());
             offset = self.stack.len() - usize::from(func.arity.get_count());
             ip = func.start;
+          } else if let Object::Closure(closure) = &*callee.as_object() {
+            function_arity_check!((self, chunk, ip), closure.func.arity, arg_count);
+
+            self.store_frame(ip + 2, offset, closure.upvalues.clone());
+            offset = self.stack.len() - usize::from(closure.func.arity.get_count());
+            ip = closure.func.start;
           } else if let Object::NativeFunction(func) = &*callee.as_object() {
             function_arity_check!((self, chunk, ip), func.arity, arg_count);
 
@@ -443,6 +477,74 @@ impl VM {
 
           ip += 1;
         }
+
+        OpCode::Closure => {
+          let value = self.pop();
+
+          if !value.is_object() {
+            break runtime_error!((self, chunk, ip), "Can only close over functions");
+          }
+
+          if let Object::Function(func) = &*value.as_object() {
+            let upvalues = func
+              .upvalues
+              .iter()
+              .map(|(local, closed)| {
+                let local = &mut self.stack[offset + usize::from(*local)];
+
+                if *closed {
+                  return memory_address_from_f64(local.as_number());
+                }
+
+                let memory_location = self.memory.len();
+                self.memory.push(local.clone());
+                *local = Value::from(memory_address_to_f64(memory_location));
+                memory_location
+              })
+              .collect();
+
+            self.push(Closure::new(func.clone(), upvalues).into());
+          } else {
+            break runtime_error!((self, chunk, ip), "Can only close over functions");
+          }
+
+          ip += 1;
+        }
+        OpCode::GetUpvalue => {
+          let upvalue = chunk.get_value(ip + 1);
+          let address = self.peek_frame().upvalues[upvalue as usize];
+
+          self.push(self.memory[address].clone());
+
+          ip += 2;
+        }
+        OpCode::SetUpvalue => {
+          let upvalue = chunk.get_value(ip + 1);
+          let address = self.peek_frame().upvalues[upvalue as usize];
+
+          self.memory[address] = self.peek().clone();
+
+          ip += 2;
+        }
+        OpCode::GetUpvalueFromLocal => {
+          let slot = chunk.get_value(ip + 1);
+          let number = self.stack[offset + usize::from(slot)].as_number();
+          let address = memory_address_from_f64(number);
+
+          self.push(self.memory[address].clone());
+
+          ip += 2;
+        }
+        OpCode::SetUpvalueFromLocal => {
+          let slot = chunk.get_value(ip + 1);
+          let number = self.stack[offset + usize::from(slot)].as_number();
+          let address = memory_address_from_f64(number);
+
+          self.memory[address] = self.peek().clone();
+
+          ip += 2;
+        }
+
         _ => {
           break runtime_error!((self, chunk, ip), "Unknown OpCode");
         }
@@ -481,6 +583,7 @@ impl Default for VM {
       stack: Vec::with_capacity(64),
       frames: Vec::with_capacity(16),
       globals: HashMap::with_capacity(8),
+      memory: Vec::with_capacity(16),
     }
   }
 }

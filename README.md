@@ -31,7 +31,6 @@ Future plans for additions to the language include:
 - ranges (including slices)
 - iterator helpers (map, filter, reduce, etc.)
 - more builtin datastructures (set, dictionary, etc.)
-- closures
 - modules/ importing bang code
 - configuration for formatter
 
