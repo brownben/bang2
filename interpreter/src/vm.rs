@@ -404,7 +404,7 @@ impl VM {
           } else if let Object::NativeFunction(func) = &*callee.as_object() {
             function_arity_check!((self, chunk, ip), func.arity, arg_count);
 
-            let start_of_args = self.stack.len() - usize::from(arg_count);
+            let start_of_args = self.stack.len() - usize::from(func.arity.get_count());
             let result = {
               let args = self.stack.drain(start_of_args..);
               (func.func)(args.as_slice())
