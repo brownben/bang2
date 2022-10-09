@@ -22,7 +22,7 @@ mod test;
 pub use functions::{Arity, Closure, Function, NativeFunction};
 pub use indexing::calculate_index;
 pub use objects::Object;
-use std::{fmt, rc::Rc};
+use std::{fmt, hash, rc::Rc};
 
 impl Value {
   pub fn is_falsy(&self) -> bool {
@@ -54,6 +54,26 @@ impl PartialEq for Value {
       }
       (a, b) if a.is_object() && b.is_object() => a.as_object() == b.as_object(),
       _ => false,
+    }
+  }
+}
+impl Eq for Value {}
+
+impl hash::Hash for Value {
+  fn hash<H: hash::Hasher>(&self, state: &mut H) {
+    match self {
+      Self(NULL) => 0,
+      Self(TRUE) => 1,
+      Self(FALSE) => 2,
+      value if value.is_number() => 3,
+      _ => 4,
+    }
+    .hash(state);
+
+    match self {
+      a if a.is_number() => a.as_number().to_le_bytes().hash(state),
+      b if b.is_object() => b.as_object().hash(state),
+      _ => {}
     }
   }
 }

@@ -438,3 +438,107 @@ let d = a == [1, 2, 3]
     d == true
   );
 }
+
+mod set {
+  use super::*;
+
+  bang_test!(size
+"
+from set import { set, size, isEmpty }
+
+let a = size(set(1, 2, 3))
+let b = size(set())
+let c = size(3) == null
+let d = isEmpty(set())
+let e = isEmpty(set(1, 2, 3))
+"
+    a == 3
+    b == 0
+    c == true
+    d == true
+    e == false
+  );
+
+  bang_test!(insert_remove
+"
+from set import { set, insert, remove, size }
+
+let a = set()
+a >> insert(1)
+let b = size(a)
+a >> insert(88)
+let c = size(a)
+a >> insert(88)
+let d = size(a)
+a >> remove(4)
+let e = size(a)
+a >> remove(1)
+let f = size(a)
+"
+    b == 1
+    c == 2
+    d == 2
+    e == 2
+    f == 1
+  );
+
+  bang_test!(includes
+"
+from set import { set, includes }
+
+let a = set() >> includes(7)
+let b = set(1, 2, 3) >> includes(2)
+let c = set(1, 2, 3) >> includes(4)
+"
+    a == false
+    b == true
+    c == false
+  );
+
+  bang_test!(subset_superset_disjoint
+"
+from set import { set, isDisjoint, isSubset, isSuperset }
+
+let a = set(1, 2, 3)
+let b = set(1, 2)
+let c = set(4, 5)
+
+let x = isSubset(a, b)
+let y = isSuperset(a, b)
+let z = isDisjoint(a, c)
+let w = isDisjoint(a, b)
+
+"
+    x == false
+    y == true
+    z == true
+    w == false
+  );
+
+  bang_test!(union_difference_intersection_symmetric
+"
+from set import { set, size, union, difference, intersection, symmetricDifference }
+
+let a = set(1, 2, 3)
+let b = set(1, 2)
+let c = set(4, 5)
+let d = set(4, 6)
+
+let ac = union(a, c)
+let x = size(a)
+let y = size(c)
+let z = size(ac)
+
+let e = difference(a, b) >> size()
+let f = intersection(a, b) >> size()
+let g = symmetricDifference(c, d) >> size()
+"
+    x == 3
+    y == 2
+    z == 5
+
+    e == 1
+    f == 2
+    g == 2
+  );
+}

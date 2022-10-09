@@ -2,13 +2,14 @@
 // Basic Types
 // ==========================
 
-// There are 5 different types:
+// There are 7 different types:
 // - Strings
 // - Numbers
 // - Booleans
 // - Null
 // - Functions
 // - List
+// - Set
 
 // Strings
 // ==========================

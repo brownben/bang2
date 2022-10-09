@@ -1,5 +1,7 @@
-use bang_interpreter::{calculate_index, ImportValue, NativeFunction, Object, Value};
-use std::fs;
+use bang_interpreter::{
+  calculate_index, HashSet as BangHashSet, ImportValue, NativeFunction, Object, Value,
+};
+use std::{collections::HashSet, fs};
 
 module!(maths, {
   const PI = std::f64::consts::PI;
@@ -59,4 +61,20 @@ module!(list, {
   fn includes(List, Any) -> |list: &mut Vec<_>, value| list.contains(&value);
   fn reverse(List) -> |l: &mut Vec<_>| l.iter().rev().cloned().collect::<Vec<_>>();
   fn get(List, Number) -> |list: &mut Vec<_>, index| list.get(calculate_index(index, list.len())).cloned();
+});
+
+module!(set, {
+  fn size(SetRef) -> HashSet::len;
+  fn isEmpty(SetRef) -> HashSet::is_empty;
+  fn insert(Set, Any) -> HashSet::insert;
+  fn remove(Set, AnyRef) -> HashSet::remove;
+  fn includes(SetRef, AnyRef) -> HashSet::contains;
+  fn isDisjoint(Set, Set) -> HashSet::is_disjoint;
+  fn isSubset(Set, Set) -> HashSet::is_subset;
+  fn isSuperset(Set, Set) -> HashSet::is_superset;
+  fn union(SetCloned, Set) -> HashSet::union;
+  fn difference(SetCloned, Set) -> HashSet::difference;
+  fn intersection(SetCloned, Set) -> HashSet::intersection;
+  fn symmetricDifference(SetCloned, Set) -> HashSet::symmetric_difference;
+  var fn set() -> BangHashSet::from_iter;
 });

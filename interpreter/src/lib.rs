@@ -12,3 +12,5 @@ pub use compiler::compile;
 pub use context::{Context, Empty as EmptyContext, ImportValue};
 pub use value::{calculate_index, NativeFunction, Object, Value};
 pub use vm::{RuntimeError, VM};
+
+pub use ahash::AHashSet as HashSet;

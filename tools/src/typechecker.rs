@@ -51,6 +51,7 @@ pub enum Type {
   Function(Box<Function>),
   Union(Box<Self>, Box<Self>),
   List(Box<Self>),
+  Set(Box<Self>),
 }
 impl Type {
   fn includes(&self, alpha: Existential) -> bool {
@@ -65,7 +66,7 @@ impl Type {
       }
       Self::Existential(var) => *var == alpha,
       Self::Union(a, b) => a.includes(alpha) || b.includes(alpha),
-      Self::List(element_type) => element_type.includes(alpha),
+      Self::List(element_type) | Self::Set(element_type) => element_type.includes(alpha),
     }
   }
 
@@ -170,6 +171,9 @@ impl fmt::Display for Type {
         } else {
           write!(f, "{element_type}[]")
         }
+      }
+      Self::Set(element_type) => {
+        write!(f, "set({element_type})")
       }
     }
   }
@@ -392,6 +396,7 @@ impl<'s> Typechecker<'s> {
       ),
       Type::Union(a, b) => Type::union(self.apply_context(a), self.apply_context(b)),
       Type::List(type_) => Type::List(Box::new(self.apply_context(type_))),
+      Type::Set(type_) => Type::Set(Box::new(self.apply_context(type_))),
     }
   }
 
@@ -419,7 +424,7 @@ impl<'s> Typechecker<'s> {
         }
       }
       (Type::Literal(LiteralType::True | LiteralType::False), Type::Boolean) => true,
-      (Type::List(a), Type::List(b)) => self.subtype(a, b),
+      (Type::List(a), Type::List(b)) | (Type::Set(a), Type::Set(b)) => self.subtype(a, b),
       (Type::Union(a, b), x) => self.subtype(a, x) && self.subtype(b, x),
       (x, Type::Union(a, b)) => self.subtype(x, a) || self.subtype(x, b),
       (Type::Function(a), Type::Function(b)) => {

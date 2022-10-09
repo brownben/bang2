@@ -668,6 +668,26 @@ mod compound_structures {
   }
 
   #[test]
+  fn set_builtins() {
+    assert_correct!(
+      "
+  from set import { set, size, isEmpty, insert, remove, includes, isDisjoint, isSuperset, isSubset, union, difference, intersection, symmetricDifference }
+
+  let a = set(1, 2, 3)
+  let b: number = a >> size()
+  let c: boolean = a >> isEmpty()
+  let d: boolean = a >> insert(2)
+  let e: boolean = a >> remove(3)
+  let f: boolean = a >> includes(4)
+  let g = union(a, set(1,2,3))
+  let h = difference(a, g)
+  let i = intersection(a, g)
+  let j = symmetricDifference(h, i)
+  "
+    );
+  }
+
+  #[test]
   fn index() {
     assert_correct!("let a: string = 'hello'[5]");
     assert_fails!("let a: string = 'hello'[null] ");

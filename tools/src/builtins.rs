@@ -62,6 +62,10 @@ fn list(value: Type) -> Type {
   Type::List(Box::new(value))
 }
 
+fn set(value: Type) -> Type {
+  Type::Set(Box::new(value))
+}
+
 fn function(args: Vec<Type>, value: Type) -> Type {
   Type::function(args, value, false)
 }
@@ -156,7 +160,46 @@ pub fn get_builtin_module_type(
       }
       _ => None,
     },
-
+    "set" => match value {
+      "set" => {
+        let generic = typechecker.new_existential();
+        Some(Type::function(
+          vec![list(generic.clone())],
+          set(generic),
+          true,
+        ))
+      }
+      "size" => {
+        let generic = typechecker.new_existential();
+        Some(function(vec![set(generic)], type_!(Number)))
+      }
+      "isEmpty" => {
+        let generic = typechecker.new_existential();
+        Some(function(vec![set(generic)], type_!(Boolean)))
+      }
+      "insert" | "remove" | "includes" => {
+        let generic = typechecker.new_existential();
+        Some(function(
+          vec![set(generic.clone()), generic],
+          type_!(Boolean),
+        ))
+      }
+      "isDisjoint" | "isSuperset" | "isSubset" => {
+        let generic = typechecker.new_existential();
+        Some(function(
+          vec![set(generic.clone()), set(generic)],
+          type_!(Boolean),
+        ))
+      }
+      "union" | "difference" | "intersection" | "symmetricDifference" => {
+        let generic = typechecker.new_existential();
+        Some(function(
+          vec![set(generic.clone()), set(generic.clone())],
+          set(generic),
+        ))
+      }
+      _ => None,
+    },
     _ => None,
   }
 }

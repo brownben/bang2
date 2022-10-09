@@ -58,6 +58,13 @@ impl NativeFunction {
       arity: arity.into(),
     }
   }
+  pub fn new_catch_all(name: &'static str, func: fn(args: &[Value]) -> Value) -> Self {
+    Self {
+      name,
+      func,
+      arity: Arity::new(1, true),
+    }
+  }
 }
 
 #[derive(Clone)]

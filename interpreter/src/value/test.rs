@@ -1,4 +1,8 @@
 use super::{Function, NativeFunction, Object, Value};
+use std::{
+  collections::hash_map::DefaultHasher,
+  hash::{Hash, Hasher},
+};
 
 #[test]
 fn null() {
@@ -178,4 +182,64 @@ fn equality() {
   assert_eq!(Value::from(result_ok), Value::from(3.5));
   assert_eq!(Value::from(result_error), Value::NULL);
   assert_ne!(Value::from(result_error), Value::FALSE);
+}
+
+macro_rules! assert_hash_eq {
+  ($a:expr, $b:expr) => {
+    let hasher_a = &mut DefaultHasher::new();
+    $a.hash(hasher_a);
+    let a = hasher_a.finish();
+
+    let hasher_b = &mut DefaultHasher::new();
+    $b.hash(hasher_b);
+    let b = hasher_b.finish();
+
+    assert_eq!(a, b);
+  };
+}
+
+macro_rules! assert_hash_ne {
+  ($a:expr, $b:expr) => {
+    let hasher_a = &mut DefaultHasher::new();
+    $a.hash(hasher_a);
+    let a = hasher_a.finish();
+
+    let hasher_b = &mut DefaultHasher::new();
+    $b.hash(hasher_b);
+    let b = hasher_b.finish();
+
+    assert_ne!(a, b);
+  };
+}
+
+#[test]
+fn hash() {
+  assert_hash_eq!(Value::from(()), Value::NULL);
+  assert_hash_ne!(Value::from(0), Value::NULL);
+  assert_hash_ne!(Value::from(0), Value::FALSE);
+
+  assert_hash_eq!(Value::TRUE, Value::from(true));
+  assert_hash_eq!(Value::FALSE, Value::from(false));
+  assert_hash_ne!(Value::TRUE, Value::FALSE);
+
+  let function = Value::from(Function {
+    name: "hello".into(),
+    ..Default::default()
+  });
+  let native = Value::from(NativeFunction {
+    name: "native",
+    arity: 0.into(),
+    func: |_| Value::NULL,
+  });
+  assert_hash_eq!(function, function.clone());
+  assert_hash_ne!(function, native);
+
+  assert_hash_eq!(Value::from("Hello"), Value::from("Hello"));
+  assert_hash_ne!(Value::from("Hello"), Value::from("Hell0"));
+  assert_hash_ne!(Value::from("Hello"), Value::from("hello"));
+
+  let list = Value::from(vec![1.into(), 2.into(), 3.into()]);
+  let list_b = Value::from(vec![1.into(), 2.into(), 3.into()]);
+  assert_hash_eq!(list, list.clone());
+  assert_hash_ne!(list, list_b);
 }

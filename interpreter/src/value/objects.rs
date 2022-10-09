@@ -1,5 +1,6 @@
 use super::{Closure, Function, NativeFunction, Value};
-use std::{cell::RefCell, fmt, ptr, str};
+use crate::HashSet;
+use std::{cell::RefCell, fmt, hash, mem, ptr, str};
 
 pub enum Object {
   String(String),
@@ -7,6 +8,7 @@ pub enum Object {
   NativeFunction(NativeFunction),
   Closure(Closure),
   List(RefCell<Vec<Value>>),
+  Set(RefCell<HashSet<Value>>),
 }
 
 impl Object {
@@ -15,6 +17,7 @@ impl Object {
       Self::String(value) => value.is_empty(),
       Self::Function(_) | Self::NativeFunction(_) | Self::Closure(_) => false,
       Self::List(value) => value.borrow().is_empty(),
+      Self::Set(value) => value.borrow().is_empty(),
     }
   }
 
@@ -23,6 +26,7 @@ impl Object {
       Self::String(_) => "string",
       Self::Function(_) | Self::NativeFunction(_) | Self::Closure(_) => "function",
       Self::List(_) => "list",
+      Self::Set(_) => "set",
     }
   }
 }
@@ -34,12 +38,24 @@ impl PartialEq for Object {
       (Self::Function(value), Self::Function(other)) => value == other,
       (Self::NativeFunction(value), Self::NativeFunction(other)) => ptr::eq(value, other),
       (Self::Closure(value), Self::Closure(other)) => ptr::eq(value, other),
-      (Self::List(value), Self::List(other)) => {
-        let a = value.borrow();
-        let b = other.borrow();
-        a.len() == b.len() && a.iter().zip(b.iter()).all(|(a, b)| a == b)
-      }
+      (Self::List(value), Self::List(other)) => *value == *other,
+      (Self::Set(value), Self::Set(other)) => *value == *other,
       _ => false,
+    }
+  }
+}
+
+impl hash::Hash for Object {
+  fn hash<H: hash::Hasher>(&self, state: &mut H) {
+    mem::discriminant(self).hash(state);
+
+    match self {
+      Self::String(value) => value.hash(state),
+      Self::Function(value) => ptr::hash(value, state),
+      Self::NativeFunction(value) => ptr::hash(value, state),
+      Self::Closure(value) => ptr::hash(value, state),
+      Self::List(value) => ptr::hash(value, state),
+      Self::Set(value) => ptr::hash(value, state),
     }
   }
 }
@@ -60,6 +76,14 @@ impl fmt::Display for Object {
           write!(f, "{last:?}")?;
         }
         write!(f, "]")
+      }
+      Self::Set(value) => {
+        write!(f, "{{ ")?;
+        value
+          .borrow()
+          .iter()
+          .try_for_each(|item| write!(f, "{item:?}, "))?;
+        write!(f, "}}")
       }
     }
   }
@@ -108,5 +132,10 @@ impl From<Closure> for Object {
 impl From<Vec<Value>> for Object {
   fn from(value: Vec<Value>) -> Self {
     Self::List(RefCell::new(value))
+  }
+}
+impl From<HashSet<Value>> for Object {
+  fn from(value: HashSet<Value>) -> Self {
+    Self::Set(RefCell::new(value))
   }
 }

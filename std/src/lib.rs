@@ -13,6 +13,7 @@ impl Context for StdContext {
       "string" => modules::string(value),
       "fs" => modules::fs(value),
       "list" => modules::list(value),
+      "set" => modules::set(value),
       _ => ImportValue::ModuleNotFound,
     }
   }
