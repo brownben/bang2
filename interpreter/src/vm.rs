@@ -341,6 +341,11 @@ impl VM {
           self.stack[offset + usize::from(slot)] = self.peek().clone();
           ip += 2;
         }
+        OpCode::GetTemp => {
+          let slot = chunk.get_value(ip + 1);
+          self.push(self.stack[self.stack.len() - usize::from(slot) - 1].clone());
+          ip += 2;
+        }
 
         OpCode::JumpIfFalse => {
           let offset = chunk.get_long_value(ip + 1);
@@ -454,11 +459,11 @@ impl VM {
           ip += 1;
         }
         OpCode::SetIndex => {
+          let value = self.pop();
           let index = self.pop();
           let mut item = self.pop();
-          let value = self.peek().clone();
 
-          match item.set_property(index, value) {
+          match item.set_property(index, value.clone()) {
             SetResult::Set => {}
             SetResult::NotFound => {
               break runtime_error!((self, chunk, ip), "Index not found");
@@ -468,6 +473,7 @@ impl VM {
             }
           }
 
+          self.push(value);
           ip += 1;
         }
 

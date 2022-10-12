@@ -33,6 +33,7 @@ pub enum OpCode {
   JumpIfNull,
   Loop,
   GetLocal,
+  GetTemp,
   SetLocal,
   Return,
   Call,

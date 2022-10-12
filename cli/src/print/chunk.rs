@@ -51,6 +51,7 @@ fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
     OpCode::JumpIfNull => jump_instruction("Jump If Null", 1, chunk, position),
     OpCode::Loop => jump_instruction("Loop", -1, chunk, position),
     OpCode::GetLocal => byte_instruction("Get Local", chunk, position),
+    OpCode::GetTemp => byte_instruction("Get Temp", chunk, position),
     OpCode::SetLocal => byte_instruction("Set Local", chunk, position),
     OpCode::Call => byte_instruction("Call", chunk, position),
     OpCode::List => byte_instruction("List", chunk, position),

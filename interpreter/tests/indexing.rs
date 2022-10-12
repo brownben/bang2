@@ -226,3 +226,28 @@ let [x, y, z] = list
   y == 1
   z == 8
 );
+
+bang_test!(assignment_when_local_stack_not_empty
+  "
+let identity = (x) => x
+let list = [1, 2, 3, 4]
+
+identity(list[0] = 5)
+let a = list[0]
+print(list
+)
+identity(list[1] -= 5)
+identity(list[2] *= 5)
+identity(list[list[0] = 3] /= 5)
+
+let b = list[1]
+let c = list[2]
+let d = list[3]
+let e = list[0]
+  "
+  a == 5
+  b == -3
+  c == 15
+  d == 0.8
+  e == 3
+);

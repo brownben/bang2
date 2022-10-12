@@ -619,20 +619,14 @@ impl<'s, 'c> Compiler<'s, 'c> {
         value,
         assignment_operator,
       } => {
-        self.begin_scope();
-
-        // Calculate the index and expression once before they are assigned
         self.compile_expression(expression);
-        let expression_variable = self.define_variable("$index_assignment_expr$", span);
         self.compile_expression(index);
-        let index_variable = self.define_variable("$index_assignment_index$", span);
 
-        // Calculate the value to assign
         if let Some(operator) = *assignment_operator {
-          self.emit_opcode(span, OpCode::GetLocal);
-          self.emit_local_index(expression_variable, span);
-          self.emit_opcode(span, OpCode::GetLocal);
-          self.emit_local_index(index_variable, span);
+          self.emit_opcode(span, OpCode::GetTemp);
+          self.emit_value(span, 1);
+          self.emit_opcode(span, OpCode::GetTemp);
+          self.emit_value(span, 1);
 
           self.emit_opcode(span, OpCode::GetIndex);
           self.compile_expression(value);
@@ -646,14 +640,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
           self.compile_expression(value);
         }
 
-        // Set the index
-        self.emit_opcode(span, OpCode::GetLocal);
-        self.emit_local_index(expression_variable, span);
-        self.emit_opcode(span, OpCode::GetLocal);
-        self.emit_local_index(index_variable, span);
         self.emit_opcode(span, OpCode::SetIndex);
-
-        self.end_scope();
       }
       Expr::FormatString {
         expressions,
