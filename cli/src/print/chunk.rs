@@ -9,9 +9,9 @@ pub fn print(chunk: &Chunk) {
   while position < chunk.code.len() {
     let line_number = chunk.get_line_number(position);
     if line_number == last_line_number {
-      print!("     {:0>4} │ ", position);
+      print!("     {position:0>4} │ ");
     } else {
-      print!("{:<4} {:0>4} │ ", line_number, position);
+      print!("{line_number:<4} {position:0>4} │ ");
       last_line_number = line_number;
     }
 
@@ -69,7 +69,7 @@ fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
 }
 
 fn simple_instruction(name: &str, position: usize) -> usize {
-  println!("{}", name);
+  println!("{name}");
   position + 1
 }
 
@@ -77,7 +77,7 @@ fn constant_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   let constant_location = chunk.get_value(position + 1);
   let constant = chunk.get_constant(constant_location as usize);
 
-  println!("{} {} ({})", name, constant, constant_location);
+  println!("{name} {constant} ({constant_location})");
 
   position + 2
 }
@@ -86,7 +86,7 @@ fn string_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   let string_location = chunk.get_value(position + 1);
   let string = chunk.get_string(string_location as usize);
 
-  println!("{} {} ({})", name, string, string_location);
+  println!("{name} {string} ({string_location})");
 
   position + 2
 }
@@ -95,27 +95,27 @@ fn constant_long_instruction(name: &str, chunk: &Chunk, position: usize) -> usiz
   let constant_location = chunk.get_long_value(position + 1);
   let constant = chunk.get_constant(constant_location as usize);
 
-  println!("{} '{}' ({})", name, constant, constant_location);
+  println!("{name} '{constant}' ({constant_location})");
   position + 3
 }
 
 fn byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   let value = chunk.get_value(position + 1);
 
-  println!("{} {}", name, value);
+  println!("{name} {value}");
   position + 2
 }
 
 fn double_byte_instruction(name: &str, chunk: &Chunk, position: usize) -> usize {
   let value = chunk.get_long_value(position + 1);
 
-  println!("{} {}", name, value);
+  println!("{name} {value}");
   position + 3
 }
 
 fn jump_instruction(name: &str, direction: i8, chunk: &Chunk, position: usize) -> usize {
   let jump = chunk.get_long_value(position + 1);
 
-  println!("{} {}", name, i32::from(jump) * i32::from(direction));
+  println!("{name} {}", i32::from(jump) * i32::from(direction));
   position + 3
 }
