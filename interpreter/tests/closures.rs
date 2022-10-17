@@ -127,3 +127,16 @@ let x = '${outer()}'
 "
   x == "<function get>"
 );
+
+bang_test!(function_closed_with_parameter
+"
+let run = (do) => do()
+
+let x = (y) -> null
+  let n = 7
+  return run(() => n)
+
+let a = x(44)
+"
+  a == 7
+);

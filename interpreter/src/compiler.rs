@@ -517,9 +517,8 @@ impl<'s, 'c> Compiler<'s, 'c> {
             .iter()
             .rposition(|(i, _)| usize::from(*i) == index)
             .unwrap_or_else(|| {
-              let index = closures.len();
               closures.push((u8::try_from(index).unwrap_or(0), previously_closed));
-              index
+              closures.len() - 1
             });
 
           self.emit_opcode(span, OpCode::GetUpvalue);
