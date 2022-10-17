@@ -2,6 +2,7 @@ use super::statement::Statement;
 use super::types::TypeExpression;
 use super::Span;
 use crate::tokens::TokenType;
+use smartstring::alias::String;
 use std::fmt;
 
 #[derive(Clone, Debug)]

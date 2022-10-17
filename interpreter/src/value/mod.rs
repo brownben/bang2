@@ -22,7 +22,12 @@ mod test;
 pub use functions::{Arity, Closure, Function, NativeFunction};
 pub use indexing::calculate_index;
 pub use objects::Object;
-use std::{fmt, hash, rc::Rc};
+use smartstring::alias::String;
+use std::{
+  fmt::{self, Write},
+  hash,
+  rc::Rc,
+};
 
 impl Value {
   pub fn is_falsy(&self) -> bool {
@@ -40,6 +45,12 @@ impl Value {
       a if a.is_number() => "number",
       b => b.as_object().get_type(),
     }
+  }
+
+  pub fn to_string(&self) -> String {
+    let mut string = String::new();
+    write!(string, "{self}").expect("No errors in Display trait");
+    string
   }
 }
 

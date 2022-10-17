@@ -757,7 +757,7 @@ impl<'source> Parser<'source> {
     let start = token.get_value(self.source);
     let quote = start.as_bytes()[0] as char;
 
-    let mut strings: Vec<String> = vec![start[1..start.len() - 2].into()];
+    let mut strings = vec![start[1..start.len() - 2].into()];
     let mut expressions = Vec::new();
 
     let end_token = loop {

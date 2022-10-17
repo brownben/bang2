@@ -1,5 +1,6 @@
 use super::Value;
 use smallvec::SmallVec;
+use smartstring::alias::String;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Arity {

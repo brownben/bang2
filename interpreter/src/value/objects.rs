@@ -1,5 +1,6 @@
 use super::{Closure, Function, NativeFunction, Value};
 use crate::HashSet;
+use smartstring::alias::String;
 use std::{cell::RefCell, fmt, hash, mem, ptr, str};
 
 pub enum Object {
@@ -104,12 +105,19 @@ impl From<String> for Object {
 }
 impl From<&str> for Object {
   fn from(value: &str) -> Self {
-    Self::String(value.to_string())
+    Self::String(value.into())
   }
 }
 impl From<char> for Object {
   fn from(value: char) -> Self {
-    Self::from(value.to_string())
+    let mut string = String::new();
+    string.extend([value]);
+    Self::String(string)
+  }
+}
+impl From<std::string::String> for Object {
+  fn from(value: std::string::String) -> Self {
+    Self::String(value.into())
   }
 }
 

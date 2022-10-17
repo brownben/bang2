@@ -209,7 +209,9 @@ impl VM {
           } else if left.is_object() && right.is_object() {
             if let Object::String(left) = &*left.as_object() {
               if let Object::String(right) = &*right.as_object() {
-                self.push(Value::from(format!("{left}{right}")));
+                let mut new = left.clone();
+                new.push_str(right);
+                self.push(Value::from(new));
               } else {
                 break runtime_error!(
                   (self, chunk, ip),

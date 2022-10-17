@@ -578,7 +578,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
         self.emit_constant(
           span,
           Value::from(Function {
-            name: name.unwrap_or("").to_string(),
+            name: name.unwrap_or("").into(),
             arity: Arity::new(
               arity,
               parameters.iter().any(|parameter| parameter.catch_remaining),
