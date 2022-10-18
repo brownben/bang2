@@ -45,7 +45,10 @@ module!(string, {
   fn endsWith(String, String) -> str::ends_with;
   fn toLowerCase(String) -> str::to_lowercase;
   fn toUpperCase(String) -> str::to_uppercase;
+  fn replace(String, String, String) -> str::replace;
+  fn replaceOne(String, String, String) -> |a,b,c| str::replacen(a, b, c, 1);
   fn toNumber(String) -> |s| str::parse::<f64>(s).unwrap_or(f64::NAN);
+  fn split(String, String) -> |a, b| str::split(a, b).filter(|x| !x.is_empty()).map(Value::from).collect::<Vec<_>>();
 });
 
 module!(fs, {
@@ -61,6 +64,7 @@ module!(list, {
   fn includes(List, Any) -> |list: &mut Vec<_>, value| list.contains(&value);
   fn reverse(List) -> |l: &mut Vec<_>| l.iter().rev().cloned().collect::<Vec<_>>();
   fn get(List, Number) -> |list: &mut Vec<_>, index| list.get(calculate_index(index, list.len())).cloned();
+  fn toSet(ListRef) -> |l: &Vec<Value>| l.iter().cloned().collect::<BangHashSet<Value>>();
 });
 
 module!(set, {
@@ -76,5 +80,6 @@ module!(set, {
   fn difference(SetCloned, Set) -> HashSet::difference;
   fn intersection(SetCloned, Set) -> HashSet::intersection;
   fn symmetricDifference(SetCloned, Set) -> HashSet::symmetric_difference;
+  fn toList(SetRef) -> |s: &BangHashSet<_>| s.iter().cloned().collect::<Vec<_>>();
   var fn set() -> BangHashSet::from_iter;
 });

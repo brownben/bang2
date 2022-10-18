@@ -50,6 +50,18 @@ macro_rules! unwrap_type {
     }
     Value::NULL
   }};
+  (String String String, $args: expr, $do: expr) => {{
+    if $args[0].is_object() && $args[1].is_object() && $args[2].is_object() {
+      if let Object::String(a) = &*$args[0].as_object() {
+        if let Object::String(b) = &*$args[1].as_object() {
+          if let Object::String(c) = &*$args[2].as_object() {
+            return $do(a as &str, b as &str, c as &str).into();
+          }
+        }
+      }
+    }
+    Value::NULL
+  }};
   (String Usize, $args: expr, $do: expr) => {{
     if $args[0].is_object() && $args[1].is_number() {
       if let Object::String(value) = &*$args[0].as_object() {
@@ -116,7 +128,7 @@ macro_rules! unwrap_type {
     Value::NULL
   }};
   (Set Set, $args: expr, $do: expr) => {{
-    if $args[0].is_object() {
+    if $args[0].is_object() && $args[1].is_object() {
       if let Object::Set(a) = &*$args[0].as_object() {
         if let Object::Set(b) = &*$args[1].as_object() {
           return $do(&a.borrow(), &b.borrow()).into();
@@ -126,7 +138,7 @@ macro_rules! unwrap_type {
     Value::NULL
   }};
   (SetCloned Set, $args: expr, $do: expr) => {{
-    if $args[0].is_object() {
+    if $args[0].is_object() && $args[1].is_object() {
       if let Object::Set(a) = &*$args[0].as_object() {
         if let Object::Set(b) = &*$args[1].as_object() {
           return $do(&a.borrow(), &b.borrow())

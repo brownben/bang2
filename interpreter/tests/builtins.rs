@@ -348,6 +348,49 @@ let d = '-18y' >> toNumber >> isNan
     c == -3.2
     d == true
   );
+
+  bang_test!(replace
+    "
+from string import { replace, replaceOne }
+
+let a = 'hello' >> replace('o', 'o world')
+let b = 'hello' >> replace('l', 'll')
+let c = 'hello' >> replace('q', 'll')
+
+let d = 'hello' >> replaceOne('o', 'o world')
+let e = 'hello' >> replaceOne('l', 'll')
+let f = 'hello' >> replaceOne('q', 'll')
+  "
+    a == "hello world"
+    b == "hellllo"
+    c == "hello"
+    d == "hello world"
+    e == "helllo"
+    f == "hello"
+  );
+
+  bang_test!(split
+    "
+from string import { split }
+from list import { length }
+
+let a = 'hello' >> split('')
+let b = a >> length()
+let [c, d, e, f, g] = a
+
+let [h, i] = 'hello' >> split('l')
+let [j] = 'hello' >> split('d')
+  "
+   b == 5
+   c == "h"
+   d == "e"
+   e == "l"
+   f == "l"
+   g == "o"
+   h == "he"
+   i == "o"
+   j == "hello"
+  );
 }
 
 mod list {
@@ -436,6 +479,17 @@ let d = a == [1, 2, 3]
 "
     c == true
     d == true
+  );
+
+  bang_test!(to_set
+"
+from list import { toSet }
+
+let a = [1, 2, 3]
+let b = [1, 2, 3] >> toSet()
+let c = type(b)
+"
+    c == "set"
   );
 }
 
@@ -540,5 +594,22 @@ let g = symmetricDifference(c, d) >> size()
     e == 1
     f == 2
     g == 2
+  );
+
+  bang_test!(to_list
+"
+from set import { set, toList }
+from list import { length }
+
+let a = set(1, 2, 3) >> toList()
+let b = type(a)
+let c = length(a)
+
+let d = set(1,2,1) >> toList()
+let e = length(d)
+"
+    b == "list"
+    c == 3
+    e == 2
   );
 }
