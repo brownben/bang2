@@ -83,16 +83,11 @@ macro_rules! comparison_expression {
 
     if left.is_number() && right.is_number() {
       $vm.push(Value::from(left.as_number() $token right.as_number()));
-    } else if left.is_object() && right.is_object() {
-      if let Object::String(left) = &*left.as_object() {
-        if let Object::String(right) = &*right.as_object(){
-          $vm.push(Value::from(left $token right));
-        } else {
-          break runtime_error!(($vm, $chunk, $ip), "Operands must be two numbers or two strings.");
-        }
-      } else {
-        break runtime_error!(($vm, $chunk, $ip), "Operands must be two numbers or two strings.");
-      }
+    } else if left.is_object() && right.is_object()
+      && let Object::String(left) = &*left.as_object()
+      && let Object::String(right) = &*right.as_object()
+    {
+      $vm.push(Value::from(left $token right));
     } else {
       break runtime_error!(($vm, $chunk, $ip), "Operands must be two numbers or two strings.");
     }
@@ -206,24 +201,13 @@ impl VM {
 
           if left.is_number() && right.is_number() {
             self.push(Value::from(left.as_number() + right.as_number()));
-          } else if left.is_object() && right.is_object() {
-            if let Object::String(left) = &*left.as_object() {
-              if let Object::String(right) = &*right.as_object() {
-                let mut new = left.clone();
-                new.push_str(right);
-                self.push(Value::from(new));
-              } else {
-                break runtime_error!(
-                  (self, chunk, ip),
-                  "Operands must be two numbers or two strings."
-                );
-              }
-            } else {
-              break runtime_error!(
-                (self, chunk, ip),
-                "Operands must be two numbers or two strings."
-              );
-            }
+          } else if left.is_object() && right.is_object()
+            && let Object::String(left) = &*left.as_object()
+            && let Object::String(right) = &*right.as_object()
+          {
+            let mut new = left.clone();
+            new.push_str(right);
+            self.push(Value::from(new));
           } else {
             break runtime_error!(
               (self, chunk, ip),

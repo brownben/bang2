@@ -204,15 +204,13 @@ impl<'s, 'c> Compiler<'s, 'c> {
       .collect();
 
     for constant in &mut chunk.constants.iter_mut() {
-      if constant.is_object() {
-        if let Object::Function(func) = &*constant.as_object() {
-          *constant = Value::from(Function {
-            name: func.name.clone(),
-            arity: func.arity,
-            start: chunk_locations[func.start],
-            upvalues: func.upvalues.clone(),
-          });
-        }
+      if constant.is_object() && let Object::Function(func) = &*constant.as_object() {
+        *constant = Value::from(Function {
+          name: func.name.clone(),
+          arity: func.arity,
+          start: chunk_locations[func.start],
+          upvalues: func.upvalues.clone(),
+        });
       };
     }
 
