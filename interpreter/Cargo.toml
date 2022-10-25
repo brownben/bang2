@@ -1,7 +1,18 @@
 [package]
 name = "bang-interpreter"
-version = "0.1.0"
-edition = "2021"
+description = "Bytecode interpreter for the Bang language"
+
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+edition.workspace = true
+
+[features]
+debug = []
 
 [dependencies]
 ahash = "0.7.6"
@@ -11,6 +22,3 @@ smartstring = "1"
 
 [dev-dependencies]
 bang-std = { path = "../std" }
-
-[features]
-debug = []

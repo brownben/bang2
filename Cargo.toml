@@ -6,3 +6,13 @@ members = [
   "syntax",
   "tools",
 ]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Ben Brown"]
+license = "MIT"
+repository = "https://github.com/brownben/bang2"
+readme = "../README.md"
+categories = ["compilers"]
+keywords = ["interpreter", "language"]
+edition = "2021"

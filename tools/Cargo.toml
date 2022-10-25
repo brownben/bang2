@@ -1,7 +1,15 @@
 [package]
 name = "bang-tools"
-version = "0.1.0"
-edition = "2021"
+description = "Linter, formatter and typechecker for the Bang language"
+
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme.workspace = true
+categories.workspace = true
+keywords.workspace = true
+edition.workspace = true
 
 [dependencies]
 bang-syntax = { path = "../syntax" }
