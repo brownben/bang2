@@ -1,8 +1,8 @@
-use super::{Diagnostic, LintRule};
+use super::{lint_rule, Diagnostic, LintRule, Visitor};
 use bang_syntax::ast::{
   expression::{Expr, Expression},
   statement::{DeclarationIdentifier, Statement, Stmt},
-  Span, Visitor,
+  Span,
 };
 
 struct Variable {

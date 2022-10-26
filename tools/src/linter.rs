@@ -1,12 +1,18 @@
+mod constant_condition;
+mod side_effects;
+mod unused_variables;
+mod visitor;
+
 use bang_syntax::{
   ast::{
     expression::{BinaryOperator, Expr, Expression},
     statement::{Statement, Stmt},
-    Span, Visitor,
+    Span,
   },
   Diagnostic as ParserDiagnostic, LineNumber, Parser,
 };
 use std::{error, fmt};
+use visitor::Visitor;
 
 trait LintRule {
   fn check(source: &str, ast: &[Statement]) -> Diagnostic;
@@ -47,7 +53,6 @@ impl From<ParserDiagnostic> for Diagnostic {
   }
 }
 
-#[macro_export]
 macro_rules! lint_rule {
   {
     name: $rule_name:ident;
@@ -105,24 +110,7 @@ macro_rules! lint_rule {
     impl Visitor for $rule_name $visitor
   }
 }
-
-lint_rule! {
-  name: NoConstantCondition;
-  title: "No Constant Conditions";
-  message: "The control flow could be removed, as the condition is always true or false";
-  visitor: {
-    fn exit_statement(&mut self, statement: &Statement) {
-      match &statement.stmt {
-        Stmt::If { condition, .. } | Stmt::While { condition, .. } => {
-          if condition.expr.is_constant() {
-            self.issues.push(statement.span);
-          }
-        }
-        _ => {}
-      }
-    }
-  }
-}
+pub(crate) use lint_rule;
 
 lint_rule! {
   name: NoYodaEquality;
@@ -202,59 +190,15 @@ lint_rule! {
   }
 }
 
-fn expression_has_possible_side_effect(expression: &Expr) -> bool {
-  match expression {
-    Expr::Assignment { .. } | Expr::IndexAssignment { .. } | Expr::Call { .. } => true,
-    Expr::Function { .. }
-    | Expr::Literal { .. }
-    | Expr::Variable { .. }
-    | Expr::ModuleAccess { .. } => false,
-    Expr::Comment { expression, .. }
-    | Expr::Group { expression }
-    | Expr::Unary { expression, .. } => expression_has_possible_side_effect(&expression.expr),
-    Expr::Index { expression, index } => {
-      expression_has_possible_side_effect(&expression.expr)
-        || expression_has_possible_side_effect(&index.expr)
-    }
-    Expr::Binary { left, right, .. } => {
-      expression_has_possible_side_effect(&left.expr)
-        || expression_has_possible_side_effect(&right.expr)
-    }
-    Expr::List { items } => items
-      .iter()
-      .any(|expression| expression_has_possible_side_effect(&expression.expr)),
-    Expr::FormatString { expressions, .. } => expressions
-      .iter()
-      .any(|expression| expression_has_possible_side_effect(&expression.expr)),
-  }
-}
-
-lint_rule! {
-  name: NoSideEffectInIndex;
-  title: "No Side Effects in Index Assignment";
-  message: "Index can be evaluated in an unexpected order, don't have side effects";
-  visitor: {
-    fn exit_expression(&mut self, expression: &Expression) {
-      if let Expr::IndexAssignment { index, .. } = &expression.expr
-        && expression_has_possible_side_effect(&index.expr) {
-        self.issues.push(index.span);
-      }
-    }
-  }
-}
-
-mod unused_variables;
-pub use unused_variables::NoUnusedVariables;
-
 pub fn lint(source: &str, ast: &[Statement]) -> Vec<Diagnostic> {
   let mut results = vec![
-    NoConstantCondition::check(source, ast),
     NoYodaEquality::check(source, ast),
     NoNegativeZero::check(source, ast),
     NoSelfAssign::check(source, ast),
     NoUnreachable::check(source, ast),
-    NoSideEffectInIndex::check(source, ast),
-    NoUnusedVariables::check(source, ast),
+    constant_condition::NoConstantCondition::check(source, ast),
+    side_effects::NoSideEffectInIndex::check(source, ast),
+    unused_variables::NoUnusedVariables::check(source, ast),
   ];
 
   results.retain(|r| !r.lines.is_empty());

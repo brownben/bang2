@@ -89,32 +89,6 @@ pub enum Expr<'source> {
     name: &'source str,
   },
 }
-impl<'s> Expr<'s> {
-  pub fn is_constant(&self) -> bool {
-    match self {
-      Expr::Call { .. } | Expr::Variable { .. } => false,
-      Expr::Function { .. } | Expr::Literal { .. } | Expr::ModuleAccess { .. } => true,
-      Expr::Group { expression, .. }
-      | Expr::Unary { expression, .. }
-      | Expr::Assignment { expression, .. }
-      | Expr::Comment { expression, .. } => expression.expr.is_constant(),
-      Expr::Binary {
-        left,
-        right,
-        operator,
-        ..
-      } => {
-        left.expr.is_constant() && right.expr.is_constant() && *operator != BinaryOperator::Pipeline
-      }
-      Expr::List { items } => items.iter().all(|item| item.expr.is_constant()),
-      Expr::Index {
-        expression, index, ..
-      } => expression.expr.is_constant() && index.expr.is_constant(),
-      Expr::IndexAssignment { value, .. } => value.expr.is_constant(),
-      Expr::FormatString { expressions, .. } => expressions.iter().all(|e| e.expr.is_constant()),
-    }
-  }
-}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum LiteralType {
