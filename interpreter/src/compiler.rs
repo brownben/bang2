@@ -652,6 +652,11 @@ impl<'s, 'c> Compiler<'s, 'c> {
           self.emit_opcode(span, OpCode::Add);
         }
       }
+      Expr::ModuleAccess { module, item } => match self.context.get_value(module, item) {
+        ImportValue::Constant(value) => self.emit_constant(span, value),
+        ImportValue::ModuleNotFound => self.error(Error::ModuleNotFound, span, module),
+        ImportValue::ItemNotFound => self.error(Error::ItemNotFound, span, item),
+      },
     }
   }
 

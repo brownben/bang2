@@ -843,6 +843,15 @@ impl<'s> Typechecker<'s> {
 
         list_interior
       }
+      Expr::ModuleAccess { module, item } => get_builtin_module_type(self, module, item)
+        .unwrap_or_else(|| {
+          self.error(
+            Error::BuiltinNotFound,
+            format!("Couldn't find '{item}' in module '{module}'"),
+            span,
+          );
+          Type::Never
+        }),
     }
   }
 

@@ -77,6 +77,10 @@ pub enum Expr<'source> {
     type_: LiteralType,
     value: &'source str,
   },
+  ModuleAccess {
+    module: &'source str,
+    item: &'source str,
+  },
   Unary {
     operator: UnaryOperator,
     expression: Box<Expression<'source>>,
@@ -89,7 +93,7 @@ impl<'s> Expr<'s> {
   pub fn is_constant(&self) -> bool {
     match self {
       Expr::Call { .. } | Expr::Variable { .. } => false,
-      Expr::Function { .. } | Expr::Literal { .. } => true,
+      Expr::Function { .. } | Expr::Literal { .. } | Expr::ModuleAccess { .. } => true,
       Expr::Group { expression, .. }
       | Expr::Unary { expression, .. }
       | Expr::Assignment { expression, .. }

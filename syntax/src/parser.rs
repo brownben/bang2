@@ -85,6 +85,7 @@ enum Error {
   ExpectedImportKeyword,
   ExpectedType,
   ExpectedCatchAllLast,
+  ExpectedModuleItem,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -104,6 +105,7 @@ impl Error {
       Self::ExpectedImportKeyword => "Expected 'import' keyword",
       Self::ExpectedType => "Expected Type",
       Self::ExpectedCatchAllLast => "Expected Catch All Parameter To Be The Last",
+      Self::ExpectedModuleItem => "Expected Module Item to Import",
       Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
     }
   }
@@ -120,6 +122,7 @@ impl Error {
       | Self::ExpectedNewLine
       | Self::ExpectedIdentifier
       | Self::ExpectedImportKeyword
+      | Self::ExpectedModuleItem
       | Self::ExpectedType => format!("but recieved '{}'", token.get_value(source)),
       Self::UnexpectedCharacter => format!("Unknown character '{}'", token.get_value(source)),
       Self::UnterminatedString => {
@@ -846,6 +849,16 @@ impl<'source> Parser<'source> {
         },
         (identifier, expression.span)
       ))
+    } else if self.matches(TokenType::ColonColon) {
+      let item = self.consume(TokenType::Identifier, Error::ExpectedModuleItem)?;
+
+      Ok(expression!(
+        ModuleAccess {
+          module: identifier.get_value(self.source),
+          item: item.get_value(self.source)
+        },
+        identifier
+      ))
     } else {
       Ok(expression!(
         Variable {
@@ -1483,5 +1496,16 @@ from maths import { sin }";
     assert!(super::parse("let a: number").is_ok());
 
     assert!(super::parse("let a: (null").is_err());
+  }
+
+  #[test]
+  fn should_parse_module_access() {
+    assert!(super::parse("maths::PI").is_ok());
+    assert!(super::parse("maths::sin(7)").is_ok());
+
+    assert!(super::parse("(maths)::sin").is_err());
+    assert!(super::parse("::sin").is_err());
+    assert!(super::parse("maths::").is_err());
+    assert!(super::parse("(x + 4)::max").is_err());
   }
 }

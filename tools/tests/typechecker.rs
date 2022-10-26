@@ -158,6 +158,9 @@ let a: (number) -> number = sin
   assert_fails!("from maths import { unknown }");
   assert_fails!("from list import { unknown }");
   assert_fails!("from unknown import { unknown }");
+
+  assert_correct!("let a: (number, number) -> number = maths::pow");
+  assert_fails!("let a = maths::x");
 }
 
 mod variables {

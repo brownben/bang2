@@ -159,6 +159,9 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
         }
       }
     }
+    Expr::ModuleAccess { module, item } => {
+      println!("{prefix}Module Access ({module}::{item})");
+    }
   }
 }
 

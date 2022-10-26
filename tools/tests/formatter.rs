@@ -520,3 +520,9 @@ fn format_string() {
   assert_format!("call('${7} world')");
   assert_format!("'hello ${7} world ${false}!'");
 }
+
+#[test]
+fn module_access() {
+  assert_format!("maths::sin(7)");
+  assert_format!("maths :: sin ( 6 )", "maths::sin(6)");
+}

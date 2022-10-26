@@ -119,7 +119,6 @@ pub trait Visitor {
         expressions,
       } => expressions.iter().for_each(|e| self.visit_expression(e)),
       Expr::Function { body, .. } => self.visit_statement(body),
-      Expr::Literal { .. } | Expr::Variable { .. } => {}
       Expr::List { items } => items.iter().for_each(|item| self.visit_expression(item)),
       Expr::Index { expression, index } => {
         self.visit_expression(expression);
@@ -135,6 +134,7 @@ pub trait Visitor {
         self.visit_expression(index);
         self.visit_expression(value);
       }
+      Expr::Literal { .. } | Expr::Variable { .. } | Expr::ModuleAccess { .. } => {}
     }
 
     self.exit_expression(expression);

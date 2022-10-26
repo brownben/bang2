@@ -311,6 +311,9 @@ impl<'source> Formatter<'source> {
           LiteralType::Null => write!(f, "null")?,
         };
       }
+      Expr::ModuleAccess { module, item } => {
+        write!(f, "{module}::{item}")?;
+      }
       Expr::Unary {
         operator,
         expression,

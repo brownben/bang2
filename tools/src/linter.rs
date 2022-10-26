@@ -205,7 +205,10 @@ lint_rule! {
 fn expression_has_possible_side_effect(expression: &Expr) -> bool {
   match expression {
     Expr::Assignment { .. } | Expr::IndexAssignment { .. } | Expr::Call { .. } => true,
-    Expr::Function { .. } | Expr::Literal { .. } | Expr::Variable { .. } => false,
+    Expr::Function { .. }
+    | Expr::Literal { .. }
+    | Expr::Variable { .. }
+    | Expr::ModuleAccess { .. } => false,
     Expr::Comment { expression, .. }
     | Expr::Group { expression }
     | Expr::Unary { expression, .. } => expression_has_possible_side_effect(&expression.expr),

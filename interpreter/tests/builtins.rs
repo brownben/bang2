@@ -65,6 +65,25 @@ let squareRootIsFunction = type(squareRoot) == 'function'
   squareRootIsFunction == true
 );
 
+bang_test!(unknown_module_access
+  "unknown_module::stuff"
+  CompileError
+);
+
+bang_test!(unknown_module_item
+  "maths::item"
+  CompileError
+);
+
+bang_test!(module_access
+  "
+let a = maths::cos(0)
+let b = '${list::push}'
+  "
+  a == 1
+  b == "<function push>"
+);
+
 mod maths {
   use super::*;
 

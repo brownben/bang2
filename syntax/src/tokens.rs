@@ -19,6 +19,7 @@ pub enum TokenType {
   Comma,
   Dot,
   Colon,
+  ColonColon,
   RightArrow,
   FatRightArrow,
   DotDot,
@@ -229,6 +230,7 @@ impl<'source> Tokeniser<'source> {
       (b'?', b'?') => Some(TokenType::QuestionQuestion),
       (b'>', b'>') => Some(TokenType::RightRight),
       (b'.', b'.') => Some(TokenType::DotDot),
+      (b':', b':') => Some(TokenType::ColonColon),
       _ => None,
     }
   }
