@@ -140,3 +140,66 @@ let a = x(44)
 "
   a == 7
 );
+
+bang_test!(higher_scope_manual
+"
+let a = () ->
+  let alpha = 77
+
+  let b = () ->
+    let alpha = alpha
+    return () => alpha
+
+  return b
+
+let x = a()()()
+"
+  x == 77
+);
+
+bang_test!(higher_scope
+"
+let a = () ->
+  let alpha = 77
+
+  let b = () ->
+    let c = () => alpha
+    return c
+
+  return b
+
+let x = a()()()
+"
+  x == 77
+);
+
+bang_test!(set_higher_scope
+"
+let a = () ->
+  let alpha = 77
+
+  let b = () => () => alpha = 5
+  b()()
+
+  return alpha
+
+let x = a()
+"
+  x == 5
+);
+
+bang_test!(double_reference
+"
+let a = () ->
+  let alpha = 8
+
+  let b = () ->
+    let c = () => alpha + alpha
+    return c
+
+  return b
+
+let x = a()()()
+"
+x == 16
+);

@@ -3,7 +3,7 @@ use crate::{
   context::Context,
   value::{
     indexing::{GetResult, Index, SetResult},
-    Closure, Object, Value,
+    Closure, ClosureKind, Object, Value,
   },
 };
 use ahash::AHashMap as HashMap;
@@ -473,25 +473,23 @@ impl VM {
         OpCode::Closure => {
           let value = self.pop();
 
-          if !value.is_object() {
-            break runtime_error!((self, chunk, ip), "Can only close over functions");
-          }
-
-          if let Object::Function(func) = &*value.as_object() {
+          if value.is_object() && let Object::Function(func) = &*value.as_object() {
             let upvalues = func
               .upvalues
               .iter()
-              .map(|(local, closed)| {
-                let local = &mut self.stack[offset + usize::from(*local)];
-
-                if *closed {
-                  return memory_address_from_f64(local.as_number());
+              .map(|(index, closed)| match closed {
+                ClosureKind::Open => {
+                  let local = &mut self.stack[offset + usize::from(*index)];
+                  let memory_location = self.memory.len();
+                  self.memory.push(local.clone());
+                  *local = Value::from(memory_address_to_f64(memory_location));
+                  memory_location
                 }
-
-                let memory_location = self.memory.len();
-                self.memory.push(local.clone());
-                *local = Value::from(memory_address_to_f64(memory_location));
-                memory_location
+                ClosureKind::Closed => {
+                  let local = &self.stack[offset + usize::from(*index)];
+                  memory_address_from_f64(local.as_number())
+                }
+                ClosureKind::Upvalue => self.peek_frame().upvalues[*index as usize],
               })
               .collect();
 

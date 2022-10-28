@@ -1,7 +1,7 @@
 use crate::{
   chunk::{Builder as ChunkBuilder, Chunk, OpCode},
   context::{Context, ImportValue},
-  value::{Arity, Function, Object, Value},
+  value::{Arity, ClosureKind, Function, Object, Value},
 };
 use bang_syntax::{
   ast::{
@@ -80,7 +80,7 @@ struct Compiler<'s, 'c> {
   context: &'c dyn Context,
 
   locals: Vec<Vec<Local<'s>>>,
-  closures: Vec<SmallVec<[(u8, bool); 8]>>,
+  closures: Vec<SmallVec<[(u8, ClosureKind); 8]>>,
   scope_depth: u8,
 
   chunk: ChunkBuilder,
@@ -456,25 +456,35 @@ impl<'s, 'c> Compiler<'s, 'c> {
           return;
         }
 
-        let previous_scope_index = self.locals.len().saturating_sub(2);
-        if previous_scope_index > 0
-          && let locals = &self.locals[previous_scope_index]
-          && let Some(index) = locals.iter().rposition(|local| local.name == *identifier)
+        if let Some((scope_index, local_index)) = self
+          .locals
+          .iter()
+          .enumerate()
+          .rev()
+          .skip(1)
+          .find_map(|(scope_index, locals)| {
+            locals
+              .iter()
+              .rposition(|local| local.name == *identifier)
+              .map(|local_index| (scope_index, local_index))
+          })
         {
-          let local = &mut self.locals[previous_scope_index][index];
-          let previously_closed = mem::replace(&mut local.closed, true);
-          let closures = self
-            .closures
-            .last_mut()
-            .expect("Closure stack to have item");
-          let upvalue_index = closures
-            .iter()
-            .rposition(|(i, _)| usize::from(*i) == index)
-            .unwrap_or_else(|| {
-              let index = closures.len();
-              closures.push((u8::try_from(index).unwrap_or(0), previously_closed));
-              index
-            });
+          let closure_kind =
+            mem::replace(&mut self.locals[scope_index][local_index].closed, true).into();
+
+          let (upvalue_index, _) = self.closures.iter_mut().skip(scope_index).fold(
+            (local_index, closure_kind),
+            |(index, closure_kind), closures| {
+              let index = closures
+                .iter()
+                .rposition(|(i, _)| usize::from(*i) == index)
+                .unwrap_or_else(|| {
+                  closures.push((u8::try_from(index).unwrap_or(0), closure_kind));
+                  closures.len() - 1
+                });
+              (index, ClosureKind::Upvalue)
+            },
+          );
 
           self.emit_opcode(span, OpCode::SetUpvalue);
           self.emit_local_index(upvalue_index, span);
@@ -500,24 +510,35 @@ impl<'s, 'c> Compiler<'s, 'c> {
           return;
         }
 
-        let previous_scope_index = self.locals.len().saturating_sub(2);
-        if previous_scope_index > 0
-          && let locals = &self.locals[previous_scope_index]
-          && let Some(index) = locals.iter().rposition(|local| local.name == *name)
+        if let Some((scope_index, local_index)) = self
+          .locals
+          .iter()
+          .enumerate()
+          .rev()
+          .skip(1)
+          .find_map(|(scope_index, locals)| {
+            locals
+              .iter()
+              .rposition(|local| local.name == *name)
+              .map(|local_index| (scope_index, local_index))
+          })
         {
-          let local = &mut self.locals[previous_scope_index][index];
-          let previously_closed = mem::replace(&mut local.closed, true);
-          let closures = self
-            .closures
-            .last_mut()
-            .expect("Closure stack to have item");
-          let upvalue_index = closures
-            .iter()
-            .rposition(|(i, _)| usize::from(*i) == index)
-            .unwrap_or_else(|| {
-              closures.push((u8::try_from(index).unwrap_or(0), previously_closed));
-              closures.len() - 1
-            });
+          let closure_kind =
+            mem::replace(&mut self.locals[scope_index][local_index].closed, true).into();
+
+          let (upvalue_index, _) = self.closures.iter_mut().skip(scope_index).fold(
+            (local_index, closure_kind),
+            |(index, closure_kind), closures| {
+              let index = closures
+                .iter()
+                .rposition(|(i, _)| usize::from(*i) == index)
+                .unwrap_or_else(|| {
+                  closures.push((u8::try_from(index).unwrap_or(0), closure_kind));
+                  closures.len() - 1
+                });
+              (index, ClosureKind::Upvalue)
+            },
+          );
 
           self.emit_opcode(span, OpCode::GetUpvalue);
           self.emit_local_index(upvalue_index, span);

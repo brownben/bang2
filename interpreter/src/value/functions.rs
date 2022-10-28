@@ -37,12 +37,33 @@ impl From<u8> for Arity {
   }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum ClosureKind {
+  Open,
+  Closed,
+  Upvalue,
+}
+impl From<bool> for ClosureKind {
+  fn from(value: bool) -> Self {
+    if value {
+      Self::Closed
+    } else {
+      Self::Open
+    }
+  }
+}
+impl Default for ClosureKind {
+  fn default() -> Self {
+    Self::Closed
+  }
+}
+
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Function {
   pub name: String,
   pub arity: Arity,
   pub(crate) start: usize,
-  pub(crate) upvalues: SmallVec<[(u8, bool); 8]>,
+  pub(crate) upvalues: SmallVec<[(u8, ClosureKind); 8]>,
 }
 
 #[derive(Clone)]
