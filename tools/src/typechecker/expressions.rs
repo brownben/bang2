@@ -115,8 +115,9 @@ impl<'s> Typechecker<'s> {
       .map_or(false, |parameter| parameter.catch_remaining);
 
     self.scope.begin_scope();
+
     for (type_, param) in arg_types.iter().cloned().zip(parameters.iter()) {
-      self.scope.define(param.name, type_);
+      self.scope.define(param.name, type_, span)?;
     }
 
     let function = Type::Function(Function {
@@ -124,8 +125,9 @@ impl<'s> Typechecker<'s> {
       return_type: return_type.clone().into(),
       catch_all: has_catch_all_parameter,
     });
-    if let Some(name) = name {
-      self.scope.define(name, function.clone());
+
+    if let Some(name) = name && !self.scope.is_defined(name) {
+      self.scope.define(name, function.clone(), span)?;
     };
 
     let ty = if let StatementType::Returns(ty, _) = self.synthesize_statement(body)? {

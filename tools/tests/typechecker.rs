@@ -684,7 +684,7 @@ mod compound_structures {
   fn list_builtins() {
     assert_correct!(
       "
-  from list import { length, isEmpty, get, pop, length, push, includes, reverse }
+  from list import { length, isEmpty, get, pop, push, includes, reverse }
 
   let a: number? = [1, 2, 3] >> get(0)
   let b: number? = [1, 2, 3] >> pop()

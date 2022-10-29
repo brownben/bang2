@@ -40,7 +40,10 @@ impl<'s> Typechecker<'s> {
     let mut has_return = false;
     for statement in body {
       match self.synthesize_statement(statement)? {
-        ty @ StatementType::Returns(_, ReturnsLikelihood::Definite) => return Ok(ty),
+        ty @ StatementType::Returns(_, ReturnsLikelihood::Definite) => {
+          self.scope.end_scope();
+          return Ok(ty);
+        }
         StatementType::Returns(ty, ReturnsLikelihood::Possible) => {
           return_type = return_type.union(ty);
           has_return = true;
@@ -48,6 +51,8 @@ impl<'s> Typechecker<'s> {
         StatementType::NoReturn => {}
       };
     }
+
+    self.scope.end_scope();
 
     if has_return {
       Ok(StatementType::Returns(
@@ -84,7 +89,7 @@ impl<'s> Typechecker<'s> {
 
     match identifier {
       DeclarationIdentifier::Variable(identifier) => {
-        self.scope.define(identifier, annotation.clone());
+        self.scope.define(identifier, annotation.clone(), span)?;
 
         if annotation != ty {
           self.scope.update(identifier, ty);
@@ -95,7 +100,7 @@ impl<'s> Typechecker<'s> {
           for identifier in identifiers {
             self
               .scope
-              .define(identifier, Type::Literal(Literal::String));
+              .define(identifier, Type::Literal(Literal::String), span)?;
           }
         } else {
           let list_inner_type = self.context.new_existential();
@@ -103,7 +108,9 @@ impl<'s> Typechecker<'s> {
           self.assert_type(annotation, &list_type, span)?;
 
           for identifier in identifiers {
-            self.scope.define(identifier, list_inner_type.clone());
+            self
+              .scope
+              .define(identifier, list_inner_type.clone(), span)?;
           }
         }
       }
@@ -152,7 +159,9 @@ impl<'s> Typechecker<'s> {
     for item in items {
       match self.get_module_item(module, item.name) {
         ImportValue::Value(ty) => {
-          self.scope.define(item.alias.unwrap_or(item.name), ty);
+          self
+            .scope
+            .define(item.alias.unwrap_or(item.name), ty, item.span)?;
         }
         ImportValue::ModuleNotFound => {
           Err(Error::new(

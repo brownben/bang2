@@ -19,8 +19,10 @@ macro_rules! register_globals {
         &mut HashMap::new(),
       ).expect("annotation to be valid");
 
-      $typechecker.scope.define(stringify!($name), annotation);
+      $typechecker.scope.insert(stringify!($name), annotation);
     )*
+
+    $typechecker.scope.begin_scope();
   };
 }
 

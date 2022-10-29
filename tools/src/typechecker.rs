@@ -21,6 +21,7 @@ use std::{error, fmt};
 pub enum ErrorKind {
   UnknownType(String),
   UndefinedVariable(String),
+  VariableAlreadyDefined(String),
   ExpectedDifferentType(Type, Type),
   ImportItemNotFound(String),
   ImportModuleNotFound(String),
@@ -43,6 +44,7 @@ impl Error {
     match self.kind {
       ErrorKind::UnknownType(_) => "Unknown Type",
       ErrorKind::UndefinedVariable(_) => "Undefined Variable",
+      ErrorKind::VariableAlreadyDefined(_) => "Variable Already Defined",
       ErrorKind::ExpectedDifferentType(_, _) => "Expected Different Type",
       ErrorKind::ImportItemNotFound(_) => "Item Not Found In Module",
       ErrorKind::ImportModuleNotFound(_) => "Module Not Found",
@@ -56,6 +58,9 @@ impl Error {
     match &self.kind {
       ErrorKind::UnknownType(ty) => format!("Unknown type '{ty}'."),
       ErrorKind::UndefinedVariable(var) => format!("Undefined variable '{var}'."),
+      ErrorKind::VariableAlreadyDefined(var) => {
+        format!("Variable '{var}' has already been defined.")
+      }
       ErrorKind::ExpectedDifferentType(a, b) => {
         format!("Expected type '{b}' but recieved '{a}'.")
       }
@@ -94,7 +99,19 @@ struct Scope<'s> {
   depth: ScopeDepth,
 }
 impl<'s> Scope<'s> {
-  fn define(&mut self, name: &'s str, ty: Type) {
+  fn define(&mut self, name: &'s str, ty: Type, span: Span) -> Result<(), Error> {
+    if self.is_defined(name) {
+      Err(Error::new(
+        ErrorKind::VariableAlreadyDefined(name.to_string()),
+        span,
+      ))?;
+    }
+
+    self.insert(name, ty);
+
+    Ok(())
+  }
+  fn insert(&mut self, name: &'s str, ty: Type) {
     self.variables.push(Variable {
       name,
       ty,
@@ -118,6 +135,16 @@ impl<'s> Scope<'s> {
       .rfind(|variable| variable.name == name)
       .map(|variable| variable.ty.clone())
   }
+  fn is_defined(&self, name: &'s str) -> bool {
+    self
+      .variables
+      .iter()
+      .rfind(|variable| {
+        variable.name == name && variable.depth == self.depth && variable.initalization
+      })
+      .is_some()
+  }
+
   fn lookup_initialization(&self, name: &'s str) -> Option<Type> {
     self
       .variables
@@ -130,7 +157,7 @@ impl<'s> Scope<'s> {
     self.depth += 1;
   }
   fn end_scope(&mut self) {
-    while let Some(Variable { depth, .. }) = self.variables.last() && *depth == self.depth {
+    while let Some(last) = self.variables.last() && last.depth >= self.depth {
       self.variables.pop();
     }
     self.depth -= 1;
@@ -475,8 +502,8 @@ impl<'s> Typechecker<'s> {
       ty => Err(Error::new(ErrorKind::NotCallable(ty.clone()), span))?,
     };
 
-    self.context.end_scope();
     self.scope.end_scope();
+    self.context.end_scope();
 
     Ok(type_)
   }

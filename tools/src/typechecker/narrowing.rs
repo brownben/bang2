@@ -27,8 +27,8 @@ impl<'s> Typechecker<'s> {
 
     let ty = self.synthesize_statement(statement);
 
-    self.context.end_scope();
     self.scope.end_scope();
+    self.context.end_scope();
 
     ty
   }
