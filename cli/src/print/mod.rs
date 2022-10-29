@@ -8,6 +8,4 @@ fn remove_carriage_returns(value: &str) -> String {
 
 pub use ast::print as ast;
 pub use chunk::print as chunk;
-pub use diagnostics::runtime_error;
-pub use diagnostics::{error, error_message, typechecker_error};
-pub use diagnostics::{warning, warning_message};
+pub use diagnostics::{code_frame, error_message, warning_message};

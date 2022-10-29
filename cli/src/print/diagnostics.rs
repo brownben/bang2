@@ -1,7 +1,4 @@
-use super::remove_carriage_returns;
-use bang_interpreter::RuntimeError;
-use bang_syntax::{Diagnostic, LineNumber};
-use bang_tools::{LintDiagnostic, TypecheckError};
+use bang_syntax::LineNumber;
 
 fn red(text: &str) -> String {
   format!("\u{001b}[31m{text}\u{001b}[0m")
@@ -15,7 +12,7 @@ fn bold(text: &str) -> String {
   format!("\u{001b}[1m{text}\u{001b}[0m")
 }
 
-fn code_frame(file: &str, source: &str, line_number: LineNumber) {
+pub fn code_frame(file: &str, source: &str, line_number: LineNumber) {
   eprintln!("    ╭─[{file}]");
   if line_number > 2 {
     eprintln!("    ·");
@@ -35,41 +32,10 @@ fn code_frame(file: &str, source: &str, line_number: LineNumber) {
   eprintln!("────╯");
 }
 
-pub fn runtime_error(filename: &str, source: &str, error: RuntimeError) {
-  eprintln!("{} {}\n", bold(&red("Error:")), bold(&error.message),);
-
-  for line_number in error.lines {
-    code_frame(filename, source, line_number);
-  }
-}
-
 pub fn error_message(message: &str) {
   eprintln!("{} {}", bold(&red("Error:")), bold(message),);
 }
 
-pub fn error(filename: &str, source: &str, diagnostic: &Diagnostic) {
-  error_message(&diagnostic.title);
-  eprintln!("{}\n", remove_carriage_returns(&diagnostic.message));
-
-  code_frame(filename, source, diagnostic.line);
-}
-
-pub fn typechecker_error(filename: &str, source: &str, error: &TypecheckError) {
-  error_message(error.get_title());
-  eprintln!("{}\n", error.get_description());
-
-  code_frame(filename, source, error.span.get_line_number(source));
-}
-
 pub fn warning_message(message: &str) {
   eprintln!("{} {}", bold(&yellow("Warning:")), bold(message),);
-}
-
-pub fn warning(filename: &str, source: &str, diagnostic: LintDiagnostic) {
-  warning_message(&diagnostic.title);
-  eprintln!("{}\n", remove_carriage_returns(&diagnostic.message));
-
-  for line_number in diagnostic.lines {
-    code_frame(filename, source, line_number);
-  }
 }

@@ -84,7 +84,12 @@ fn run_command(app: &clap::ArgMatches) -> Result<(), ()> {
       let ast = parse(filename, source)?;
 
       for diagnostic in bang::lint(source, &ast) {
-        print::warning(filename, source, diagnostic);
+        print::warning_message(&diagnostic.title);
+        eprintln!("{}\n", &diagnostic.message);
+
+        for line_number in diagnostic.lines {
+          print::code_frame(filename, source, line_number);
+        }
       }
     }
     Some(("typecheck", args)) => {
@@ -92,8 +97,10 @@ fn run_command(app: &clap::ArgMatches) -> Result<(), ()> {
       let source = &read_file(filename)?;
       let ast = parse(filename, source)?;
 
-      for diagnostic in bang::typecheck(&ast) {
-        print::typechecker_error(filename, source, &diagnostic);
+      for error in bang::typecheck(&ast) {
+        print::error_message(error.get_title());
+        eprintln!("{}\n", error.get_description());
+        print::code_frame(filename, source, error.span.get_line_number(source));
       }
     }
     Some(("format", args)) => {
@@ -160,7 +167,11 @@ fn repl() {
 
         if let Ok(chunk) = compile("REPL", &source) {
           if let Err(error) = vm.run(&chunk) {
-            print::runtime_error("REPL", &source, error);
+            print::error_message(&error.message);
+
+            for line_number in error.lines {
+              print::code_frame("REPL", &source, line_number);
+            }
           }
         }
       }
