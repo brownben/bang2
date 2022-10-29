@@ -92,10 +92,10 @@ impl NativeFunction {
 #[derive(Clone)]
 pub struct Closure {
   pub func: Function,
-  pub(crate) upvalues: SmallVec<[usize; 4]>,
+  pub(crate) upvalues: SmallVec<[Value; 4]>,
 }
 impl Closure {
-  pub fn new(func: Function, upvalues: SmallVec<[usize; 4]>) -> Self {
+  pub fn new(func: Function, upvalues: SmallVec<[Value; 4]>) -> Self {
     Self { func, upvalues }
   }
 }

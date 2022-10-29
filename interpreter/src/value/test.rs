@@ -9,6 +9,7 @@ fn null() {
   let null = Value::NULL;
   assert!(!null.is_number());
   assert!(!null.is_object());
+  assert!(!null.is_address());
 }
 
 #[test]
@@ -16,11 +17,15 @@ fn boolean() {
   let true_ = Value::TRUE;
   assert!(!true_.is_number());
   assert!(!true_.is_object());
+  assert!(!true_.is_address());
+
   assert_eq!(true_, Value::from(true));
 
   let false_ = Value::FALSE;
-  assert!(!true_.is_number());
-  assert!(!true_.is_object());
+  assert!(!false_.is_number());
+  assert!(!false_.is_object());
+  assert!(!false_.is_address());
+
   assert_eq!(false_, Value::from(false));
 }
 
@@ -30,22 +35,26 @@ fn number() {
     let num = Value::from(number);
     assert!(num.is_number());
     assert!(!num.is_object());
+    assert!(!num.is_address());
     assert_eq!(num.as_number(), number)
   }
 
   let num = Value::from(f64::NAN);
   assert!(num.is_number());
   assert!(!num.is_object());
+  assert!(!num.is_address());
   assert!(num.as_number().is_nan());
 
   let num = Value::from(f64::INFINITY);
   assert!(num.is_number());
   assert!(!num.is_object());
+  assert!(!num.is_address());
   assert_eq!(num.as_number(), f64::INFINITY);
 
   let num = Value::from(f64::asin(55.0));
   assert!(num.is_number());
   assert!(!num.is_object());
+  assert!(!num.is_address());
   assert!(num.as_number().is_nan());
 }
 
@@ -54,6 +63,7 @@ fn objects() {
   let string = Value::from("hello");
   assert!(string.is_object());
   assert!(!string.is_number());
+  assert!(!string.is_address());
   assert_eq!(string.as_object(), Object::String("hello".into()).into());
 }
 

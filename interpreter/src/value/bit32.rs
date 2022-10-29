@@ -26,6 +26,16 @@ impl Value {
       mem::transmute(self.0)
     }
   }
+
+  pub fn address(address: usize) -> Self {
+    Self((IS_ADDRESS, ptr::invalid(address)))
+  }
+  pub fn is_address(&self) -> bool {
+    self.0 .0 == IS_ADDRESS
+  }
+  pub fn as_address(&self) -> usize {
+    self.0 .1.addr()
+  }
 }
 
 impl Clone for Value {
@@ -62,6 +72,7 @@ impl From<Rc<Object>> for Value {
 }
 
 const IS_PTR: usize = 0b1111_1111_1111_1111_1111_1111_1111_1110;
+const IS_ADDRESS: usize = 0b1111_1111_1111_1111_1111_1111_1111_1100;
 const IS_NUMBER: usize = 0b0111_1111_1111_1000_0000_0000_0000_0000;
 
 pub const TRUE: (usize, *const Object) =

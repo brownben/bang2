@@ -94,26 +94,10 @@ macro_rules! comparison_expression {
   };
 }
 
-fn memory_address_to_f64(address: usize) -> f64 {
-  #[cfg(target_pointer_width = "64")]
-  return f64::from_le_bytes(address.to_le_bytes());
-
-  #[cfg(target_pointer_width = "32")]
-  return f64::from_le_bytes(u64::try_from(address).unwrap().to_le_bytes());
-}
-
-fn memory_address_from_f64(value: f64) -> usize {
-  #[cfg(target_pointer_width = "64")]
-  return usize::from_le_bytes(value.to_le_bytes());
-
-  #[cfg(target_pointer_width = "32")]
-  return usize::try_from(u64::from_le_bytes(value.to_le_bytes())).unwrap();
-}
-
 struct CallFrame {
   ip: usize,
   offset: usize,
-  upvalues: SmallVec<[usize; 4]>,
+  upvalues: SmallVec<[Value; 4]>,
 }
 
 pub struct VM {
@@ -131,7 +115,7 @@ impl VM {
   }
 
   #[inline]
-  fn store_frame(&mut self, ip: usize, offset: usize, upvalues: SmallVec<[usize; 4]>) {
+  fn store_frame(&mut self, ip: usize, offset: usize, upvalues: SmallVec<[Value; 4]>) {
     self.frames.push(CallFrame {
       ip,
       offset,
@@ -480,16 +464,15 @@ impl VM {
               .map(|(index, closed)| match closed {
                 ClosureKind::Open => {
                   let local = &mut self.stack[offset + usize::from(*index)];
-                  let memory_location = self.memory.len();
+                  let memory_location = Value::address(self.memory.len());
                   self.memory.push(local.clone());
-                  *local = Value::from(memory_address_to_f64(memory_location));
+                  *local = memory_location.clone();
                   memory_location
                 }
                 ClosureKind::Closed => {
-                  let local = &self.stack[offset + usize::from(*index)];
-                  memory_address_from_f64(local.as_number())
+                  self.stack[offset + usize::from(*index)].clone()
                 }
-                ClosureKind::Upvalue => self.peek_frame().upvalues[*index as usize],
+                ClosureKind::Upvalue => self.peek_frame().upvalues[*index as usize].clone(),
               })
               .collect();
 
@@ -502,7 +485,7 @@ impl VM {
         }
         OpCode::GetUpvalue => {
           let upvalue = chunk.get_value(ip + 1);
-          let address = self.peek_frame().upvalues[upvalue as usize];
+          let address = self.peek_frame().upvalues[usize::from(upvalue)].as_address();
 
           self.push(self.memory[address].clone());
 
@@ -510,7 +493,7 @@ impl VM {
         }
         OpCode::SetUpvalue => {
           let upvalue = chunk.get_value(ip + 1);
-          let address = self.peek_frame().upvalues[upvalue as usize];
+          let address = self.peek_frame().upvalues[usize::from(upvalue)].as_address();
 
           self.memory[address] = self.peek().clone();
 
@@ -518,8 +501,7 @@ impl VM {
         }
         OpCode::GetUpvalueFromLocal => {
           let slot = chunk.get_value(ip + 1);
-          let number = self.stack[offset + usize::from(slot)].as_number();
-          let address = memory_address_from_f64(number);
+          let address = self.stack[offset + usize::from(slot)].as_address();
 
           self.push(self.memory[address].clone());
 
@@ -527,8 +509,7 @@ impl VM {
         }
         OpCode::SetUpvalueFromLocal => {
           let slot = chunk.get_value(ip + 1);
-          let number = self.stack[offset + usize::from(slot)].as_number();
-          let address = memory_address_from_f64(number);
+          let address = self.stack[offset + usize::from(slot)].as_address();
 
           self.memory[address] = self.peek().clone();
 

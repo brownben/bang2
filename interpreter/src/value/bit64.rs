@@ -23,6 +23,18 @@ impl Value {
   pub fn as_number(&self) -> f64 {
     unsafe { mem::transmute(self.0) }
   }
+
+  pub fn address(address: usize) -> Self {
+    assert!(address < u32::MAX as usize);
+    Self(ptr::invalid((address << 4) | TO_STORED_ADDRESS))
+  }
+  pub fn is_address(&self) -> bool {
+    (self.0.addr() & TO_STORED_ADDRESS) == TO_STORED_ADDRESS
+  }
+  pub fn as_address(&self) -> usize {
+    let address = self.0.addr() & FROM_STORED_ADDRESS;
+    address >> 4
+  }
 }
 
 impl Clone for Value {
@@ -66,6 +78,10 @@ const FROM_STORED: usize =
   0b0000_0000_0000_0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1000;
 const IS_NUMBER: usize =
   0b0111_1111_1111_1100_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000;
+const TO_STORED_ADDRESS: usize =
+  0b1111_1111_1111_1111_1111_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0011;
+const FROM_STORED_ADDRESS: usize =
+  0b0000_0000_0000_0000_0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1100;
 
 pub const TRUE: *const Object =
   ptr::invalid(0b1111_1111_1111_1101_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000);
