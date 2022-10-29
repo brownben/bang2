@@ -1,6 +1,5 @@
 #![feature(let_chains)]
 
-mod builtins;
 mod formatter;
 mod linter;
 mod typechecker;
@@ -12,4 +11,4 @@ pub use linter::{lint, Diagnostic as LintDiagnostic};
 pub use formatter::format;
 
 // Typecheck the code
-pub use typechecker::typecheck;
+pub use typechecker::{typecheck, Error as TypecheckError};

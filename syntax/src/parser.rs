@@ -74,6 +74,7 @@ enum Error {
   ExpectedOpeningBrace,
   ExpectedClosingBrace,
   ExpectedClosingSquare,
+  ExpectedClosingAngle,
   ExpectedExpression,
   ExpectedFunctionArrow,
   ExpectedNewLine,
@@ -95,6 +96,7 @@ impl Error {
       Self::ExpectedOpeningBrace => "Expected '{'",
       Self::ExpectedClosingBrace => "Expected '}'",
       Self::ExpectedClosingSquare => "Expected ']'",
+      Self::ExpectedClosingAngle => "Expected '>'",
       Self::ExpectedExpression => "Expected Expression",
       Self::ExpectedFunctionArrow => "Expected Function Arrow (-> / =>)",
       Self::ExpectedNewLine => "Expected New Line",
@@ -117,6 +119,7 @@ impl Error {
       | Self::ExpectedOpeningBrace
       | Self::ExpectedClosingBrace
       | Self::ExpectedClosingSquare
+      | Self::ExpectedClosingAngle
       | Self::ExpectedExpression
       | Self::ExpectedFunctionArrow
       | Self::ExpectedNewLine
@@ -986,6 +989,7 @@ impl<'source> Parser<'source> {
     let token = self.current;
 
     let mut t = match token.ttype {
+      TokenType::Less => self.type_generic(),
       TokenType::Identifier | TokenType::Null | TokenType::True | TokenType::False => {
         self.next();
         Ok(types!(Named(token.get_value(self.source)), token))
@@ -1055,6 +1059,40 @@ impl<'source> Parser<'source> {
     }
   }
 
+  fn type_generic(&mut self) -> TypeResult<'source> {
+    let opening_bracket = self.current_advance();
+
+    if self.matches(TokenType::Greater) {
+      Err(Error::ExpectedIdentifier)?;
+    }
+
+    let mut generics = Vec::new();
+    loop {
+      if self.matches(TokenType::Greater) {
+        break;
+      }
+
+      let g = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+      generics.push(g.get_value(self.source));
+
+      match self.current.ttype {
+        TokenType::Comma => self.next(),
+        TokenType::Greater => {
+          self.next();
+          break;
+        }
+        _ => Err(Error::ExpectedClosingAngle)?,
+      };
+    }
+
+    let type_ = self.types()?;
+
+    Ok(types!(
+      WithGeneric(generics, Box::new(type_)),
+      (opening_bracket, self.current)
+    ))
+  }
+
   fn type_function(
     &mut self,
     start_token: Token,
@@ -1120,6 +1158,20 @@ impl<'source> Iterator for Parser<'source> {
 
 pub fn parse(source: &str) -> Result<Vec<Statement>, Diagnostic> {
   Parser::new(source).collect()
+}
+
+pub fn parse_type(source: &str) -> Result<TypeExpression, Diagnostic> {
+  let mut parser = Parser::new(source);
+
+  parser.types().map_err(|err| {
+    let last_token = if parser.current.ttype == TokenType::EndOfFile {
+      parser.previous
+    } else {
+      parser.current
+    };
+
+    err.get_diagnostic(str::from_utf8(source.as_bytes()).unwrap(), last_token)
+  })
 }
 
 #[cfg(test)]
@@ -1496,6 +1548,17 @@ from maths import { sin }";
     assert!(super::parse("let a: number").is_ok());
 
     assert!(super::parse("let a: (null").is_err());
+  }
+
+  #[test]
+  fn should_parse_type_generics() {
+    assert!(super::parse("let a: <T>(T) -> T").is_ok());
+    assert!(super::parse("let a: <T>number").is_ok());
+    assert!(super::parse("let a: <T, S, G>() -> null").is_ok());
+    assert!(super::parse("let a: <T, S, G,>() -> null").is_ok());
+
+    assert!(super::parse("let a: <>() -> null").is_err());
+    assert!(super::parse("let a: <null>() -> null").is_err());
   }
 
   #[test]

@@ -92,8 +92,8 @@ fn run_command(app: &clap::ArgMatches) -> Result<(), ()> {
       let source = &read_file(filename)?;
       let ast = parse(filename, source)?;
 
-      for diagnostic in bang::typecheck(source, &ast) {
-        print::error(filename, source, &diagnostic);
+      for diagnostic in bang::typecheck(&ast) {
+        print::typechecker_error(filename, source, &diagnostic);
       }
     }
     Some(("format", args)) => {

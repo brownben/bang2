@@ -146,6 +146,10 @@ impl<'source> Formatter<'source> {
         Self::fmt_type(type_, f)?;
         write!(f, "[]")?;
       }
+      Type::WithGeneric(generics, type_) => {
+        write!(f, "<{}>", generics.join(", "))?;
+        Self::fmt_type(type_, f)?;
+      }
     }
 
     Ok(())

@@ -483,6 +483,10 @@ fn types() {
   assert_format!("let e: (string) -> number");
   assert_format!("let e: (string,) -> number", "let e: (string) -> number");
   assert_format!("let f: (string, number) -> number");
+  assert_format!(
+    "let f: < T, D > (string, number) -> number",
+    "let f: <T, D>(string, number) -> number"
+  );
 }
 
 #[test]

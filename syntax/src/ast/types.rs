@@ -14,6 +14,7 @@ pub enum Type<'s> {
   Optional(Box<TypeExpression<'s>>),
   Group(Box<TypeExpression<'s>>),
   List(Box<TypeExpression<'s>>),
+  WithGeneric(Vec<&'s str>, Box<TypeExpression<'s>>),
 }
 
 macro_rules! types {

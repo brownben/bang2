@@ -1,7 +1,7 @@
 use super::remove_carriage_returns;
 use bang_interpreter::RuntimeError;
 use bang_syntax::{Diagnostic, LineNumber};
-use bang_tools::LintDiagnostic;
+use bang_tools::{LintDiagnostic, TypecheckError};
 
 fn red(text: &str) -> String {
   format!("\u{001b}[31m{text}\u{001b}[0m")
@@ -52,6 +52,13 @@ pub fn error(filename: &str, source: &str, diagnostic: &Diagnostic) {
   eprintln!("{}\n", remove_carriage_returns(&diagnostic.message));
 
   code_frame(filename, source, diagnostic.line);
+}
+
+pub fn typechecker_error(filename: &str, source: &str, error: &TypecheckError) {
+  error_message(error.get_title());
+  eprintln!("{}\n", error.get_description());
+
+  code_frame(filename, source, error.span.get_line_number(source));
 }
 
 pub fn warning_message(message: &str) {

@@ -4,7 +4,7 @@ use bang_tools::typecheck;
 macro_rules! assert_correct {
   ($source:expr) => {
     let ast = parse($source).unwrap();
-    let result = typecheck($source, &ast);
+    let result = typecheck(&ast);
 
     assert!(result.is_empty(), "{result:?}");
   };
@@ -13,7 +13,7 @@ macro_rules! assert_correct {
 macro_rules! assert_fails {
   ($source:expr) => {
     let ast = parse($source).unwrap();
-    let result = typecheck($source, &ast);
+    let result = typecheck(&ast);
 
     assert!(result.len() > 0, "Test Passes");
   };
@@ -72,6 +72,8 @@ if (b)
 let b: number = a
 "
   );
+
+  assert_fails!("while (true) 4");
 }
 
 #[test]
@@ -210,6 +212,9 @@ mod variables {
     assert_fails!("let a = 42\na = false\n");
     assert_fails!("let a = false\na = 42\n");
     assert_fails!("let a = 'hello'\na = 15\n");
+
+    assert_correct!("let a: number | null = 4\n let b: number = a");
+    assert_correct!("let a: number | null = 4\n a = null\n let b: null = a");
   }
 
   #[test]
@@ -386,21 +391,21 @@ mod functions {
     assert_correct!("let c: number = ((a: number, b: number) => a + b)(7, 8)");
     assert_correct!(
       "
-let not = (x: any) => !x
-let a: boolean = not(true)
-let b: boolean = not(false)
-let c: boolean = not(null)
-let d: boolean = not(3.5)
-      "
+    let not = (x: any) => !x
+    let a: boolean = not(true)
+    let b: boolean = not(false)
+    let c: boolean = not(null)
+    let d: boolean = not(3.5)
+          "
     );
     assert_correct!(
       "
-let not = (x) => !x
-let a: boolean = not(true)
-let b: boolean = not(false)
-let c: boolean = not(null)
-let d: boolean = not(3.5)
-      "
+    let not = (x) => !x
+    let a: boolean = not(true)
+    let b: boolean = not(false)
+    let c: boolean = not(null)
+    let d: boolean = not(3.5)
+          "
     );
     assert_correct!(
       "
@@ -492,6 +497,28 @@ let x = (n: number) ->
   let a = 7
 
 let a: null = x(6)
+"
+    );
+    assert_correct!(
+      "
+let x = (n) -> number | null | boolean | string
+  if (n == 'hello') return 5
+  if (n == 'hello') return null
+  if (n == 'hello') return false
+  else return ''
+
+let a: number | null | boolean | string = x('hi')
+"
+    );
+    assert_fails!(
+      "
+let x = (n) ->
+  if (n == 'hello') return 5
+  if (n == 'hello') return null
+  if (n == 'hello') return false
+  else return ''
+
+let a: number = x('hi')
 "
     );
     assert_fails!(
@@ -666,7 +693,7 @@ mod compound_structures {
   let e: number[] = [1, 2, 3] >> push(7)
   let f: (number[], number) -> boolean = includes
   let g: (number | string)[] = [1, 'hello', 3] >> reverse()
-  "
+"
     );
   }
 
