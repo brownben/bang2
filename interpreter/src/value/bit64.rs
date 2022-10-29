@@ -9,7 +9,7 @@ impl Value {
   pub const FALSE: Self = Self(FALSE);
 
   pub fn is_object(&self) -> bool {
-    (self.0.addr() & TO_STORED) == TO_STORED && self.0 != NULL
+    (self.0.addr() & TO_STORED) == TO_STORED
   }
   pub fn as_object(&self) -> Rc<Object> {
     let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED);
