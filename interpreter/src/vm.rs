@@ -104,7 +104,6 @@ pub struct VM {
   stack: Vec<Value>,
   frames: Vec<CallFrame>,
   globals: HashMap<Rc<str>, Value>,
-  memory: Vec<Value>,
 }
 
 impl VM {
@@ -464,10 +463,9 @@ impl VM {
               .map(|(index, closed)| match closed {
                 ClosureKind::Open => {
                   let local = &mut self.stack[offset + usize::from(*index)];
-                  let memory_location = Value::address(self.memory.len());
-                  self.memory.push(local.clone());
-                  *local = memory_location.clone();
-                  memory_location
+                  let allocated = local.clone().allocate();
+                  *local = allocated.clone();
+                  allocated
                 }
                 ClosureKind::Closed => {
                   self.stack[offset + usize::from(*index)].clone()
@@ -485,33 +483,33 @@ impl VM {
         }
         OpCode::GetUpvalue => {
           let upvalue = chunk.get_value(ip + 1);
-          let address = self.peek_frame().upvalues[usize::from(upvalue)].as_address();
+          let address = self.peek_frame().upvalues[usize::from(upvalue)].as_allocated();
 
-          self.push(self.memory[address].clone());
+          self.push(address.borrow().clone());
 
           ip += 2;
         }
         OpCode::SetUpvalue => {
           let upvalue = chunk.get_value(ip + 1);
-          let address = self.peek_frame().upvalues[usize::from(upvalue)].as_address();
+          let address = self.peek_frame().upvalues[usize::from(upvalue)].as_allocated();
 
-          self.memory[address] = self.peek().clone();
-
-          ip += 2;
-        }
-        OpCode::GetUpvalueFromLocal => {
-          let slot = chunk.get_value(ip + 1);
-          let address = self.stack[offset + usize::from(slot)].as_address();
-
-          self.push(self.memory[address].clone());
+          address.replace(self.peek().clone());
 
           ip += 2;
         }
-        OpCode::SetUpvalueFromLocal => {
+        OpCode::GetAllocated => {
           let slot = chunk.get_value(ip + 1);
-          let address = self.stack[offset + usize::from(slot)].as_address();
+          let address = self.stack[offset + usize::from(slot)].as_allocated();
 
-          self.memory[address] = self.peek().clone();
+          self.push(address.borrow().clone());
+
+          ip += 2;
+        }
+        OpCode::SetAllocated => {
+          let slot = chunk.get_value(ip + 1);
+          let address = self.stack[offset + usize::from(slot)].as_allocated();
+
+          address.replace(self.peek().clone());
 
           ip += 2;
         }
@@ -554,7 +552,6 @@ impl Default for VM {
       stack: Vec::with_capacity(64),
       frames: Vec::with_capacity(16),
       globals: HashMap::with_capacity(8),
-      memory: Vec::with_capacity(16),
     }
   }
 }

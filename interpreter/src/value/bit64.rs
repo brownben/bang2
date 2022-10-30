@@ -1,5 +1,5 @@
 pub use super::Object;
-use std::{mem, ptr, rc::Rc};
+use std::{cell::RefCell, mem, ptr, rc::Rc};
 
 pub struct Value(*const Object);
 
@@ -24,26 +24,41 @@ impl Value {
     unsafe { mem::transmute(self.0) }
   }
 
-  pub fn address(address: usize) -> Self {
-    assert!(address < u32::MAX as usize);
-    Self(ptr::invalid((address << 4) | TO_STORED_ADDRESS))
+  #[must_use]
+  pub fn allocate(self) -> Self {
+    let memory = Rc::new(RefCell::new(self));
+
+    let pointer = Rc::into_raw(memory);
+    let stored_pointer = pointer.map_addr(|ptr| ptr | TO_STORED_ADDRESS);
+
+    Self(stored_pointer.cast::<Object>())
   }
-  pub fn is_address(&self) -> bool {
+  pub fn is_allocated(&self) -> bool {
     (self.0.addr() & TO_STORED_ADDRESS) == TO_STORED_ADDRESS
   }
-  pub fn as_address(&self) -> usize {
-    let address = self.0.addr() & FROM_STORED_ADDRESS;
-    address >> 4
+  pub fn as_allocated(&self) -> Rc<RefCell<Self>> {
+    let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED_ADDRESS);
+    let pointer = pointer.cast::<RefCell<Self>>();
+
+    unsafe { Rc::increment_strong_count(pointer) };
+    unsafe { Rc::from_raw(pointer) }
   }
 }
 
 impl Clone for Value {
   fn clone(&self) -> Self {
     if self.is_object() {
-      Self::from(self.as_object())
-    } else {
-      Self(self.0)
+      let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED);
+
+      unsafe { Rc::increment_strong_count(pointer) };
+    } else if self.is_allocated() {
+      let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED_ADDRESS);
+      let pointer = pointer.cast::<RefCell<Self>>();
+
+      unsafe { Rc::increment_strong_count(pointer) };
     }
+
+    Self(self.0)
   }
 }
 
@@ -51,6 +66,12 @@ impl Drop for Value {
   fn drop(&mut self) {
     if self.is_object() {
       let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED);
+
+      unsafe { Rc::from_raw(pointer) };
+    } else if self.is_allocated() {
+      let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED_ADDRESS);
+      let pointer = pointer.cast::<RefCell<Self>>();
+
       unsafe { Rc::from_raw(pointer) };
     }
   }
@@ -73,15 +94,15 @@ impl From<Rc<Object>> for Value {
 const _ALIGNMENT_ASSERT: () = debug_assert!(std::mem::align_of::<Object>() >= 8);
 
 const TO_STORED: usize =
-  0b1111_1111_1111_1111_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0111;
+  0b1111_1111_1111_1111_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0101;
 const FROM_STORED: usize =
-  0b0000_0000_0000_0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1000;
+  0b0000_0000_0000_0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1010;
 const IS_NUMBER: usize =
   0b0111_1111_1111_1100_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000;
 const TO_STORED_ADDRESS: usize =
-  0b1111_1111_1111_1111_1111_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0011;
+  0b1111_1111_1111_1111_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0011;
 const FROM_STORED_ADDRESS: usize =
-  0b0000_0000_0000_0000_0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1100;
+  0b0000_0000_0000_0000_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1100;
 
 pub const TRUE: *const Object =
   ptr::invalid(0b1111_1111_1111_1101_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000);

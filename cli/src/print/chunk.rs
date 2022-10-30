@@ -62,8 +62,8 @@ fn disassemble_instruction(chunk: &Chunk, position: usize) -> usize {
     OpCode::Closure => simple_instruction("Closure", position),
     OpCode::GetUpvalue => byte_instruction("Get Upvalue", chunk, position),
     OpCode::SetUpvalue => byte_instruction("Set Upvalue", chunk, position),
-    OpCode::GetUpvalueFromLocal => byte_instruction("Get Upvalue from Local", chunk, position),
-    OpCode::SetUpvalueFromLocal => byte_instruction("Set Upvalue from Local", chunk, position),
+    OpCode::GetAllocated => byte_instruction("Get Upvalue from Local", chunk, position),
+    OpCode::SetAllocated => byte_instruction("Set Upvalue from Local", chunk, position),
     _ => simple_instruction("Unknown OpCode", position),
   }
 }

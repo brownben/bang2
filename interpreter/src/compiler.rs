@@ -447,7 +447,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
           let local = &locals[index];
 
           if local.closed {
-            self.emit_opcode(span, OpCode::SetUpvalueFromLocal);
+            self.emit_opcode(span, OpCode::SetAllocated);
           } else {
             self.emit_opcode(span, OpCode::SetLocal);
           }
@@ -501,7 +501,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
           let local = &locals[index];
 
           if local.closed {
-            self.emit_opcode(span, OpCode::GetUpvalueFromLocal);
+            self.emit_opcode(span, OpCode::GetAllocated);
           } else {
             self.emit_opcode(span, OpCode::GetLocal);
           }

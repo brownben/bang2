@@ -45,8 +45,8 @@ pub enum OpCode {
   Closure,
   GetUpvalue,
   SetUpvalue,
-  GetUpvalueFromLocal,
-  SetUpvalueFromLocal,
+  GetAllocated,
+  SetAllocated,
   Unknown,
 }
 
