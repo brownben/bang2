@@ -15,7 +15,7 @@ use bang_syntax::ast::{
   types::{Type as TypeItem, TypeExpression},
   Span,
 };
-use std::{error, fmt};
+use std::{error, fmt, mem};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ErrorKind {
@@ -234,22 +234,34 @@ impl<'s> Typechecker<'s> {
           annotation.span,
         ))?,
       },
+      TypeItem::Parameter(name, param) => match *name {
+        "set" => Type::Set(self.type_from_annotation(param, generics)?.into()),
+        "list" => Type::List(self.type_from_annotation(param, generics)?.into()),
+        ty => Err(Error::new(
+          ErrorKind::UnknownType(ty.to_string()),
+          annotation.span,
+        ))?,
+      },
       TypeItem::Union(a, b) => {
         let a = self.type_from_annotation(a, generics)?;
         let b = self.type_from_annotation(b, generics)?;
         a.union(b)
       }
-      TypeItem::Function(return_type, parameters) => {
+      TypeItem::Function(return_type, parameters, catch_all) => {
         let return_type = self.type_from_annotation(return_type, generics)?.into();
-        let parameters = parameters
+        let mut parameters: Vec<_> = parameters
           .iter()
           .map(|p| self.type_from_annotation(p, generics))
           .collect::<Result<_, _>>()?;
 
+        if *catch_all && let Some(param) = parameters.last_mut() {
+          *param = Type::List(mem::take(param).into());
+        }
+
         Type::Function(Function {
           parameters,
           return_type,
-          catch_all: false,
+          catch_all: *catch_all,
         })
       }
       TypeItem::Optional(ty) => {
@@ -312,7 +324,10 @@ impl<'s> Typechecker<'s> {
       Ok(a)
     } else {
       Err(Error::new(
-        ErrorKind::ExpectedDifferentType(a, b.clone()),
+        ErrorKind::ExpectedDifferentType(
+          a.apply_context(&self.context),
+          b.clone().apply_context(&self.context),
+        ),
         span,
       ))
     }
@@ -499,7 +514,10 @@ impl<'s> Typechecker<'s> {
 
         function.return_type.clone().apply_context(&self.context)
       }
-      ty => Err(Error::new(ErrorKind::NotCallable(ty.clone()), span))?,
+      ty => Err(Error::new(
+        ErrorKind::NotCallable(ty.clone().apply_context(&self.context)),
+        span,
+      ))?,
     };
 
     self.scope.end_scope();

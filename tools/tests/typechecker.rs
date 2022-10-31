@@ -767,10 +767,10 @@ mod varadic_arguments {
 
   #[test]
   fn catch_all_arguments_assert_type() {
-    assert_correct!("let a = (..x: number[]) => 7\na(1,2,3)");
-    assert_correct!("let a = (..x: number[]) => 7\na()");
-    assert_correct!("let a = (..x: number[]) => 7\na(1)");
-    assert_fails!("let a = (..x: number[]) => 7\na('')");
+    assert_correct!("let a = (..x: number) => 7\na(1,2,3)");
+    assert_correct!("let a = (..x: number) => 7\na()");
+    assert_correct!("let a = (..x: number) => 7\na(1)");
+    assert_fails!("let a = (..x: number) => 7\na('')");
   }
 
   #[test]
@@ -806,7 +806,7 @@ let b = a(1, 2, 3)
     assert_correct!(
       "
 from list import { length }
-let a = (x: number, ..catch: number[]) => 7
+let a = (x: number, ..catch: number) => 7
 let b = a(1, 2, 3)
 "
     );

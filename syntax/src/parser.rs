@@ -992,7 +992,12 @@ impl<'source> Parser<'source> {
       TokenType::Less => self.type_generic(),
       TokenType::Identifier | TokenType::Null | TokenType::True | TokenType::False => {
         self.next();
-        Ok(types!(Named(token.get_value(self.source)), token))
+
+        if self.matches(TokenType::LeftParen) {
+          self.type_param(token)
+        } else {
+          Ok(types!(Named(token.get_value(self.source)), token))
+        }
       }
       TokenType::LeftParen => self.type_group(),
       _ => Err(Error::ExpectedType),
@@ -1035,8 +1040,13 @@ impl<'source> Parser<'source> {
     let opening_bracket = self.current_advance();
 
     if self.matches(TokenType::RightParen) {
-      return self.type_function_body(opening_bracket, vec![]);
-    }
+      return self.type_function_body(opening_bracket, vec![], false);
+    } else if self.matches(TokenType::DotDot) {
+      let ty = self.types()?;
+      self.matches(TokenType::Comma);
+      self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+      return self.type_function_body(opening_bracket, vec![ty], true);
+    };
 
     let types = self.types()?;
 
@@ -1050,10 +1060,16 @@ impl<'source> Parser<'source> {
 
         match self.current.ttype {
           TokenType::RightArrow | TokenType::FatRightArrow => {
-            self.type_function_body(opening_bracket, vec![types])
+            self.type_function_body(opening_bracket, vec![types], false)
           }
           _ => Ok(types!(Group(Box::new(types)), (opening_bracket, end_token))),
         }
+      }
+      TokenType::DotDot => {
+        self.next();
+        let ty = self.types()?;
+        self.consume(TokenType::LeftParen, Error::ExpectedClosingBracket)?;
+        self.type_function_body(opening_bracket, vec![ty], true)
       }
       _ => Err(Error::ExpectedClosingBrace)?,
     }
@@ -1093,38 +1109,56 @@ impl<'source> Parser<'source> {
     ))
   }
 
+  fn type_param(&mut self, name: Token) -> TypeResult<'source> {
+    let param = self.types()?;
+    let end_token = self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
+
+    Ok(types!(
+      Parameter(name.get_value(self.source), Box::new(param)),
+      (name, end_token)
+    ))
+  }
+
   fn type_function(
     &mut self,
     start_token: Token,
     first_parameter: TypeExpression<'source>,
   ) -> TypeResult<'source> {
     let mut parameters = vec![first_parameter];
+    let mut catch_remaining = false;
     loop {
       if self.matches(TokenType::RightParen) {
         break;
       }
 
+      if self.matches(TokenType::DotDot) {
+        catch_remaining = true;
+      }
       parameters.push(self.types()?);
 
       if !self.matches(TokenType::Comma) {
         self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
         break;
+      } else if catch_remaining {
+        self.consume(TokenType::RightParen, Error::ExpectedCatchAllLast)?;
+        break;
       }
     }
 
-    self.type_function_body(start_token, parameters)
+    self.type_function_body(start_token, parameters, catch_remaining)
   }
 
   fn type_function_body(
     &mut self,
     start_token: Token,
     parameters: Vec<TypeExpression<'source>>,
+    catch_all: bool,
   ) -> TypeResult<'source> {
     self.consume(TokenType::RightArrow, Error::ExpectedFunctionArrow)?;
     let return_type = self.types()?;
 
     Ok(types!(
-      Function(Box::new(return_type), parameters),
+      Function(Box::new(return_type), parameters, catch_all),
       (start_token, self.current)
     ))
   }
@@ -1559,6 +1593,22 @@ from maths import { sin }";
 
     assert!(super::parse("let a: <>() -> null").is_err());
     assert!(super::parse("let a: <null>() -> null").is_err());
+
+    assert!(super::parse("let a: <T>(..T) -> T").is_ok());
+    assert!(super::parse("let a: <T>(..T -> T").is_err());
+    assert!(super::parse("let a: <T>(..T) T").is_err());
+  }
+
+  #[test]
+  fn should_parse_type_param() {
+    assert!(super::parse("let a: list(number)").is_ok());
+    assert!(super::parse("let a: list ( number ) ").is_ok());
+    assert!(super::parse("let a: set(number?)").is_ok());
+    assert!(super::parse("let a: magic(type | union)").is_ok());
+
+    assert!(super::parse("let a: list number) = 3").is_err());
+    assert!(super::parse("let a: list ()").is_err());
+    assert!(super::parse("let a: list (number").is_err());
   }
 
   #[test]

@@ -1,7 +1,4 @@
-use super::{
-  types::{Function, Literal},
-  Type, Typechecker,
-};
+use super::{Type, Typechecker};
 use ahash::AHashMap as HashMap;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -105,57 +102,23 @@ impl Typechecker<'_> {
         includes: "<T>(T[], T) -> boolean",
         reverse: "<T>(T[]) -> T[]",
         get: "<T>(T[], number) -> T?",
+        toSet: "<T>(T[]) -> set(T)",
       }),
-      "set" => {
-        fn set(value: Type) -> Type {
-          Type::Set(Box::new(value))
-        }
-        fn list(value: Type) -> Type {
-          Type::List(Box::new(value))
-        }
-        fn function(parameters: Vec<Type>, return_type: Type) -> ImportValue {
-          ImportValue::Value(Type::Function(Function {
-            parameters,
-            return_type: return_type.into(),
-            catch_all: false,
-          }))
-        }
-
-        match item {
-          "set" => {
-            let generic = self.context.new_existential();
-            ImportValue::Value(Type::Function(Function {
-              parameters: vec![list(generic.clone())],
-              return_type: set(generic).into(),
-              catch_all: true,
-            }))
-          }
-          "size" => {
-            let generic = self.context.new_existential();
-            function(vec![set(generic)], Type::Literal(Literal::Number))
-          }
-          "isEmpty" => {
-            let generic = self.context.new_existential();
-            function(vec![set(generic)], Type::boolean())
-          }
-          "insert" | "remove" | "includes" => {
-            let generic = self.context.new_existential();
-            function(vec![set(generic.clone()), generic], Type::boolean())
-          }
-          "isDisjoint" | "isSuperset" | "isSubset" => {
-            let generic = self.context.new_existential();
-            function(vec![set(generic.clone()), set(generic)], Type::boolean())
-          }
-          "union" | "difference" | "intersection" | "symmetricDifference" => {
-            let generic = self.context.new_existential();
-            function(
-              vec![set(generic.clone()), set(generic.clone())],
-              set(generic),
-            )
-          }
-          _ => ImportValue::ItemNotFound,
-        }
-      }
+      "set" => module!(item, self, {
+        set: "<T>(..T) -> set(T)",
+        size: "<T>(set(T)) -> number",
+        isEmpty: "<T>(set(T)) -> boolean",
+        insert: "<T>(set(T), T) -> boolean",
+        remove: "<T>(set(T), T) -> boolean",
+        includes: "<T>(set(T), T) -> boolean",
+        isDisjoint: "<T>(set(T), set(T)) -> boolean",
+        isSuperset: "<T>(set(T), set(T)) -> boolean",
+        isSubset: "<T>(set(T), set(T)) -> boolean",
+        union: "<T>(set(T), set(T)) -> set(T)",
+        difference: "<T>(set(T), set(T)) -> set(T)",
+        intersection: "<T>(set(T), set(T)) -> set(T)",
+        symmetricDifference: "<T>(set(T), set(T)) -> set(T)",
+      }),
       _ => ImportValue::ModuleNotFound,
     }
   }

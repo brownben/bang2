@@ -117,17 +117,27 @@ impl<'source> Formatter<'source> {
   fn fmt_type(t: &TypeExpression, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match &t.type_ {
       Type::Named(name) => write!(f, "{name}")?,
+      Type::Parameter(name, param) => {
+        write!(f, "{name}(")?;
+        Self::fmt_type(param, f)?;
+        write!(f, ")")?;
+      }
       Type::Union(a, b) => {
         Self::fmt_type(a, f)?;
         write!(f, " | ")?;
         Self::fmt_type(b, f)?;
       }
-      Type::Function(return_type, parameters) => {
+      Type::Function(return_type, parameters, catch_all) => {
         write!(f, "(")?;
         for (i, param) in parameters.iter().enumerate() {
-          Self::fmt_type(param, f)?;
           if i < parameters.len() - 1 {
+            Self::fmt_type(param, f)?;
             write!(f, ", ")?;
+          } else {
+            if *catch_all {
+              write!(f, "..")?;
+            }
+            Self::fmt_type(param, f)?;
           }
         }
         write!(f, ") -> ")?;
