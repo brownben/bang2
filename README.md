@@ -24,6 +24,41 @@ A quick walkthrough of the language can be found [here](/examples/syntax.bang).
 
 More examples can be found in the [/examples](./examples/) folder.
 
+### Usage
+
+```
+Usage: bang.exe [COMMAND]
+
+Commands:
+             Open a REPL
+  run        Execute a Bang program
+  lint       Run linter on a bang file
+  format     Format a bang file
+  typecheck  Run typechecker on on a file
+  print      Print debugging information
+  help       Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help     Print help information
+  -V, --version  Print version information
+```
+
+### Development
+
+```sh
+# To format the codebase:
+cargo fmt
+
+# To lint the codebase:
+cargo clippy
+
+# To run the tests:
+cargo test
+
+# To build Bang:
+cargo build --release
+```
+
 ### License
 
 The code in this repository is covered by the [MIT License](./LICENSE).
