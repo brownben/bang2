@@ -27,6 +27,7 @@ pub enum ErrorKind {
   ImportModuleNotFound(String),
   NotCallable(Type),
   WrongNumberArguments(usize, usize),
+  WrongNumberTypeParameters(usize, usize),
   InfiniteLoop,
 }
 
@@ -36,8 +37,8 @@ pub struct Error {
   pub span: Span,
 }
 impl Error {
-  fn new(kind: ErrorKind, span: Span) -> Self {
-    Self { kind, span }
+  fn new(kind: ErrorKind, span: Span) -> Result<Type, Self> {
+    Err(Self { kind, span })
   }
 
   pub fn get_title(&self) -> &'static str {
@@ -50,6 +51,7 @@ impl Error {
       ErrorKind::ImportModuleNotFound(_) => "Module Not Found",
       ErrorKind::NotCallable(_) => "Type Not Callable",
       ErrorKind::WrongNumberArguments(_, _) => "Incorrect Number of Arguments",
+      ErrorKind::WrongNumberTypeParameters(_, _) => "Incorrect Number of Type Parameters",
       ErrorKind::InfiniteLoop => "Infinite Loop",
     }
   }
@@ -70,6 +72,9 @@ impl Error {
         format!("Type {ty} is not callable. Only functions are callable.")
       }
       ErrorKind::WrongNumberArguments(a, b) => format!("Expected {b} arguments, but recieved {a}."),
+      ErrorKind::WrongNumberTypeParameters(a, b) => {
+        format!("Expected {b} type parameters, but recieved {a}.")
+      }
       ErrorKind::InfiniteLoop => {
         "Condition is always true and there is no return in the loop.".to_string()
       }
@@ -101,10 +106,7 @@ struct Scope<'s> {
 impl<'s> Scope<'s> {
   fn define(&mut self, name: &'s str, ty: Type, span: Span) -> Result<(), Error> {
     if self.is_defined(name) {
-      Err(Error::new(
-        ErrorKind::VariableAlreadyDefined(name.to_string()),
-        span,
-      ))?;
+      Error::new(ErrorKind::VariableAlreadyDefined(name.to_string()), span)?;
     }
 
     self.insert(name, ty);
@@ -219,6 +221,7 @@ impl<'s> Typechecker<'s> {
     annotation: &TypeExpression<'s>,
     generics: &mut HashMap<&'s str, Type>,
   ) -> Result<Type, Error> {
+    let span = annotation.span;
     let ty = match &annotation.type_ {
       TypeItem::Named(name) => match *name {
         "string" => Type::Literal(Literal::String),
@@ -229,19 +232,31 @@ impl<'s> Typechecker<'s> {
         "boolean" => Type::boolean(),
         "any" => Type::Any,
         _ if generics.contains_key(name) => generics[name].clone(),
-        ty => Err(Error::new(
-          ErrorKind::UnknownType(ty.to_string()),
-          annotation.span,
-        ))?,
+        ty => Error::new(ErrorKind::UnknownType(ty.to_string()), annotation.span)?,
       },
-      TypeItem::Parameter(name, param) => match *name {
-        "set" => Type::Set(self.type_from_annotation(param, generics)?.into()),
-        "list" => Type::List(self.type_from_annotation(param, generics)?.into()),
-        ty => Err(Error::new(
-          ErrorKind::UnknownType(ty.to_string()),
-          annotation.span,
-        ))?,
-      },
+      TypeItem::Parameter(name, param) => {
+        let expected_params = match *name {
+          "set" | "list" => 1,
+          "dict" => 2,
+          ty => return Error::new(ErrorKind::UnknownType(ty.to_string()), annotation.span),
+        };
+
+        if param.len() != expected_params {
+          Error::new(
+            ErrorKind::WrongNumberTypeParameters(param.len(), expected_params),
+            span,
+          )?;
+        }
+        match *name {
+          "set" => Type::Set(self.type_from_annotation(&param[0], generics)?.into()),
+          "list" => Type::List(self.type_from_annotation(&param[0], generics)?.into()),
+          "dict" => Type::Dict(
+            self.type_from_annotation(&param[0], generics)?.into(),
+            self.type_from_annotation(&param[1], generics)?.into(),
+          ),
+          _ => unreachable!(),
+        }
+      }
       TypeItem::Union(a, b) => {
         let a = self.type_from_annotation(a, generics)?;
         let b = self.type_from_annotation(b, generics)?;
@@ -302,6 +317,7 @@ impl<'s> Typechecker<'s> {
       }
 
       (Type::List(a), Type::List(b)) | (Type::Set(a), Type::Set(b)) => self.subtype(&a, &b),
+      (Type::Dict(a, b), Type::Dict(c, d)) => self.subtype(&a, &c) && self.subtype(&b, &d),
 
       (Type::Union(a), b) => a.into_iter().all(|a| self.subtype(&a, &b)),
       (a, Type::Union(b)) => b.into_iter().any(|b| self.subtype(&a, &b)),
@@ -323,13 +339,13 @@ impl<'s> Typechecker<'s> {
     if self.subtype(&a, b) {
       Ok(a)
     } else {
-      Err(Error::new(
+      Error::new(
         ErrorKind::ExpectedDifferentType(
           a.apply_context(&self.context),
           b.clone().apply_context(&self.context),
         ),
         span,
-      ))
+      )
     }
   }
 
@@ -384,10 +400,9 @@ impl<'s> Typechecker<'s> {
         expression,
         operator,
       } => self.unary_expression(expression, *operator, span),
-      Expr::Variable { name, .. } => self
-        .scope
-        .lookup(name)
-        .ok_or_else(|| Error::new(ErrorKind::UndefinedVariable((*name).to_string()), span)),
+      Expr::Variable { name, .. } => self.scope.lookup(name).ok_or_else(|| {
+        Error::new(ErrorKind::UndefinedVariable((*name).to_string()), span).unwrap_err()
+      }),
     }
   }
 
@@ -484,10 +499,10 @@ impl<'s> Typechecker<'s> {
         if (function.catch_all && arguments.len() < function.parameters.len() - 1)
           || (!function.catch_all && arguments.len() != function.parameters.len())
         {
-          Err(Error::new(
+          Error::new(
             ErrorKind::WrongNumberArguments(arguments.len(), function.parameters.len()),
             span,
-          ))?;
+          )?;
         }
 
         let normal_parameter_end_index =
@@ -514,10 +529,10 @@ impl<'s> Typechecker<'s> {
 
         function.return_type.clone().apply_context(&self.context)
       }
-      ty => Err(Error::new(
+      ty => Error::new(
         ErrorKind::NotCallable(ty.clone().apply_context(&self.context)),
         span,
-      ))?,
+      )?,
     };
 
     self.scope.end_scope();

@@ -14,6 +14,7 @@ impl Context for StdContext {
       "fs" => modules::fs(value),
       "list" => modules::list(value),
       "set" => modules::set(value),
+      "dict" => modules::dict(value),
       _ => ImportValue::ModuleNotFound,
     }
   }

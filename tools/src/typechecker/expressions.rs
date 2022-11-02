@@ -23,7 +23,9 @@ impl<'s> Typechecker<'s> {
     let variable_ty = self
       .scope
       .lookup_initialization(identifier)
-      .ok_or_else(|| Error::new(ErrorKind::UndefinedVariable(identifier.to_string()), span))?;
+      .ok_or_else(|| {
+        Error::new(ErrorKind::UndefinedVariable(identifier.to_string()), span).unwrap_err()
+      })?;
 
     let expression_ty = self.assert_type(expression_ty, &variable_ty, span)?;
     self.scope.update(identifier, expression_ty.clone());
@@ -169,12 +171,38 @@ impl<'s> Typechecker<'s> {
     span: Span,
   ) -> Result<Type, Error> {
     let index_ty = self.synthesize_expression(index)?;
-    self.assert_type(index_ty, &Type::Literal(Literal::Number), span)?;
-
     let expression_ty = self.synthesize_expression(expression)?;
+
+    let dict_type = Type::Dict(
+      self.context.new_existential().into(),
+      self.context.new_existential().into(),
+    );
+
     if expression_ty == Type::Literal(Literal::String) {
-      return Ok(Type::Literal(Literal::String));
+      self.assert_type(index_ty, &Type::Literal(Literal::Number), span)?;
+      Ok(Type::Literal(Literal::String))
+    } else if !index_ty.is_subtype_of(&Type::Literal(Literal::Number))
+      || expression_ty.is_subtype_of(&dict_type)
+    {
+      self.dict_index(index_ty, expression_ty, span)
+    } else {
+      self.list_index(index_ty, expression_ty, span)
     }
+  }
+
+  fn dict_index(&mut self, index_ty: Type, expression_ty: Type, span: Span) -> Result<Type, Error> {
+    let keys = self.context.new_existential();
+    let values = self.context.new_existential();
+    let dict_ty = Type::Dict(Box::new(keys.clone()), Box::new(values.clone()));
+
+    self.assert_type(index_ty, &keys, span)?;
+    self.assert_type(expression_ty, &dict_ty, span)?;
+
+    Ok(values.apply_context(&self.context))
+  }
+
+  fn list_index(&mut self, index_ty: Type, expression_ty: Type, span: Span) -> Result<Type, Error> {
+    self.assert_type(index_ty, &Type::Literal(Literal::Number), span)?;
 
     let list_interior = self.context.new_existential();
     let list_ty = Type::List(Box::new(list_interior.clone()));
@@ -220,14 +248,12 @@ impl<'s> Typechecker<'s> {
   pub fn module_access(&mut self, module: &str, item: &str, span: Span) -> Result<Type, Error> {
     match self.get_module_item(module, item) {
       ImportValue::Value(ty) => Ok(ty),
-      ImportValue::ModuleNotFound => Err(Error::new(
-        ErrorKind::ImportModuleNotFound(module.to_string()),
-        span,
-      )),
-      ImportValue::ItemNotFound => Err(Error::new(
-        ErrorKind::ImportItemNotFound(item.to_string()),
-        span,
-      )),
+      ImportValue::ModuleNotFound => {
+        Error::new(ErrorKind::ImportModuleNotFound(module.to_string()), span)
+      }
+      ImportValue::ItemNotFound => {
+        Error::new(ErrorKind::ImportItemNotFound(item.to_string()), span)
+      }
     }
   }
 

@@ -25,6 +25,7 @@ pub enum Type {
   Literal(Literal),
   List(Box<Type>),
   Set(Box<Type>),
+  Dict(Box<Type>, Box<Type>),
   Function(Function),
   Union(Vec<Type>),
   Existential(Existential),
@@ -60,7 +61,6 @@ impl Type {
     match self {
       Self::Literal(Literal::True) | Self::Function(_) => true,
       Self::Union(a) => a.iter().all(Self::is_truthy),
-
       _ => false,
     }
   }
@@ -80,6 +80,7 @@ impl Type {
       (a, b) if a == b => true,
 
       (Self::List(a), Self::List(b)) | (Self::Set(a), Self::Set(b)) => a.is_subtype_of(b),
+      (Self::Dict(a, b), Self::Dict(c, d)) => a.is_subtype_of(c) && b.is_subtype_of(d),
 
       (Self::Union(a), b) => a.iter().all(|a| a.is_subtype_of(b)),
       (a, Self::Union(b)) => b.iter().any(|b| a.is_subtype_of(b)),
@@ -202,6 +203,7 @@ impl Display for Type {
       Self::Literal(literal) => write!(f, "{literal}"),
       Self::List(ty) => write!(f, "{ty}[]"),
       Self::Set(ty) => write!(f, "set({ty})"),
+      Self::Dict(key, values) => write!(f, "set({key}, {values})"),
       Self::Function(func) => write!(
         f,
         "({}) -> {}",

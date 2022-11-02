@@ -164,16 +164,16 @@ impl<'s> Typechecker<'s> {
             .define(item.alias.unwrap_or(item.name), ty, item.span)?;
         }
         ImportValue::ModuleNotFound => {
-          Err(Error::new(
+          Error::new(
             ErrorKind::ImportModuleNotFound(module.to_string()),
             item.span,
-          ))?;
+          )?;
         }
         ImportValue::ItemNotFound => {
-          Err(Error::new(
+          Error::new(
             ErrorKind::ImportItemNotFound(item.name.to_string()),
             item.span,
-          ))?;
+          )?;
         }
       }
     }
@@ -208,7 +208,7 @@ impl<'s> Typechecker<'s> {
       let ty = self.synthesize_statement_with_restrictions(statement, restrictions)?;
 
       if ty == StatementType::NoReturn && condition_type.is_truthy() {
-        Err(Error::new(ErrorKind::InfiniteLoop, condition.span))?;
+        Error::new(ErrorKind::InfiniteLoop, condition.span)?;
       }
 
       Ok(match ty {

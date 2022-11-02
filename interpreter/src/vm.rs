@@ -5,8 +5,8 @@ use crate::{
     indexing::{GetResult, Index, SetResult},
     Closure, ClosureKind, Object, Value,
   },
+  HashMap,
 };
-use ahash::AHashMap as HashMap;
 use bang_syntax::LineNumber;
 use smallvec::SmallVec;
 use std::{collections::hash_map, error, fmt, rc::Rc};

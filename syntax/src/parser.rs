@@ -1110,11 +1110,15 @@ impl<'source> Parser<'source> {
   }
 
   fn type_param(&mut self, name: Token) -> TypeResult<'source> {
-    let param = self.types()?;
+    let mut params = vec![self.types()?];
+
+    while self.matches(TokenType::Comma) && self.current.ttype != TokenType::RightParen {
+      params.push(self.types()?);
+    }
     let end_token = self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
 
     Ok(types!(
-      Parameter(name.get_value(self.source), Box::new(param)),
+      Parameter(name.get_value(self.source), params),
       (name, end_token)
     ))
   }
@@ -1602,6 +1606,8 @@ from maths import { sin }";
   #[test]
   fn should_parse_type_param() {
     assert!(super::parse("let a: list(number)").is_ok());
+    assert!(super::parse("let a: dict(string, number)").is_ok());
+    assert!(super::parse("let a: dict(string, number,)").is_ok());
     assert!(super::parse("let a: list ( number ) ").is_ok());
     assert!(super::parse("let a: set(number?)").is_ok());
     assert!(super::parse("let a: magic(type | union)").is_ok());
@@ -1609,6 +1615,8 @@ from maths import { sin }";
     assert!(super::parse("let a: list number) = 3").is_err());
     assert!(super::parse("let a: list ()").is_err());
     assert!(super::parse("let a: list (number").is_err());
+    assert!(super::parse("let a: list(number,,)").is_err());
+    assert!(super::parse("let a: list(number,").is_err());
   }
 
   #[test]

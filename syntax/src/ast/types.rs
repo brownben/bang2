@@ -9,7 +9,7 @@ pub struct TypeExpression<'s> {
 #[derive(Debug, Clone)]
 pub enum Type<'s> {
   Named(&'s str),
-  Parameter(&'s str, Box<TypeExpression<'s>>),
+  Parameter(&'s str, Vec<TypeExpression<'s>>),
   Union(Box<TypeExpression<'s>>, Box<TypeExpression<'s>>),
   Function(Box<TypeExpression<'s>>, Vec<TypeExpression<'s>>, bool),
   Optional(Box<TypeExpression<'s>>),

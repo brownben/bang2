@@ -4,6 +4,9 @@ macro_rules! count {
 }
 
 macro_rules! unwrap_type {
+  (, $args: expr, $do: expr) => {{
+    $do().into()
+  }};
   (Number, $args: expr, $do: expr) => {{
     if $args[0].is_number() {
       return $do($args[0].as_number()).into();
@@ -158,15 +161,33 @@ macro_rules! unwrap_type {
     }
     Value::NULL
   }};
+  (DictRef, $args: expr, $do: expr) => {{
+    if $args[0].is_object() {
+      if let Object::Dict(value) = &*$args[0].as_object() {
+        return $do(&value.borrow()).into();
+      }
+    }
+    Value::NULL
+  }};
+  (DictRef Any, $args: expr, $do: expr) => {{
+    if $args[0].is_object() {
+      if let Object::Dict(value) = &*$args[0].as_object() {
+        return $do(&value.borrow(), &$args[1]).into();
+      }
+    }
+    Value::NULL
+  }};
 }
 
 macro_rules! module {
   ($name:ident, {
     $(const $value_name:ident = $value:expr;)*
-    $(fn $item_name:ident($($type:ident),*) -> $item_value:expr;)*
     $(var fn $var_item_name:ident() -> $var_item_value:expr;)*
+    $(fn $item_name:ident($($type:ident),*) -> $item_value:expr;)*
   }) => {
     pub fn $name(key: &str) -> ImportValue {
+      #![allow(unused_variables)]
+
       match key {
         $(
           stringify!($value_name) => ImportValue::Constant($value.into()),

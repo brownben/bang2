@@ -105,6 +105,7 @@ impl Typechecker<'_> {
         toSet: "<T>(T[]) -> set(T)",
       }),
       "set" => module!(item, self, {
+        new: "<T>(..T) -> set(T)",
         set: "<T>(..T) -> set(T)",
         size: "<T>(set(T)) -> number",
         isEmpty: "<T>(set(T)) -> boolean",
@@ -118,6 +119,15 @@ impl Typechecker<'_> {
         difference: "<T>(set(T), set(T)) -> set(T)",
         intersection: "<T>(set(T), set(T)) -> set(T)",
         symmetricDifference: "<T>(set(T), set(T)) -> set(T)",
+      }),
+      "dict" => module!(item, self, {
+        new: "<S, T>() -> dict(S, T)",
+        dict: "<S, T>() -> dict(S, T)",
+        size: "<S, T>(dict(S, T)) -> number",
+        isEmpty: "<S, T>(dict(S, T)) -> bool",
+        keys: "<S, T>(dict(S, T)) -> S[]",
+        values: "<S, T>(dict(S, T)) -> S[]",
+        get: "<S, T>(dict(S, T), S) -> T?",
       }),
       _ => ImportValue::ModuleNotFound,
     }

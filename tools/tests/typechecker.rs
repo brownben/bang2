@@ -753,6 +753,24 @@ mod compound_structures {
     assert_correct!("let a = [1, 5, 3]\n a[2] -= 8");
     assert_fails!("let a: (boolean|number)[] = [1, false, 3]\n a[0] += 4");
   }
+
+  #[test]
+  fn dict() {
+    assert_correct!("let a: dict(string, number) = dict::new()");
+    assert_correct!("let a: dict(string, number) = dict::new()\nlet b: number = a['hello']");
+    assert_correct!(
+      "
+let a = (a) ->
+  let b = a[null]
+  dict::size(a)
+"
+    );
+
+    assert_fails!("let a: dict(string, number) = dict::new()\nlet b: number = a[boolean]");
+    assert_fails!("let a: dict(string, number) = dict::new()\nlet b: number = a[7]");
+    assert_fails!("let a: dict(string, number) = []");
+    assert_fails!("let a: list(string) = dict::new()");
+  }
 }
 
 mod varadic_arguments {

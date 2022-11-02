@@ -1,5 +1,5 @@
 use super::{Closure, Function, NativeFunction, Value};
-use crate::HashSet;
+use crate::{HashMap, HashSet};
 use smartstring::alias::String;
 use std::{cell::RefCell, fmt, hash, mem, ptr, str};
 
@@ -10,6 +10,7 @@ pub enum Object {
   Closure(Closure),
   List(RefCell<Vec<Value>>),
   Set(RefCell<HashSet<Value>>),
+  Dict(RefCell<HashMap<Value, Value>>),
 }
 
 impl Object {
@@ -19,6 +20,7 @@ impl Object {
       Self::Function(_) | Self::NativeFunction(_) | Self::Closure(_) => false,
       Self::List(value) => value.borrow().is_empty(),
       Self::Set(value) => value.borrow().is_empty(),
+      Self::Dict(value) => value.borrow().is_empty(),
     }
   }
 
@@ -28,6 +30,7 @@ impl Object {
       Self::Function(_) | Self::NativeFunction(_) | Self::Closure(_) => "function",
       Self::List(_) => "list",
       Self::Set(_) => "set",
+      Self::Dict(_) => "dict",
     }
   }
 }
@@ -41,6 +44,7 @@ impl PartialEq for Object {
       (Self::Closure(value), Self::Closure(other)) => ptr::eq(value, other),
       (Self::List(value), Self::List(other)) => *value == *other,
       (Self::Set(value), Self::Set(other)) => *value == *other,
+      (Self::Dict(value), Self::Dict(other)) => *value == *other,
       _ => false,
     }
   }
@@ -57,6 +61,7 @@ impl hash::Hash for Object {
       Self::Closure(value) => ptr::hash(value, state),
       Self::List(value) => ptr::hash(value, state),
       Self::Set(value) => ptr::hash(value, state),
+      Self::Dict(value) => ptr::hash(value, state),
     }
   }
 }
@@ -84,6 +89,14 @@ impl fmt::Display for Object {
           .borrow()
           .iter()
           .try_for_each(|item| write!(f, "{item:?}, "))?;
+        write!(f, "}}")
+      }
+      Self::Dict(value) => {
+        write!(f, "{{ ")?;
+        value
+          .borrow()
+          .iter()
+          .try_for_each(|(k, v)| write!(f, "{k:?}: {v:?}, "))?;
         write!(f, "}}")
       }
     }
@@ -145,5 +158,10 @@ impl From<Vec<Value>> for Object {
 impl From<HashSet<Value>> for Object {
   fn from(value: HashSet<Value>) -> Self {
     Self::Set(RefCell::new(value))
+  }
+}
+impl From<HashMap<Value, Value>> for Object {
+  fn from(value: HashMap<Value, Value>) -> Self {
+    Self::Dict(RefCell::new(value))
   }
 }

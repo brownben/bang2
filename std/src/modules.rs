@@ -1,7 +1,11 @@
 use bang_interpreter::{
-  calculate_index, HashSet as BangHashSet, ImportValue, NativeFunction, Object, Value,
+  calculate_index, HashMap as BangHashMap, HashSet as BangHashSet, ImportValue, NativeFunction,
+  Object, Value,
 };
-use std::{collections::HashSet, fs};
+use std::{
+  collections::{HashMap, HashSet},
+  fs,
+};
 
 module!(maths, {
   const PI = std::f64::consts::PI;
@@ -63,11 +67,13 @@ module!(list, {
   fn pop(List) -> Vec::pop;
   fn includes(List, Any) -> |list: &mut Vec<_>, value| list.contains(&value);
   fn reverse(List) -> |l: &mut Vec<_>| l.iter().rev().cloned().collect::<Vec<_>>();
-  fn get(List, Number) -> |list: &mut Vec<_>, index| list.get(calculate_index(index, list.len())).cloned();
+  fn get(List, Number) -> |l: &mut Vec<_>, i| l.get(calculate_index(i, l.len())).cloned();
   fn toSet(ListRef) -> |l: &Vec<Value>| l.iter().cloned().collect::<BangHashSet<Value>>();
 });
 
 module!(set, {
+  var fn new() -> BangHashSet::from_iter;
+  var fn set() -> BangHashSet::from_iter;
   fn size(SetRef) -> HashSet::len;
   fn isEmpty(SetRef) -> HashSet::is_empty;
   fn insert(Set, Any) -> HashSet::insert;
@@ -81,5 +87,14 @@ module!(set, {
   fn intersection(SetCloned, Set) -> HashSet::intersection;
   fn symmetricDifference(SetCloned, Set) -> HashSet::symmetric_difference;
   fn toList(SetRef) -> |s: &BangHashSet<_>| s.iter().cloned().collect::<Vec<_>>();
-  var fn set() -> BangHashSet::from_iter;
+});
+
+module!(dict, {
+  fn new() -> BangHashMap::new;
+  fn dict() -> BangHashMap::new;
+  fn size(DictRef) -> HashMap::len;
+  fn isEmpty(DictRef) -> HashMap::is_empty;
+  fn keys(DictRef) -> |d: &BangHashMap<_, _>| d.keys().cloned().collect::<Vec<_>>();
+  fn values(DictRef) -> |d: &BangHashMap<_, _>| d.values().cloned().collect::<Vec<_>>();
+  fn get(DictRef, Any) -> |dict: &BangHashMap<_, _>, index| dict.get(index).cloned();
 });
