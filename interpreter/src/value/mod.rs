@@ -19,6 +19,7 @@ use bit64::{FALSE, NULL, TRUE};
 #[cfg(test)]
 mod test;
 
+use crate::HashSet;
 pub use functions::{Arity, Closure, ClosureKind, Function, NativeFunction};
 pub use indexing::calculate_index;
 pub use objects::Object;
@@ -52,20 +53,64 @@ impl Value {
     write!(string, "{self}").expect("No errors in Display trait");
     string
   }
+
+  fn equals(a: &Self, b: &Self, seen: &mut HashSet<u64>) -> bool {
+    if a.as_bytes() == b.as_bytes() {
+      return true;
+    }
+
+    if a.is_number() && b.is_number() {
+      let a = a.as_number();
+      let b = b.as_number();
+      return (a - b).abs() < f64::EPSILON;
+    }
+
+    if seen.contains(&a.as_bytes()) || seen.contains(&b.as_bytes()) {
+      return false;
+    }
+
+    if a.as_object().is_possibly_cyclic() {
+      seen.insert(a.as_bytes());
+    }
+    if b.as_object().is_possibly_cyclic() {
+      seen.insert(b.as_bytes());
+    }
+
+    Object::equals(a, b, seen)
+  }
+
+  fn format(f: &mut fmt::Formatter, value: &Self, seen: &mut HashSet<u64>) -> fmt::Result {
+    match value {
+      a if a.is_object() => {
+        let obj = &a.as_object();
+        if obj.is_possibly_cyclic() {
+          seen.insert(a.as_bytes());
+        }
+        Object::format(f, obj, seen, true)
+      }
+      b if b.is_allocated() => write!(f, "pointer"),
+      c => write!(f, "{c}"),
+    }
+  }
 }
 
 impl PartialEq for Value {
   fn eq(&self, other: &Self) -> bool {
-    match (self, other) {
-      (Self(TRUE), Self(TRUE)) | (Self(FALSE), Self(FALSE)) | (Self(NULL), Self(NULL)) => true,
-      (a, b) if a.is_number() && b.is_number() => {
-        let a = a.as_number();
-        let b = b.as_number();
-        a == b || (a - b).abs() < f64::EPSILON
-      }
-      (a, b) if a.is_object() && b.is_object() => a.as_object() == b.as_object(),
-      _ => false,
+    if self.as_bytes() == other.as_bytes() {
+      return true;
     }
+
+    if self.is_number() && other.is_number() {
+      let a = self.as_number();
+      let b = other.as_number();
+      return (a - b).abs() < f64::EPSILON;
+    }
+
+    let mut seen = HashSet::new();
+    seen.insert(self.as_bytes());
+    seen.insert(other.as_bytes());
+
+    Object::equals(self, other, &mut seen)
   }
 }
 impl Eq for Value {}
@@ -96,15 +141,26 @@ impl fmt::Display for Value {
       Self(TRUE) => write!(f, "true"),
       Self(FALSE) => write!(f, "false"),
       a if a.is_number() => write!(f, "{}", a.as_number()),
-      b => write!(f, "{}", b.as_object()),
+      b => {
+        let mut seen = HashSet::new();
+        seen.insert(self.as_bytes());
+
+        Object::format(f, &b.as_object(), &mut seen, false)
+      }
     }
   }
 }
 impl fmt::Debug for Value {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
-      a if a.is_object() => write!(f, "{:?}", a.as_object()),
-      b => write!(f, "{b}"),
+      a if a.is_object() => {
+        let mut seen = HashSet::new();
+        seen.insert(self.as_bytes());
+
+        Object::format(f, &a.as_object(), &mut seen, true)
+      }
+      b if b.is_allocated() => write!(f, "pointer"),
+      c => write!(f, "{c}"),
     }
   }
 }

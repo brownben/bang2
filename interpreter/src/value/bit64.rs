@@ -24,6 +24,10 @@ impl Value {
     unsafe { mem::transmute(self.0) }
   }
 
+  pub fn as_bytes(&self) -> u64 {
+    self.0 as u64
+  }
+
   #[must_use]
   pub fn allocate(self) -> Self {
     let memory = Rc::new(RefCell::new(self));

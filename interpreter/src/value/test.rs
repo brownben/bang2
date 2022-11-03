@@ -1,4 +1,5 @@
 use super::{Function, NativeFunction, Object, Value};
+use crate::{HashMap, HashSet};
 use std::{
   collections::hash_map::DefaultHasher,
   hash::{Hash, Hasher},
@@ -64,7 +65,7 @@ fn objects() {
   assert!(string.is_object());
   assert!(!string.is_number());
   assert!(!string.is_allocated());
-  assert_eq!(string.as_object(), Object::String("hello".into()).into());
+  assert_eq!(string, Object::String("hello".into()).into());
 }
 
 #[test]
@@ -153,6 +154,9 @@ fn displays_correctly() {
     .to_string(),
     "<function native>"
   );
+
+  assert_eq!(Value::from(HashSet::new()).to_string(), "set()");
+  assert_eq!(Value::from(HashMap::new()).to_string(), "{  }");
 }
 
 #[test]
@@ -260,7 +264,7 @@ fn allocate() {
   assert!(string.is_object());
   assert!(!string.is_number());
   assert!(!string.is_allocated());
-  assert_eq!(string.as_object(), Object::String("hello".into()).into());
+  assert_eq!(string, Object::String("hello".into()).into());
 
   let string = string.allocate();
   assert!(string.is_allocated());

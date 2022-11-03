@@ -27,6 +27,13 @@ impl Value {
     }
   }
 
+  pub fn as_bytes(&self) -> u64 {
+    #[allow(clippy::transmute_undefined_repr)] // Assume tuple has no extra padding
+    unsafe {
+      mem::transmute(self.0)
+    }
+  }
+
   #[must_use]
   pub fn allocate(self) -> Self {
     let memory = Rc::new(RefCell::new(self));

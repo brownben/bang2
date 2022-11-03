@@ -24,6 +24,13 @@ impl Object {
     }
   }
 
+  pub fn is_possibly_cyclic(&self) -> bool {
+    match self {
+      Self::String(_) | Self::Function(_) | Self::NativeFunction(_) | Self::Closure(_) => false,
+      Self::List(_) | Self::Set(_) | Self::Dict(_) => true,
+    }
+  }
+
   pub fn get_type(&self) -> &'static str {
     match self {
       Self::String(_) => "string",
@@ -33,19 +40,133 @@ impl Object {
       Self::Dict(_) => "dict",
     }
   }
-}
 
-impl PartialEq for Object {
-  fn eq(&self, other: &Self) -> bool {
-    match (self, other) {
+  pub fn equals(a: &Value, b: &Value, seen: &mut HashSet<u64>) -> bool {
+    if !a.is_object() || !b.is_object() {
+      return false;
+    }
+
+    match (&*a.as_object(), &*b.as_object()) {
       (Self::String(value), Self::String(other)) => value == other,
       (Self::Function(value), Self::Function(other)) => value == other,
-      (Self::NativeFunction(value), Self::NativeFunction(other)) => ptr::eq(value, other),
-      (Self::Closure(value), Self::Closure(other)) => ptr::eq(value, other),
-      (Self::List(value), Self::List(other)) => *value == *other,
-      (Self::Set(value), Self::Set(other)) => *value == *other,
-      (Self::Dict(value), Self::Dict(other)) => *value == *other,
+      // Native Function and Closure are compared by pointer in Value::eq
+      (Self::Set(value), Self::Set(other)) => *value.borrow() == *other.borrow(),
+      (Self::List(value), Self::List(other)) => {
+        value.as_ptr() == other.as_ptr() || {
+          let value = value.borrow();
+          let other = other.borrow();
+
+          if value.len() != other.len() {
+            return false;
+          }
+
+          value
+            .iter()
+            .zip(other.iter())
+            .all(|(a, b)| Value::equals(a, b, &mut seen.clone()))
+        }
+      }
+      (Self::Dict(value), Self::Dict(other)) => {
+        let value = value.borrow();
+        let other = other.borrow();
+
+        if value.len() != other.len() {
+          return false;
+        }
+
+        value.iter().all(|(key, value)| {
+          other
+            .get(key)
+            .map_or(false, |v| Value::equals(value, v, &mut seen.clone()))
+        })
+      }
       _ => false,
+    }
+  }
+
+  pub fn format(
+    f: &mut fmt::Formatter<'_>,
+    value: &Self,
+    seen: &mut HashSet<u64>,
+    debug: bool,
+  ) -> fmt::Result {
+    match value {
+      Self::String(value) if debug => write!(f, "'{value}'"),
+      Self::String(value) => write!(f, "{value}"),
+      Self::Function(value) => write!(f, "<function {}>", value.name),
+      Self::NativeFunction(value) => write!(f, "<function {}>", value.name),
+      Self::Closure(value) => write!(f, "<function {}>", value.func.name),
+      Self::List(value) => {
+        write!(f, "[")?;
+        value
+          .borrow()
+          .iter()
+          .enumerate()
+          .try_for_each(|(index, item)| {
+            if seen.contains(&item.as_bytes()) {
+              write!(f, "...")?;
+            } else {
+              Value::format(f, item, &mut seen.clone())?;
+            }
+
+            if index != value.borrow().len() - 1 {
+              write!(f, ", ")?;
+            }
+
+            Ok(())
+          })?;
+        write!(f, "]")
+      }
+      Self::Set(value) => {
+        write!(f, "set(")?;
+        value
+          .borrow()
+          .iter()
+          .enumerate()
+          .try_for_each(|(index, item)| {
+            if seen.contains(&item.as_bytes()) {
+              write!(f, "...")?;
+            } else {
+              Value::format(f, item, &mut seen.clone())?;
+            }
+
+            if index != value.borrow().len() - 1 {
+              write!(f, ", ")?;
+            }
+
+            Ok(())
+          })?;
+        write!(f, ")")
+      }
+      Self::Dict(value) => {
+        write!(f, "{{ ")?;
+        value
+          .borrow()
+          .iter()
+          .enumerate()
+          .try_for_each(|(index, (k, v))| {
+            if seen.contains(&k.as_bytes()) {
+              write!(f, "...")?;
+            } else {
+              Value::format(f, k, seen)?;
+            }
+
+            write!(f, ": ")?;
+
+            if seen.contains(&v.as_bytes()) {
+              write!(f, "...")?;
+            } else {
+              Value::format(f, v, &mut seen.clone())?;
+            }
+
+            if index != value.borrow().len() - 1 {
+              write!(f, ", ")?;
+            }
+
+            Ok(())
+          })?;
+        write!(f, " }}")
+      }
     }
   }
 }
@@ -62,51 +183,6 @@ impl hash::Hash for Object {
       Self::List(value) => ptr::hash(value, state),
       Self::Set(value) => ptr::hash(value, state),
       Self::Dict(value) => ptr::hash(value, state),
-    }
-  }
-}
-
-impl fmt::Display for Object {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::String(value) => write!(f, "{value}"),
-      Self::Function(value) => write!(f, "<function {}>", value.name),
-      Self::NativeFunction(value) => write!(f, "<function {}>", value.name),
-      Self::Closure(value) => write!(f, "<function {}>", value.func.name),
-      Self::List(value) => {
-        write!(f, "[")?;
-        if let Some((last, elements)) = value.borrow().split_last() {
-          elements
-            .iter()
-            .try_for_each(|item| write!(f, "{item:?}, "))?;
-          write!(f, "{last:?}")?;
-        }
-        write!(f, "]")
-      }
-      Self::Set(value) => {
-        write!(f, "{{ ")?;
-        value
-          .borrow()
-          .iter()
-          .try_for_each(|item| write!(f, "{item:?}, "))?;
-        write!(f, "}}")
-      }
-      Self::Dict(value) => {
-        write!(f, "{{ ")?;
-        value
-          .borrow()
-          .iter()
-          .try_for_each(|(k, v)| write!(f, "{k:?}: {v:?}, "))?;
-        write!(f, "}}")
-      }
-    }
-  }
-}
-impl fmt::Debug for Object {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    match self {
-      Self::String(value) => write!(f, "'{value}'"),
-      value => write!(f, "{value}"),
     }
   }
 }

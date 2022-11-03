@@ -510,6 +510,99 @@ let c = type(b)
 "
     c == "set"
   );
+
+  bang_test!(hash_pointer
+  "
+let a = dict::new()
+let b = []
+a[b] = 0
+
+b >> list::push(3)
+a[b] += 1
+
+let x = a[b]
+  "
+    x == 1
+  );
+
+  bang_test!(cyclic_equals
+  "
+let a = []
+let b = [a]
+a >> list::push(b)
+let x = a == a
+let y = a != b
+  "
+    x == true
+    y == true
+  );
+
+  bang_test!(cyclic_to_string
+  "
+let a = []
+let b = [a]
+
+a >> list::push(b)
+
+let x = toString(a)
+let y = toString(b)
+
+a >> list::push(7)
+
+let w = toString(a)
+let z = toString(b)
+  "
+    x == "[[...]]"
+    y == "[[...]]"
+    w == "[[...], 7]"
+    z == "[[..., 7]]"
+  );
+
+  bang_test!(complex_cyclic_to_string
+    "
+let b = ['b']
+let c = ['c', b]
+let a = ['a', b]
+
+b >> list::push(c)
+
+let x = toString(a)
+let y = toString(b)
+"
+    x == "['a', ['b', ['c', ...]]]"
+    y == "['b', ['c', ...]]"
+  );
+
+  bang_test!(complex_cyclic_equals
+    "
+let b = ['b']
+let c = ['c', b]
+let a = ['a', b]
+
+b >> list::push(c)
+
+let x = a == a
+let y = b == b
+let z = a != c
+"
+    x == true
+    y == true
+    z == true
+  );
+
+  bang_test!(non_cyclic_repeated_to_string
+    "
+let a = 'a'
+let b = [a, a, [a, a]]
+let c = ['c', a]
+let d = [c, [c, 1, 1]]
+
+let x = toString(b)
+let y = toString(d)
+"
+    x == "['a', 'a', ['a', 'a']]"
+    y == "[['c', 'a'], [['c', 'a'], 1, 1]]"
+  );
 }
 
 mod set {
@@ -631,6 +724,31 @@ let e = length(d)
     c == 3
     e == 2
   );
+
+  bang_test!(cyclic_equals
+  "
+let a = set::new()
+let b = set::new(a)
+a >> set::insert(b)
+let x = a == a
+let y = a != b
+      "
+    x == true
+    y == true
+  );
+
+  bang_test!(cyclic_to_string
+    "
+let a = set::new()
+let b = set::new(a)
+
+a >> set::insert(b)
+
+// No assertion as set ordering isn't constant
+let z = toString(a)
+"
+    z == "set(set(...))"
+  );
 }
 
 mod dict {
@@ -671,5 +789,65 @@ let a = dict::new()
 let b = a['hello']
 "
     RuntimeError
+  );
+
+  bang_test!(cyclic_values_equals
+  "
+let a = dict::new()
+let b = dict::new()
+
+b['hello'] = a
+a['world'] = b
+
+let x = a == a
+let y = a != b
+      "
+    x == true
+    y == true
+  );
+
+  bang_test!(cyclic_keys_equals
+  "
+let a = dict::new()
+let b = dict::new()
+
+a[a] = 7
+b[a] = 7
+
+let x = a == a
+let y = a == b
+        "
+    x == true
+    y == true
+  );
+
+  bang_test!(cyclic_keys_string
+    "
+let a = dict::new()
+let b = dict::new()
+
+a[a] = 7
+b[a] = 4
+
+let x = toString(a)
+let y = toString(b)
+        "
+    x == "{ ...: 7 }"
+    y == "{ { ...: 7 }: 4 }"
+  );
+
+  bang_test!(cyclic_keys_value
+    "
+let a = dict::new()
+let b = dict::new()
+
+a[7] = a
+b[a] = 7
+
+let x = toString(a)
+let y = toString(b)
+  "
+    x == "{ 7: ... }"
+    y == "{ { 7: ... }: 7 }"
   );
 }
