@@ -84,6 +84,25 @@ let b = '${list::push}'
   b == "<function push>"
 );
 
+bang_test!(equality
+"
+from list import { map }
+from maths import { sin }
+from list import { map as mapTwo }
+
+let a = map == map
+let b = map == list::map
+let c = sin == sin
+let d = map == mapTwo
+let e = sin == maths::sin
+  "
+  a == true
+  b == true
+  c == true
+  d == true
+  e == true
+);
+
 mod maths {
   use super::*;
 

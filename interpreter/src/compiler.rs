@@ -1,5 +1,6 @@
 use crate::{
   chunk::{Builder as ChunkBuilder, Chunk, OpCode},
+  collections::HashMap,
   context::{BytecodeFunctionCreator, Context, ImportValue},
   value::{Arity, ClosureKind, Function, Object, Value},
 };
@@ -87,6 +88,8 @@ struct Compiler<'s, 'c> {
   chunk_stack: Vec<ChunkBuilder>,
   finished_chunks: Vec<Chunk>,
 
+  import_cache: HashMap<(&'s str, &'s str), usize>,
+
   error: Option<Diagnostic>,
 }
 
@@ -122,9 +125,13 @@ impl Compiler<'_, '_> {
     }
   }
 
-  fn emit_constant(&mut self, span: Span, value: Value) {
+  fn emit_constant(&mut self, span: Span, value: Value) -> usize {
     let constant_position = self.base_chunk().add_constant(value);
+    self.emit_constant_id(span, constant_position);
+    constant_position
+  }
 
+  fn emit_constant_id(&mut self, span: Span, constant_position: usize) {
     if let Ok(constant_position) = u8::try_from(constant_position) {
       self.emit_opcode(span, OpCode::Constant);
       self.emit_value(span, constant_position);
@@ -188,6 +195,8 @@ impl<'s, 'c> Compiler<'s, 'c> {
       locals: vec![Vec::new()],
       closures: Vec::new(),
       scope_depth: 0,
+
+      import_cache: HashMap::new(),
 
       error: None,
     }
@@ -382,8 +391,12 @@ impl<'s, 'c> Compiler<'s, 'c> {
         LiteralType::True => self.emit_opcode(span, OpCode::True),
         LiteralType::False => self.emit_opcode(span, OpCode::False),
         LiteralType::Null => self.emit_opcode(span, OpCode::Null),
-        LiteralType::Number => self.emit_constant(span, Value::from(Parser::number(value))),
-        LiteralType::String => self.emit_constant(span, Value::from(*value)),
+        LiteralType::Number => {
+          self.emit_constant(span, Value::from(Parser::number(value)));
+        }
+        LiteralType::String => {
+          self.emit_constant(span, Value::from(*value));
+        }
       },
       Expr::Group { expression, .. } => {
         self.compile_expression(expression);
@@ -696,9 +709,16 @@ impl<'s, 'c> Compiler<'s, 'c> {
     0
   }
 
-  fn import(&mut self, module: &str, item: &str, span: Span) {
+  fn import(&mut self, module: &'s str, item: &'s str, span: Span) {
+    if let Some(constant_id) = self.import_cache.get(&(module, item)) {
+      return self.emit_constant_id(span, *constant_id);
+    }
+
     match self.context.get_value(module, item) {
-      ImportValue::Constant(value) => self.emit_constant(span, value),
+      ImportValue::Constant(value) => {
+        let constant_id = self.emit_constant(span, value);
+        self.import_cache.insert((module, item), constant_id);
+      }
       ImportValue::Bytecode(create_chunk, mut function) => {
         let line = span.get_line_number(self.source);
         let creator = BytecodeFunctionCreator::new(self.base_chunk(), line);
@@ -707,7 +727,8 @@ impl<'s, 'c> Compiler<'s, 'c> {
         function.start = self.finished_chunks.len();
         self.finished_chunks.push(chunk);
 
-        self.emit_constant(span, function.into());
+        let constant_id = self.emit_constant(span, function.into());
+        self.import_cache.insert((module, item), constant_id);
       }
       ImportValue::ModuleNotFound => self.error(Error::ModuleNotFound, span, module),
       ImportValue::ItemNotFound => self.error(Error::ItemNotFound, span, item),
