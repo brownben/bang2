@@ -184,6 +184,7 @@ macro_rules! module {
     $(const $value_name:ident = $value:expr;)*
     $(var fn $var_item_name:ident() -> $var_item_value:expr;)*
     $(fn $item_name:ident($($type:ident),*) -> $item_value:expr;)*
+    $(bytecode fn $bytecode_item_name:ident($($by_type:ident),*) -> $bytecode_item_value:expr;)*
   }) => {
     pub fn $name(key: &str) -> ImportValue {
       #![allow(unused_variables)]
@@ -209,8 +210,39 @@ macro_rules! module {
             ).into()
           ),
         )*
+        $(
+          stringify!($bytecode_item_name) => {
+            let mut function = Function::default();
+            function.name = stringify!($bytecode_item_name).into();
+            function.arity = count!($($by_type)*).into();
+
+            ImportValue::Bytecode($bytecode_item_value, function)
+          }
+        )*
         _ => ImportValue::ItemNotFound,
       }
     }
   };
+}
+
+macro_rules! bytecode {
+  ($builder:expr, long $value:expr) => {{
+    $builder.emit_long_value($value);
+  }};
+  ($builder:expr, const $value:expr) => {{
+    $builder.emit_constant($value.into());
+  }};
+  ($builder:expr, $value:literal) => {{
+    $builder.emit_value($value);
+  }};
+  ($builder:expr, $op:ident) => {{
+    $builder.emit_opcode(OpCode::$op);
+  }};
+
+  ($($ty:tt $($item:expr)?,)+) => {{
+    |mut builder| {
+      $({ bytecode!(builder, $ty $($item)?) })+;
+      builder.finish()
+    }
+  }};
 }

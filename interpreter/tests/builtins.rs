@@ -603,6 +603,72 @@ let y = toString(d)
     x == "['a', 'a', ['a', 'a']]"
     y == "[['c', 'a'], [['c', 'a'], 1, 1]]"
   );
+
+  bang_test!(any_all
+  "
+from list import { any }
+
+let a = [1, 3, 5, 6] >> any((x) => x > 5)
+let b = [1, 3, 5] >> any((x) => x > 5)
+let c = [] >> any((x) => x > 5)
+
+let d = [1, 3, 5, 6] >> list::all((x) => x < 5)
+let e = [1, 3, 5] >> list::all((x) => x <= 5)
+let f = [] >> list::all((x) => x > 5)
+  "
+    a == true
+    b == false
+    c == false
+    d == false
+    e == true
+    f == true
+  );
+
+  bang_test!(find
+  "
+from list import { find }
+
+let a = [1, 2, 3] >> find((x) => x >= 2)
+let b = [1, 2, 3] >> find((x) => x >= 55)
+let c = b == null
+
+  "
+    a == 2
+    c == true
+  );
+
+  bang_test!(for_each
+  "
+let a = 0
+[1, 2, 3] >> list::forEach((x) => a += x)
+"
+    a == 6
+  );
+
+  bang_test!(reduce
+  "
+let sum = (l) => list::reduce(l, 0, (a, b) => a + b)
+let product = (l) => list::reduce(l, 1, (a, b) => a * b)
+
+let a = [1, 2, 3] >> sum()
+let b = [1, 2, 3, 4] >> product()
+  "
+    a == 6
+    b == 24
+  );
+
+  bang_test!(filter_and_map
+  "
+from list import { filter, map }
+let [a, b] = [1, 2, 3] >> filter((x) => x >= 2)
+let [c, d, e] = [1, 2, 3] >> map((x) => x * 2)
+  "
+    a == 2
+    b == 3
+    c == 2
+    d == 4
+    e == 6
+  );
 }
 
 mod set {

@@ -103,6 +103,13 @@ impl Typechecker<'_> {
         reverse: "<T>(T[]) -> T[]",
         get: "<T>(T[], number) -> T?",
         toSet: "<T>(T[]) -> set(T)",
+        any: "<T>(T[], (T) -> boolean) -> boolean",
+        all: "<T>(T[], (T) -> boolean) -> boolean",
+        map: "<S, T>(T[], (T) -> S) -> S[]",
+        filter: "<T>(T[], (T) -> boolean) -> T[]",
+        reduce: "<S, T>(T[], S, (T) -> S) -> S",
+        find: "<T>(T[], (T) -> boolean) -> T?",
+        forEach: "<T>(T[], (T) -> any) -> null",
       }),
       "set" => module!(item, self, {
         new: "<T>(..T) -> set(T)",

@@ -53,6 +53,7 @@ pub enum OpCode {
 type TokensOnLine = u16;
 type Line = (LineNumber, TokensOnLine);
 
+#[derive(Default)]
 struct LineInfoBuilder {
   lines: Vec<Line>,
   last: LineNumber,
@@ -112,6 +113,7 @@ impl LineInfo {
   }
 }
 
+#[derive(Default)]
 pub struct Builder {
   code: Vec<u8>,
   constants: Vec<Value>,

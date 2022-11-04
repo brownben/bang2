@@ -1,7 +1,8 @@
+use super::bytecode;
 use bang_interpreter::{
   collections::{HashMap as BangHashMap, HashSet as BangHashSet},
   context::ImportValue,
-  value::{calculate_index, NativeFunction, Object},
+  value::{calculate_index, Function, NativeFunction, Object},
   Value,
 };
 use std::{
@@ -71,6 +72,13 @@ module!(list, {
   fn reverse(List) -> |l: &mut Vec<_>| l.iter().rev().cloned().collect::<Vec<_>>();
   fn get(List, Number) -> |l: &mut Vec<_>, i| l.get(calculate_index(i, l.len())).cloned();
   fn toSet(ListRef) -> |l: &Vec<Value>| l.iter().cloned().collect::<BangHashSet<Value>>();
+  bytecode fn any(List, Predicate) -> bytecode::ANY;
+  bytecode fn all(List, Predicate) -> bytecode::ALL;
+  bytecode fn map(List, Transform) -> bytecode::MAP;
+  bytecode fn filter(List, Predicate) -> bytecode::FILTER;
+  bytecode fn reduce(List, Accum, Transform) -> bytecode::REDUCE;
+  bytecode fn find(List, Predicate) -> bytecode::FIND;
+  bytecode fn forEach(List, Operation) -> bytecode::FOR_EACH;
 });
 
 module!(set, {

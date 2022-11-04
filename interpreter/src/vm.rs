@@ -36,6 +36,7 @@ macro_rules! runtime_error {
     for frame in $vm.frames.iter().rev() {
       lines.push($chunk.get_line_number(frame.ip));
     }
+    lines.dedup();
 
     Err(RuntimeError {
       message: format!($($message)+),

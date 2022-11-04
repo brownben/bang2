@@ -1,6 +1,6 @@
 use crate::{
   chunk::{Builder as ChunkBuilder, Chunk, OpCode},
-  context::{Context, ImportValue},
+  context::{BytecodeFunctionCreator, Context, ImportValue},
   value::{Arity, ClosureKind, Function, Object, Value},
 };
 use bang_syntax::{
@@ -319,19 +319,13 @@ impl<'s, 'c> Compiler<'s, 'c> {
       }
       Stmt::Import { module, items, .. } => {
         for item in items {
-          match self.context.get_value(module, item.name) {
-            ImportValue::Constant(value) => {
-              self.emit_constant(span, value);
+          self.import(module, item.name, item.span);
 
-              if let Some(alias) = item.alias {
-                self.define_variable(alias, item.span);
-              } else {
-                self.define_variable(item.name, item.span);
-              }
-            }
-            ImportValue::ModuleNotFound => self.error(Error::ModuleNotFound, span, module),
-            ImportValue::ItemNotFound => self.error(Error::ItemNotFound, item.span, item.name),
-          };
+          if let Some(alias) = item.alias {
+            self.define_variable(alias, item.span);
+          } else {
+            self.define_variable(item.name, item.span);
+          }
         }
       }
       Stmt::While {
@@ -673,11 +667,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
           self.emit_opcode(span, OpCode::Add);
         }
       }
-      Expr::ModuleAccess { module, item } => match self.context.get_value(module, item) {
-        ImportValue::Constant(value) => self.emit_constant(span, value),
-        ImportValue::ModuleNotFound => self.error(Error::ModuleNotFound, span, module),
-        ImportValue::ItemNotFound => self.error(Error::ItemNotFound, span, item),
-      },
+      Expr::ModuleAccess { module, item } => self.import(module, item, span),
     }
   }
 
@@ -704,6 +694,24 @@ impl<'s, 'c> Compiler<'s, 'c> {
     }
 
     0
+  }
+
+  fn import(&mut self, module: &str, item: &str, span: Span) {
+    match self.context.get_value(module, item) {
+      ImportValue::Constant(value) => self.emit_constant(span, value),
+      ImportValue::Bytecode(create_chunk, mut function) => {
+        let line = span.get_line_number(self.source);
+        let creator = BytecodeFunctionCreator::new(self.base_chunk(), line);
+        let chunk = create_chunk(creator);
+
+        function.start = self.finished_chunks.len();
+        self.finished_chunks.push(chunk);
+
+        self.emit_constant(span, function.into());
+      }
+      ImportValue::ModuleNotFound => self.error(Error::ModuleNotFound, span, module),
+      ImportValue::ItemNotFound => self.error(Error::ItemNotFound, span, item),
+    };
   }
 
   fn and(&mut self, span: Span, left: &Expression<'s>, right: &Expression<'s>) {

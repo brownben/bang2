@@ -7,6 +7,7 @@ use bang_interpreter::{
 #[macro_use]
 mod macros;
 
+mod bytecode;
 pub mod modules;
 
 pub struct StdContext;
