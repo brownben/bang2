@@ -1,5 +1,5 @@
 use super::{Closure, Function, NativeFunction, Value};
-use crate::{HashMap, HashSet};
+use crate::collections::{HashMap, HashSet};
 use smartstring::alias::String;
 use std::{cell::RefCell, fmt, hash, mem, ptr, str};
 

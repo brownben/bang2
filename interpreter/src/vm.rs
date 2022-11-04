@@ -1,11 +1,11 @@
 use crate::{
   chunk::{Chunk, OpCode},
+  collections::HashMap,
   context::Context,
   value::{
     indexing::{GetResult, Index, SetResult},
     Closure, ClosureKind, Object, Value,
   },
-  HashMap,
 };
 use bang_syntax::LineNumber;
 use smallvec::SmallVec;

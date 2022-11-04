@@ -1,6 +1,8 @@
 use bang_interpreter::{
-  calculate_index, HashMap as BangHashMap, HashSet as BangHashSet, ImportValue, NativeFunction,
-  Object, Value,
+  collections::{HashMap as BangHashMap, HashSet as BangHashSet},
+  context::ImportValue,
+  value::{calculate_index, NativeFunction, Object},
+  Value,
 };
 use std::{
   collections::{HashMap, HashSet},

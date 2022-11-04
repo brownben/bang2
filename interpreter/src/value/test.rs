@@ -1,5 +1,5 @@
 use super::{Function, NativeFunction, Object, Value};
-use crate::{HashMap, HashSet};
+use crate::collections::{HashMap, HashSet};
 use std::{
   collections::hash_map::DefaultHasher,
   hash::{Hash, Hasher},

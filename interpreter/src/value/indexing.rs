@@ -1,5 +1,5 @@
 use super::{Object, Value};
-use crate::HashMap;
+use crate::collections::HashMap;
 use smartstring::alias::String;
 
 pub enum GetResult {

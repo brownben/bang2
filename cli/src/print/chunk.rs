@@ -1,4 +1,4 @@
-use bang_interpreter::{Chunk, OpCode};
+use bang_interpreter::chunk::{Chunk, OpCode};
 
 pub fn print(chunk: &Chunk) {
   println!("          ╭─[Bytecode]");

@@ -1,4 +1,8 @@
-use bang_interpreter::{Context, ImportValue, NativeFunction, VM};
+use bang_interpreter::{
+  context::{Context, ImportValue},
+  value::NativeFunction,
+  VM,
+};
 
 #[macro_use]
 mod macros;

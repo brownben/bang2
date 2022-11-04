@@ -19,7 +19,7 @@ use bit64::{FALSE, NULL, TRUE};
 #[cfg(test)]
 mod test;
 
-use crate::HashSet;
+use crate::collections::HashSet;
 pub use functions::{Arity, Closure, ClosureKind, Function, NativeFunction};
 pub use indexing::calculate_index;
 pub use objects::Object;
