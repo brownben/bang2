@@ -35,6 +35,7 @@ fn main() {
         .arg(
           Arg::new("dryrun")
             .long("dryrun")
+            .action(clap::ArgAction::SetTrue)
             .help("Preview the results of the formatting"),
         ),
     )

@@ -365,7 +365,7 @@ impl<'source> Formatter<'source> {
           if !body.is_empty() {
             let mut prev = &body[0];
             for stmt in body {
-              if self.line_end(prev.span) + 1 < self.line(stmt.span) {
+              if self.line_end(prev.span) < self.line(stmt.span) - 1 {
                 writeln!(f)?;
               }
 
@@ -374,7 +374,7 @@ impl<'source> Formatter<'source> {
               prev = stmt;
             }
 
-            if self.line_end(prev.span) + 1 < self.line(last.span) {
+            if self.line_end(prev.span) < self.line(last.span) - 1 {
               writeln!(f)?;
             }
           }
@@ -491,7 +491,7 @@ impl std::fmt::Display for Formatter<'_> {
 
     let mut prev = &self.ast[0];
     for stmt in self.ast {
-      if self.line_end(prev.span) < self.line(stmt.span) {
+      if self.line_end(prev.span) < self.line(stmt.span) - 1 {
         writeln!(f)?;
       }
 

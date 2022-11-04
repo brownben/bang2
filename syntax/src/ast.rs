@@ -30,12 +30,12 @@ impl Span {
     let mut line: LineNumber = 1;
 
     for (i, byte) in source.as_bytes().iter().enumerate() {
-      if *byte == b'\n' {
-        line += 1;
-      }
-
       if i == self.end as usize {
         return line;
+      }
+
+      if *byte == b'\n' {
+        line += 1;
       }
     }
 

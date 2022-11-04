@@ -860,7 +860,7 @@ impl<'source> Parser<'source> {
           module: identifier.get_value(self.source),
           item: item.get_value(self.source)
         },
-        identifier
+        (identifier, item)
       ))
     } else {
       Ok(expression!(

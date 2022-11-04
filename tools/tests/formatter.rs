@@ -413,10 +413,10 @@ block(25)
 fn fibonacci_recursive() {
   let fibonacci_recursive = "
 let fib_recursive = (n: number) -> number
-if (n <= 2)
-  if (n == 0) return 0
-  return n - 1
-else return fib_recursive(n - 1) + fib_recursive(n - 2)
+  if (n <= 2)
+    if (n == 0) return 0
+    return n - 1
+  else return fib_recursive(n - 1) + fib_recursive(n - 2)
 
 fib_recursive(25)";
 
@@ -529,4 +529,67 @@ fn format_string() {
 fn module_access() {
   assert_format!("maths::sin(7)");
   assert_format!("maths :: sin ( 6 )", "maths::sin(6)");
+}
+
+#[test]
+fn line_spacing() {
+  assert_format!(
+    "
+from list import { map }
+from maths import { sin }
+from list import { map as mapTwo }
+
+let a = map == map
+let b = map == list::map
+let c = sin == sin
+let d = map == mapTwo
+let e = sin == maths::sin
+
+print([a, b, c, d, e])
+  "
+  );
+
+  assert_format!(
+    "
+let a = () ->
+  from list import { map }
+  from maths import { sin }
+  from list import { map as mapTwo }
+
+  let a = map == map
+  let b = map == list::map
+  let c = sin == sin
+  let d = map == mapTwo
+  let e = sin == maths::sin
+
+  print([a, b, c, d, e])
+  "
+  );
+  assert_format!(
+    "
+let result = 0
+let i = 0
+while (i < 100000)
+  result += 11
+  result *= 10
+  result -= (result / 100) * 99
+  i += 1
+    "
+  );
+  assert_format!(
+    "
+let bubbleSort = (list) -> null
+  let n = length(list)
+  let i = 0
+
+  while (i < n)
+    let j = 0
+
+    while (j < n - i - 1)
+      if (list[j] > list[j + 1]) list >> swap(j, j + 1)
+      j += 1
+
+    i += 1
+"
+  );
 }
