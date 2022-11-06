@@ -203,6 +203,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
   }
 
   fn finish(mut self) -> Chunk {
+    self.emit_opcode_blank(OpCode::Null);
     self.emit_opcode_blank(OpCode::Return);
 
     let mut chunk = self.chunk.finalize();
