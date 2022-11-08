@@ -16,3 +16,8 @@ readme = "../README.md"
 categories = ["compilers"]
 keywords = ["interpreter", "language"]
 edition = "2021"
+
+[profile.release]
+strip = true
+lto = true
+panic = "abort"
