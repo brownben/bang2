@@ -73,6 +73,26 @@ let b: number = a
 "
   );
 
+  assert_correct!(
+    "
+let a = (x: number) ->
+  if (x > 5)
+    return 4
+let b: number? = a(44)
+"
+  );
+
+  assert_correct!(
+    "
+let a = (x: number) ->
+  if (x > 5)
+    return 4
+  return
+
+let b: number? = a(44)
+"
+  );
+
   assert_fails!("while (true) 4");
 }
 
@@ -163,6 +183,25 @@ let a: (number) -> number = sin
 
   assert_correct!("let a: (number, number) -> number = maths::pow");
   assert_fails!("let a = maths::x");
+  assert_fails!("let a = unknown::x");
+}
+
+#[test]
+fn unions() {
+  assert_correct!(
+    "
+  let a: any | number
+  let b: any = a
+    "
+  );
+  assert_correct!(
+    "
+let a = (x: (number[] | string[]) | (number | string)) => x
+a([5])
+a(5)
+a('hello')
+  "
+  );
 }
 
 mod variables {
@@ -197,6 +236,13 @@ mod variables {
   let a = false
     let a = 5
     a = -a
+  "
+    );
+    assert_fails!(
+      "
+  let a = false
+  let a = 5
+  a = -a
   "
     );
   }
@@ -354,6 +400,14 @@ mod operators {
   let multiply = (a: number, b: number) => a * b
 
   let a:number = 3 >> add(4) >> multiply(5)
+      "
+    );
+    assert_correct!(
+      "
+  let add = (a: number, b: number) => a + b
+  let multiply = (a: number, b: number) => a * b
+
+  let a:number = 3 >> add(4) >> multiply(5) // comment to unwrap
       "
     );
   }
@@ -582,6 +636,13 @@ let func = (a: boolean) ->
   if (a != false) s(a)
   "
     );
+    assert_correct!(
+      "
+let s = (b: true) => b
+let func = (a: boolean) ->
+  if ((a != false)) s(a)
+  "
+    );
   }
 
   #[test]
@@ -663,6 +724,36 @@ let n = (n: null) => null
 let func = (a: boolean?) ->
   if (a == true || a == false) boolean(a)
   else n(a)
+"
+    );
+  }
+
+  #[test]
+  fn to_never() {
+    assert_fails!(
+      "
+let boolean = (b: boolean) ->
+  if (b == true)
+    return
+  else if (b == false)
+    return
+  else
+    boolean(b)
+"
+    );
+  }
+
+  #[test]
+  fn to_union() {
+    assert_correct!(
+      "
+let boolean = (b: boolean?) ->
+  if (b == true)
+    return
+  else if (b == false)
+    return
+  else
+    b == null
 "
     );
   }
@@ -770,6 +861,8 @@ let a = (a) ->
     assert_fails!("let a: dict(string, number) = dict::new()\nlet b: number = a[7]");
     assert_fails!("let a: dict(string, number) = []");
     assert_fails!("let a: list(string) = dict::new()");
+    assert_fails!("let a: unknown(string, string) = dict::new()");
+    assert_fails!("let a: dict(string) = dict::new()");
   }
 }
 

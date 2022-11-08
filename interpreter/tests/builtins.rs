@@ -9,6 +9,8 @@ let c = type(null)
 let d = type(type)
 let e = type('hello')
 let f = type([])
+let g = type(set::new())
+let h = type(dict::new())
 "
   a == "number"
   b == "boolean"
@@ -16,6 +18,8 @@ let f = type([])
   d == "function"
   e == "string"
   f == "list"
+  g == "set"
+  h == "dict"
 );
 
 bang_test!(print
@@ -834,6 +838,23 @@ let z = toString(a)
 "
     z == "set(set(...))"
   );
+
+  bang_test!(falsy
+"
+let a = 0
+let b = 0
+
+if (set::new())
+  a += 1
+
+let c = set::new()
+c >> set::insert(5)
+if (c)
+  b += 1
+"
+    a == 0
+    b == 1
+  );
 }
 
 mod dict {
@@ -866,6 +887,41 @@ let j = (a >> get(44)) == null
     h == true
     i == 5
     j == true
+  );
+
+  bang_test!(falsy
+"
+let a = 0
+let b = 0
+
+if (dict::new())
+  a += 1
+
+let c = dict::new()
+c['a'] = 1
+if (c)
+  b += 1
+"
+    a == 0
+    b == 1
+  );
+
+  bang_test!(equality
+"
+let a = dict::new()
+let b = dict::new()
+
+let c = a == b
+
+b[1] = 2
+let d = a == b
+
+a[1] = 2
+let e = a ==b
+"
+    c == true
+    d == false
+    e == true
   );
 
   bang_test!(index_not_found

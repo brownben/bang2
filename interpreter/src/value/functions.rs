@@ -52,11 +52,6 @@ impl From<bool> for ClosureKind {
     }
   }
 }
-impl Default for ClosureKind {
-  fn default() -> Self {
-    Self::Closed
-  }
-}
 
 #[derive(Clone, Default, PartialEq, Eq)]
 pub struct Function {

@@ -487,6 +487,11 @@ fn types() {
     "let f: < T, D > (string, number) -> number",
     "let f: <T, D>(string, number) -> number"
   );
+  assert_format!("let b: parameter(a, b, c)");
+  assert_format!("let b: parameter(a,  b,c, )", "let b: parameter(a, b, c)");
+
+  assert_format!("let b: (..number) -> string");
+  assert_format!("let b: () -> string");
 }
 
 #[test]

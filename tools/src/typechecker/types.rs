@@ -109,7 +109,7 @@ impl Type {
 
       (Self::Union(mut a), Self::Union(b)) => {
         for b in b {
-          if a.iter().any(|a| b.is_subtype_of(a)) {
+          if a.iter().any(|a| !b.is_subtype_of(a)) {
             a.push(b);
           }
         }

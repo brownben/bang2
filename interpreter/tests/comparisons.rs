@@ -113,11 +113,14 @@ let a = 3 == 4
 let b = 3 == 3
 let c = -5 == 5
 let d = 0 == -0
+let e = 0.3 == (0.1 + 0.2)
+let e = [0.3] == [0.1 + 0.2]
 "
   a == false
   b == true
   c == false
   d == true
+  e == true
 );
 
 bang_test!(equality_strings
