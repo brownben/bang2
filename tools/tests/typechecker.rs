@@ -289,6 +289,27 @@ let c: string = a
     );
     assert_fails!("let [a, b] = 373.32");
   }
+
+  #[test]
+  fn named_destructuring() {
+    assert_correct!(
+      "
+let dict: dict(string, number) = dict::new()
+let {x, y, z} = dict
+let a: number = x
+let b: number = y
+let c: number = z
+    "
+    );
+    assert_fails!(
+      "
+let dict: dict(string, boolean) = dict::new()
+let {x, y, z} = dict
+let a: number = x
+    "
+    );
+    assert_fails!("let {a, b} = []");
+  }
 }
 
 mod operators {

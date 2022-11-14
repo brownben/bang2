@@ -87,9 +87,12 @@ lint_rule! {
       if let Stmt::Declaration { identifier, .. } = &statement.stmt {
         match identifier {
           DeclarationIdentifier::Variable(name) => self.data.define(name, statement.span),
-          DeclarationIdentifier::List(names) => names
+          DeclarationIdentifier::Ordered(names) => names
             .iter()
             .for_each(|name| self.data.define(name, statement.span)),
+          DeclarationIdentifier::Named(names) => names
+            .iter()
+            .for_each(|name| self.data.define(name.get_name(), statement.span)),
         }
       }
     }

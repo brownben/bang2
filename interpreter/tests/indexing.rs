@@ -227,6 +227,35 @@ let [x, y, z] = list
   z == 8
 );
 
+bang_test!(named_destructuring
+  "
+let x = dict::new()
+x['a'] = 5
+x['b'] = 6
+x['c'] = 7
+x['d'] = 4
+x['e'] = 22
+x['g'] = 99
+
+let { a, b, c } = x
+let { e, d } = x
+let { a as f, g, b as h } = x
+  "
+  a == 5
+  b == 6
+  c == 7
+  d == 4
+  e == 22
+  f == 5
+  g == 99
+  h == 6
+);
+
+bang_test!(named_destructuring_non_existant_key
+  "let { a } = dict::new()"
+  RuntimeError
+);
+
 bang_test!(assignment_when_local_stack_not_empty
   "
 let identity = (x) => x

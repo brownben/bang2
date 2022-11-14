@@ -285,7 +285,7 @@ impl<'source> Formatter<'source> {
         }
       }
       Expr::Group { expression, .. } => {
-        self.write_group( expression, indentation, f)?;
+        self.write_group(expression, indentation, f)?;
       }
       Expr::Index { expression, index } => {
         self.fmt_expression(expression, indentation, f)?;
@@ -395,7 +395,7 @@ impl<'source> Formatter<'source> {
       } => {
         match identifier {
           DeclarationIdentifier::Variable(identifier) => write!(f, "let {identifier}")?,
-          DeclarationIdentifier::List(list) => {
+          DeclarationIdentifier::Ordered(list) => {
             write!(f, "let [")?;
             Self::write_list(
               list,
@@ -407,6 +407,34 @@ impl<'source> Formatter<'source> {
               f,
             )?;
             write!(f, "]")?;
+          }
+          DeclarationIdentifier::Named(list) => {
+            write!(f, "let {{ ")?;
+            Self::write_list(
+              list,
+              |item| self.line(item.span),
+              &mut |f, item, _| {
+                write!(f, "{}", item.name)?;
+                if let Some(alias) = item.alias {
+                  write!(f, " as {alias}")?;
+                }
+                Ok(())
+              },
+              self.line(span),
+              indentation,
+              false,
+              f,
+            )?;
+
+            if list
+              .iter()
+              .last()
+              .map_or_else(|| true, |item| self.line(item.span) != self.line(span))
+            {
+              write!(f, "}}")?;
+            } else {
+              write!(f, " }}")?;
+            }
           }
         };
 

@@ -46,7 +46,7 @@ pub enum Stmt<'source> {
   },
   Import {
     module: &'source str,
-    items: Vec<ImportItem<'source>>,
+    items: Vec<AliasItem<'source>>,
   },
   Return {
     expression: Option<Expression<'source>>,
@@ -61,22 +61,39 @@ pub enum Stmt<'source> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct ImportItem<'s> {
+pub struct AliasItem<'s> {
   pub name: &'s str,
   pub span: Span,
   pub alias: Option<&'s str>,
+}
+impl<'s> AliasItem<'s> {
+  pub fn get_name(&self) -> &'s str {
+    self.alias.unwrap_or(self.name)
+  }
 }
 
 #[derive(Clone, Debug)]
 pub enum DeclarationIdentifier<'source> {
   Variable(&'source str),
-  List(Vec<&'source str>),
+  Ordered(Vec<&'source str>),
+  Named(Vec<AliasItem<'source>>),
 }
 impl fmt::Display for DeclarationIdentifier<'_> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     match self {
       DeclarationIdentifier::Variable(identifier) => write!(f, "{identifier}"),
-      DeclarationIdentifier::List(identifiers) => write!(f, "{}", identifiers.join(", ")),
+      DeclarationIdentifier::Ordered(identifiers) => {
+        write!(f, "{}", identifiers.join(", "))
+      }
+      DeclarationIdentifier::Named(identifiers) => {
+        for identifier in identifiers {
+          write!(f, "{}", identifier.name)?;
+          if let Some(alias) = identifier.alias {
+            write!(f, " as {alias}")?;
+          }
+        }
+        write!(f, ", ")
+      }
     }
   }
 }

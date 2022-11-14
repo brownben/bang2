@@ -151,6 +151,7 @@ let [f, g, h] = [1, 2, 3, 4]
 print(f)
 let [i, _j] = [1, 2, 3, 4]
 (x) => 7
+let { k } = 55
 "
-  "No Unused Variables" [8 6 12 11 9 9 2]
+  "No Unused Variables" [8 6 13 12 11 9 9 2]
 );

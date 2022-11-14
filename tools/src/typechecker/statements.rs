@@ -5,7 +5,7 @@ use super::{
 };
 use bang_syntax::ast::{
   expression::{Expression, LiteralType as Literal},
-  statement::{DeclarationIdentifier, ImportItem, Statement},
+  statement::{AliasItem, DeclarationIdentifier, Statement},
   types::TypeExpression,
   Span,
 };
@@ -95,7 +95,7 @@ impl<'s> Typechecker<'s> {
           self.scope.update(identifier, ty);
         }
       }
-      DeclarationIdentifier::List(identifiers) => {
+      DeclarationIdentifier::Ordered(identifiers) => {
         if annotation == Type::Literal(Literal::String) {
           for identifier in identifiers {
             self
@@ -112,6 +112,19 @@ impl<'s> Typechecker<'s> {
               .scope
               .define(identifier, list_inner_type.clone(), span)?;
           }
+        }
+      }
+      DeclarationIdentifier::Named(identifiers) => {
+        let key_ty = Type::Literal(Literal::String);
+        let value_ty = self.context.new_existential();
+        let dict_type = Type::Dict(key_ty.into(), value_ty.clone().into());
+
+        self.assert_type(annotation, &dict_type, span)?;
+
+        for identifier in identifiers {
+          self
+            .scope
+            .define(identifier.get_name(), value_ty.clone(), span)?;
         }
       }
     };
@@ -153,15 +166,13 @@ impl<'s> Typechecker<'s> {
 
   pub fn import_statement(
     &mut self,
-    items: &[ImportItem<'s>],
+    items: &[AliasItem<'s>],
     module: &str,
   ) -> Result<StatementType, Error> {
     for item in items {
       match self.get_module_item(module, item.name) {
         ImportValue::Value(ty) => {
-          self
-            .scope
-            .define(item.alias.unwrap_or(item.name), ty, item.span)?;
+          self.scope.define(item.get_name(), ty, item.span)?;
         }
         ImportValue::ModuleNotFound => {
           Error::new(

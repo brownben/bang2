@@ -284,7 +284,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
           DeclarationIdentifier::Variable(identifier) => {
             self.define_variable(identifier, span);
           }
-          DeclarationIdentifier::List(identifiers) => {
+          DeclarationIdentifier::Ordered(identifiers) => {
             identifiers
               .iter()
               .enumerate()
@@ -300,6 +300,21 @@ impl<'s, 'c> Compiler<'s, 'c> {
                 self.emit_opcode(span, OpCode::GetIndex);
                 self.define_variable(identifier, span);
               });
+            self.emit_opcode(span, OpCode::Pop);
+          }
+          DeclarationIdentifier::Named(identifiers) => {
+            for identifier in identifiers {
+              let locals = self.locals.last().expect("Local stack to have item");
+              let temp_local_location = u8::try_from(locals.len())
+                .map_err(|_| self.error(Error::TooManyLocals, span, ""))
+                .unwrap_or(0);
+
+              self.emit_opcode(span, OpCode::GetLocal);
+              self.emit_value(span, temp_local_location);
+              self.emit_constant(span, Value::from(identifier.name));
+              self.emit_opcode(span, OpCode::GetIndex);
+              self.define_variable(identifier.get_name(), span);
+            }
             self.emit_opcode(span, OpCode::Pop);
           }
         }
@@ -330,12 +345,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
       Stmt::Import { module, items, .. } => {
         for item in items {
           self.import(module, item.name, item.span);
-
-          if let Some(alias) = item.alias {
-            self.define_variable(alias, item.span);
-          } else {
-            self.define_variable(item.name, item.span);
-          }
+          self.define_variable(item.get_name(), item.span);
         }
       }
       Stmt::While {

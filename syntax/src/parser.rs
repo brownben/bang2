@@ -4,7 +4,7 @@ use crate::{
       expression, AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, Parameter,
       UnaryOperator,
     },
-    statement::{statement, DeclarationIdentifier, ImportItem, Statement, Stmt},
+    statement::{statement, AliasItem, DeclarationIdentifier, Statement, Stmt},
     types::{types, Type, TypeExpression},
     Span,
   },
@@ -397,12 +397,12 @@ impl<'source> Parser<'source> {
   fn var_declaration(&mut self) -> StatementResult<'source> {
     let token = self.current_advance();
 
-    let (identifier, identifier_span) = match self.current.ttype {
+    let (identifier, identifier_end) = match self.current.ttype {
       TokenType::Identifier => {
         let token = self.current_advance();
         (
           DeclarationIdentifier::Variable(token.get_value(self.source)),
-          token.into(),
+          token,
         )
       }
       TokenType::LeftSquare => {
@@ -411,13 +411,18 @@ impl<'source> Parser<'source> {
         while self.current.ttype == TokenType::Identifier {
           identifiers.push(self.current_advance().get_value(self.source));
           self.matches(TokenType::Comma);
+          self.ignore_newline();
         }
         self.consume(TokenType::RightSquare, Error::ExpectedClosingSquare)?;
 
-        (
-          DeclarationIdentifier::List(identifiers),
-          self.current.into(),
-        )
+        (DeclarationIdentifier::Ordered(identifiers), self.current)
+      }
+      TokenType::LeftBrace => {
+        self.next();
+        let identifiers = self.alias_items()?;
+        let end_token = self.current_advance();
+
+        (DeclarationIdentifier::Named(identifiers), end_token)
       }
       _ => Err(Error::ExpectedIdentifier)?,
     };
@@ -438,7 +443,7 @@ impl<'source> Parser<'source> {
 
       (expression.span, Some(expression))
     } else {
-      (identifier_span, None)
+      (identifier_end.into(), None)
     };
 
     Ok(statement!(
@@ -533,6 +538,39 @@ impl<'source> Parser<'source> {
     Ok(statement!(Expression { expression }, expression.span))
   }
 
+  fn alias_items(&mut self) -> Result<Vec<AliasItem<'source>>, Error> {
+    let mut items = Vec::new();
+
+    loop {
+      self.ignore_newline();
+      if self.current.ttype == TokenType::RightBrace {
+        break;
+      }
+
+      let item = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+      let alias = if self.matches(TokenType::As) {
+        let token = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
+        Some(token.get_value(self.source))
+      } else {
+        None
+      };
+
+      items.push(AliasItem {
+        name: item.get_value(self.source),
+        span: Span::from(item),
+        alias,
+      });
+
+      if !self.matches(TokenType::Comma) {
+        self.ignore_newline();
+        self.expect(TokenType::RightBrace, Error::ExpectedClosingBrace)?;
+        break;
+      }
+    }
+
+    Ok(items)
+  }
+
   fn import_statement(&mut self) -> StatementResult<'source> {
     let token = self.current_advance();
     let module = if self.current.ttype == TokenType::String {
@@ -547,32 +585,8 @@ impl<'source> Parser<'source> {
     self.consume(TokenType::Import, Error::ExpectedImportKeyword)?;
     self.consume(TokenType::LeftBrace, Error::ExpectedOpeningBrace)?;
 
-    let mut items = Vec::new();
-    let end_token = loop {
-      self.ignore_newline();
-      if self.current.ttype == TokenType::RightBrace {
-        break self.current;
-      }
-
-      let item = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
-      let alias = if self.matches(TokenType::As) {
-        let token = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
-        Some(token.get_value(self.source))
-      } else {
-        None
-      };
-
-      items.push(ImportItem {
-        name: item.get_value(self.source),
-        span: Span::from(item),
-        alias,
-      });
-
-      if !self.matches(TokenType::Comma) {
-        self.ignore_newline();
-        break self.expect(TokenType::RightBrace, Error::ExpectedClosingBrace)?;
-      }
-    };
+    let items = self.alias_items()?;
+    let end_token = self.current;
 
     self.expect_newline()?;
 
@@ -1377,7 +1391,7 @@ mod tests {
     {
       let expr = expression.as_ref().unwrap();
       match identifier {
-        DeclarationIdentifier::List(identifier) => assert_eq!(identifier.len(), 2),
+        DeclarationIdentifier::Ordered(identifier) => assert_eq!(identifier.len(), 2),
         _ => assert!(false),
       };
       assert_literal(&expr.expr, "null", LiteralType::Null);

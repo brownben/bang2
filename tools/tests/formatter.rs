@@ -518,6 +518,21 @@ fn index_assignment() {
 fn list_destructuring() {
   assert_format!("let[a,b]=[1,2,3]", "let [a, b] = [1, 2, 3]");
   assert_format!("let [c,] =  list", "let [c] = list");
+  assert_format!("let[a, \nb]=[1,2,3]", "let [a, b] = [1, 2, 3]");
+}
+
+#[test]
+fn named_destructuring() {
+  assert_format!("let{a,b}=something", "let { a, b } = something");
+  assert_format!("let {c,} =  dict", "let { c } = dict");
+  assert_format!("let {a as b}=something", "let { a as b } = something");
+  assert_format!("let { a as b } = something");
+  assert_format!("let { a as b, c, d as e } = something");
+  assert_format!(
+    "let { a as b,\n c, d as e } = something",
+    "let { \n  a as b,\n  c,\n  d as e,\n} = something"
+  );
+  assert_format!("let { } = something");
 }
 
 #[test]
