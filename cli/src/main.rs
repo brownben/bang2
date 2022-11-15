@@ -168,11 +168,7 @@ fn repl() {
 
         if let Ok(chunk) = compile("REPL", &source) {
           if let Err(error) = vm.run(&chunk) {
-            print::error_message(&error.message);
-
-            for line_number in error.lines {
-              print::code_frame("REPL", &source, line_number);
-            }
+            print::stack_trace("REPL", &source, error);
           }
         }
       }

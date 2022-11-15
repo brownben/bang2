@@ -9,47 +9,76 @@ use crate::{
 };
 use bang_syntax::LineNumber;
 use smallvec::SmallVec;
+use smartstring::alias::String;
 use std::{collections::hash_map, error, fmt, rc::Rc};
+
+#[derive(Debug)]
+pub struct StackTraceLocation {
+  pub kind: StackTraceLocationKind,
+  pub line: LineNumber,
+}
+
+#[derive(Debug)]
+pub enum StackTraceLocationKind {
+  Function(String),
+  Root,
+}
 
 #[derive(Debug)]
 pub struct RuntimeError {
   pub message: String,
-  pub lines: Vec<LineNumber>,
+  pub stack: Vec<StackTraceLocation>,
 }
 impl fmt::Display for RuntimeError {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     write!(
       f,
-      "Runtime Error: {}\nat line {}",
-      self.message, self.lines[0]
+      "Runtime Error: {}\n at line {}",
+      self.message, self.stack[0].line
     )
   }
 }
 impl error::Error for RuntimeError {}
 
 macro_rules! runtime_error {
-  (($vm:expr, $chunk:expr, $ip:expr), $($message:tt)+) => {{
-    $vm.stack.clear();
-
-    let mut lines = vec![$chunk.get_line_number($ip)];
+  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $($message:tt)+) => {{
+    let line = $chunk.get_line_number($ip);
+    let kind = if $offset == 0 {
+      StackTraceLocationKind::Root
+    } else {
+      StackTraceLocationKind::Function(
+        $vm.stack[$offset - 1].as_object().get_function_name()
+      )
+    };
+    let mut stack = vec![StackTraceLocation { kind, line }];
 
     for frame in $vm.frames.iter().rev() {
-      lines.push($chunk.get_line_number(frame.ip));
+      let line = $chunk.get_line_number(frame.ip);
+      let kind = if frame.offset == 0 {
+        StackTraceLocationKind::Root
+      } else {
+        StackTraceLocationKind::Function(
+          $vm.stack[frame.offset - 1].as_object().get_function_name()
+        )
+      };
+
+      stack.push(StackTraceLocation { kind, line });
     }
-    lines.dedup();
+
+    $vm.stack.clear();
 
     Err(RuntimeError {
-      message: format!($($message)+),
-      lines,
+      message: format!($($message)+).into(),
+      stack,
     })
   }};
 }
 
 macro_rules! function_arity_check {
-  (($vm:expr, $chunk:expr, $ip:expr), $arity:expr, $arg_count:expr) => {{
+  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $arity:expr, $arg_count:expr) => {{
     if !$arity.check_arg_count($arg_count) {
       break runtime_error!(
-        ($vm, $chunk, $ip),
+        ($vm, $chunk, $ip, $offset),
         "Expected {} arguments but got {}.",
         $arity.get_count(),
         $arg_count
@@ -67,19 +96,19 @@ macro_rules! function_arity_check {
 }
 
 macro_rules! numeric_expression {
-  ($vm:expr, $token:tt,  $chunk:expr, $ip:expr) => {
+  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $token:tt) => {
     let (right, left) = ($vm.pop(), $vm.pop());
 
     if left.is_number() && right.is_number() {
       $vm.push(Value::from(left.as_number() $token right.as_number()));
     } else {
-      break runtime_error!(($vm, $chunk, $ip), "Both operands must be numbers.");
+      break runtime_error!(($vm, $chunk, $ip, $offset), "Both operands must be numbers.");
     }
   };
 }
 
 macro_rules! comparison_expression {
-  ($vm:expr, $token:tt,  $chunk:expr, $ip:expr) => {
+  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $token:tt) => {
     let (right, left) = ($vm.pop(), $vm.pop());
 
     if left.is_number() && right.is_number() {
@@ -90,7 +119,7 @@ macro_rules! comparison_expression {
     {
       $vm.push(Value::from(left $token right));
     } else {
-      break runtime_error!(($vm, $chunk, $ip), "Operands must be two numbers or two strings.");
+      break runtime_error!(($vm, $chunk, $ip, $offset), "Operands must be two numbers or two strings.");
     }
   };
 }
@@ -194,7 +223,7 @@ impl VM {
             self.push(Value::from(new));
           } else {
             break runtime_error!(
-              (self, chunk, ip),
+              (self, chunk, ip, offset),
               "Operands must be two numbers or two strings."
             );
           }
@@ -202,15 +231,15 @@ impl VM {
           ip += 1;
         }
         OpCode::Subtract => {
-          numeric_expression!(self, -, chunk, ip);
+          numeric_expression!((self, chunk, ip, offset), -);
           ip += 1;
         }
         OpCode::Multiply => {
-          numeric_expression!(self, *, chunk, ip);
+          numeric_expression!((self, chunk, ip, offset), *);
           ip += 1;
         }
         OpCode::Divide => {
-          numeric_expression!(self, /, chunk, ip);
+          numeric_expression!((self, chunk, ip, offset), /);
           ip += 1;
         }
         OpCode::Negate => {
@@ -219,7 +248,7 @@ impl VM {
             self.push(Value::from(-value.as_number()));
           } else {
             break runtime_error!(
-              (self, chunk, ip),
+              (self, chunk, ip, offset),
               "Operand must be a number but recieved {}.",
               value.get_type()
             );
@@ -244,19 +273,19 @@ impl VM {
           ip += 1;
         }
         OpCode::Less => {
-          comparison_expression!(self, <, chunk, ip);
+          comparison_expression!((self, chunk, ip, offset), <);
           ip += 1;
         }
         OpCode::Greater => {
-          comparison_expression!(self, >, chunk, ip);
+          comparison_expression!((self, chunk, ip, offset), >);
           ip += 1;
         }
         OpCode::LessEqual => {
-          comparison_expression!(self, <=, chunk, ip);
+          comparison_expression!((self, chunk, ip, offset), <=);
           ip += 1;
         }
         OpCode::GreaterEqual => {
-          comparison_expression!(self, >=, chunk, ip);
+          comparison_expression!((self, chunk, ip, offset), >=);
           ip += 1;
         }
 
@@ -283,7 +312,7 @@ impl VM {
           if let Some(value) = value {
             self.push(value);
           } else {
-            break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name);
+            break runtime_error!((self, chunk, ip, offset), "Undefined variable '{}'", name);
           }
 
           ip += 2;
@@ -296,7 +325,7 @@ impl VM {
           if let hash_map::Entry::Occupied(mut entry) = self.globals.entry(name.clone()) {
             entry.insert(value);
           } else {
-            break runtime_error!((self, chunk, ip), "Undefined variable '{}'", name);
+            break runtime_error!((self, chunk, ip, offset), "Undefined variable '{}'", name);
           }
 
           ip += 2;
@@ -361,23 +390,23 @@ impl VM {
           let callee = self.stack[pos].clone();
 
           if !callee.is_object() {
-            break runtime_error!((self, chunk, ip), "Can only call functions.");
+            break runtime_error!((self, chunk, ip, offset), "Can only call functions.");
           }
 
           if let Object::Function(func) = &*callee.as_object() {
-            function_arity_check!((self, chunk, ip), func.arity, arg_count);
+            function_arity_check!((self, chunk, ip, offset), func.arity, arg_count);
 
             self.store_frame(ip + 2, offset, SmallVec::new());
             offset = self.stack.len() - usize::from(func.arity.get_count());
             ip = func.start;
           } else if let Object::Closure(closure) = &*callee.as_object() {
-            function_arity_check!((self, chunk, ip), closure.func.arity, arg_count);
+            function_arity_check!((self, chunk, ip, offset), closure.func.arity, arg_count);
 
             self.store_frame(ip + 2, offset, closure.upvalues.clone());
             offset = self.stack.len() - usize::from(closure.func.arity.get_count());
             ip = closure.func.start;
           } else if let Object::NativeFunction(func) = &*callee.as_object() {
-            function_arity_check!((self, chunk, ip), func.arity, arg_count);
+            function_arity_check!((self, chunk, ip, offset), func.arity, arg_count);
 
             let start_of_args = self.stack.len() - usize::from(func.arity.get_count());
             let result = {
@@ -389,7 +418,7 @@ impl VM {
 
             ip += 2;
           } else {
-            break runtime_error!((self, chunk, ip), "Can only call functions.");
+            break runtime_error!((self, chunk, ip, offset), "Can only call functions.");
           }
         }
 
@@ -419,10 +448,14 @@ impl VM {
           match item.get_property(&index) {
             GetResult::Found(value) => self.push(value),
             GetResult::NotFound => {
-              break runtime_error!((self, chunk, ip), "Index '{}' not found", index);
+              break runtime_error!((self, chunk, ip, offset), "Index '{}' not found", index);
             }
             GetResult::NotSupported => {
-              break runtime_error!((self, chunk, ip), "Can't index type {}", item.get_type());
+              break runtime_error!(
+                (self, chunk, ip, offset),
+                "Can't index type {}",
+                item.get_type()
+              );
             }
           }
 
@@ -436,10 +469,14 @@ impl VM {
           match item.set_property(&index, value.clone()) {
             SetResult::Set => {}
             SetResult::NotFound => {
-              break runtime_error!((self, chunk, ip), "Index '{}' not found", index);
+              break runtime_error!((self, chunk, ip, offset), "Index '{}' not found", index);
             }
             SetResult::NotSupported => {
-              break runtime_error!((self, chunk, ip), "Can't index type {}", item.get_type());
+              break runtime_error!(
+                (self, chunk, ip, offset),
+                "Can't index type {}",
+                item.get_type()
+              );
             }
           }
 
@@ -477,7 +514,7 @@ impl VM {
 
             self.push(Closure::new(func.clone(), upvalues).into());
           } else {
-            break runtime_error!((self, chunk, ip), "Can only close over functions");
+            break runtime_error!((self, chunk, ip, offset), "Can only close over functions");
           }
 
           ip += 1;
@@ -516,7 +553,7 @@ impl VM {
         }
 
         _ => {
-          break runtime_error!((self, chunk, ip), "Unknown OpCode");
+          break runtime_error!((self, chunk, ip, offset), "Unknown OpCode");
         }
       }
 

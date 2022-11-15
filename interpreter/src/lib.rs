@@ -12,6 +12,10 @@ pub use compiler::compile;
 pub use value::Value;
 pub use vm::{RuntimeError, VM};
 
+pub mod errors {
+  pub use super::vm::{RuntimeError as Runtime, StackTraceLocation, StackTraceLocationKind};
+}
+
 pub mod collections {
   pub use ahash::AHashMap as HashMap;
   pub use ahash::AHashSet as HashSet;

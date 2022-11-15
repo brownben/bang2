@@ -41,6 +41,15 @@ impl Object {
     }
   }
 
+  pub(crate) fn get_function_name(&self) -> String {
+    match self {
+      Self::Function(func) => func.name.clone(),
+      Self::NativeFunction(func) => func.name.into(),
+      Self::Closure(func) => func.func.name.clone(),
+      _ => "".into(),
+    }
+  }
+
   pub fn equals(a: &Value, b: &Value, seen: &mut HashSet<u64>) -> bool {
     if !a.is_object() || !b.is_object() {
       return false;

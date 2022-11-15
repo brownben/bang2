@@ -52,12 +52,6 @@ pub fn compile(filename: &str, source: &str) -> Result<bang::Chunk, ()> {
 pub fn run(filename: &str, source: &str, chunk: &bang::Chunk) {
   match bang::VM::new(&bang::StdContext).run(chunk) {
     Ok(()) => {}
-    Err(error) => {
-      print::error_message(&error.message);
-
-      for line_number in error.lines {
-        print::code_frame(filename, source, line_number);
-      }
-    }
+    Err(error) => print::stack_trace(filename, source, error),
   }
 }
