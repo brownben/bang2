@@ -24,10 +24,10 @@ pub enum SetResult {
 }
 
 pub trait Index {
-  fn get_property(&self, _index: Value) -> GetResult {
+  fn get_property(&self, _index: &Value) -> GetResult {
     GetResult::NotSupported
   }
-  fn set_property(&mut self, _index: Value, _value: Value) -> SetResult {
+  fn set_property(&mut self, _index: &Value, _value: Value) -> SetResult {
     SetResult::NotSupported
   }
 }
@@ -46,7 +46,7 @@ pub fn calculate_index(number: f64, length: usize) -> usize {
 }
 
 impl Index for Value {
-  fn get_property(&self, index: Value) -> GetResult {
+  fn get_property(&self, index: &Value) -> GetResult {
     if self.is_object() {
       match &*self.as_object() {
         Object::String(string) => string.get_property(index),
@@ -59,7 +59,7 @@ impl Index for Value {
     }
   }
 
-  fn set_property(&mut self, index: Value, value: Value) -> SetResult {
+  fn set_property(&mut self, index: &Value, value: Value) -> SetResult {
     if self.is_object() {
       match &*self.as_object() {
         Object::List(list) => list.borrow_mut().set_property(index, value),
@@ -72,7 +72,7 @@ impl Index for Value {
   }
 }
 impl Index for String {
-  fn get_property(&self, index: Value) -> GetResult {
+  fn get_property(&self, index: &Value) -> GetResult {
     if index.is_number() {
       self
         .chars()
@@ -85,7 +85,7 @@ impl Index for String {
   }
 }
 impl Index for Vec<Value> {
-  fn get_property(&self, index: Value) -> GetResult {
+  fn get_property(&self, index: &Value) -> GetResult {
     if index.is_number() {
       let index = calculate_index(index.as_number(), self.len());
       self.get(index).cloned().into()
@@ -94,7 +94,7 @@ impl Index for Vec<Value> {
     }
   }
 
-  fn set_property(&mut self, index: Value, value: Value) -> SetResult {
+  fn set_property(&mut self, index: &Value, value: Value) -> SetResult {
     if index.is_number() {
       let index = calculate_index(index.as_number(), self.len());
       if index < self.len() {
@@ -108,12 +108,12 @@ impl Index for Vec<Value> {
   }
 }
 impl Index for HashMap<Value, Value> {
-  fn get_property(&self, index: Value) -> GetResult {
-    self.get(&index).cloned().into()
+  fn get_property(&self, index: &Value) -> GetResult {
+    self.get(index).cloned().into()
   }
 
-  fn set_property(&mut self, index: Value, value: Value) -> SetResult {
-    self.insert(index, value);
+  fn set_property(&mut self, index: &Value, value: Value) -> SetResult {
+    self.insert(index.clone(), value);
     SetResult::Set
   }
 }

@@ -416,10 +416,10 @@ impl VM {
           let index = self.pop();
           let item = self.pop();
 
-          match item.get_property(index) {
+          match item.get_property(&index) {
             GetResult::Found(value) => self.push(value),
             GetResult::NotFound => {
-              break runtime_error!((self, chunk, ip), "Index not found");
+              break runtime_error!((self, chunk, ip), "Index '{}' not found", index);
             }
             GetResult::NotSupported => {
               break runtime_error!((self, chunk, ip), "Can't index type {}", item.get_type());
@@ -433,10 +433,10 @@ impl VM {
           let index = self.pop();
           let mut item = self.pop();
 
-          match item.set_property(index, value.clone()) {
+          match item.set_property(&index, value.clone()) {
             SetResult::Set => {}
             SetResult::NotFound => {
-              break runtime_error!((self, chunk, ip), "Index not found");
+              break runtime_error!((self, chunk, ip), "Index '{}' not found", index);
             }
             SetResult::NotSupported => {
               break runtime_error!((self, chunk, ip), "Can't index type {}", item.get_type());
