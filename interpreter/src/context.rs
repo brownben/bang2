@@ -1,7 +1,7 @@
 use bang_syntax::LineNumber;
 
 use crate::{
-  chunk::{Builder as ChunkBuilder, Chunk, OpCode},
+  chunk::{Chunk, OpCode},
   value::{Function, Value},
   vm::VM,
 };
@@ -34,17 +34,22 @@ impl Context for Empty {
   }
   fn define_globals(&self, _: &mut VM) {}
 }
+impl<'a> Default for &'a dyn Context {
+  fn default() -> Self {
+    &Empty
+  }
+}
 
 pub struct BytecodeFunctionCreator<'a> {
-  base_chunk: &'a mut ChunkBuilder,
-  chunk: ChunkBuilder,
+  base_chunk: &'a mut Chunk,
+  chunk: Chunk,
   line: LineNumber,
 }
 impl<'a> BytecodeFunctionCreator<'a> {
-  pub fn new(base_chunk: &'a mut ChunkBuilder, line: LineNumber) -> Self {
+  pub fn new(base_chunk: &'a mut Chunk, line: LineNumber) -> Self {
     Self {
       base_chunk,
-      chunk: ChunkBuilder::new(),
+      chunk: Chunk::new(),
       line,
     }
   }

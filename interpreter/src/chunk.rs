@@ -53,13 +53,13 @@ pub enum OpCode {
 type TokensOnLine = u16;
 type Line = (LineNumber, TokensOnLine);
 
-#[derive(Default)]
-struct LineInfoBuilder {
+#[derive(Clone, Default)]
+struct LineInfo {
   lines: Vec<Line>,
   last: LineNumber,
   repeated: TokensOnLine,
 }
-impl LineInfoBuilder {
+impl LineInfo {
   fn new() -> Self {
     Self {
       lines: Vec::new(),
@@ -78,21 +78,14 @@ impl LineInfoBuilder {
     }
   }
 
-  fn finalize(mut self) -> LineInfo {
+  fn finalize(&mut self) {
     if self.repeated > 0 {
       self.lines.push((self.last, self.repeated));
       self.last = 0;
       self.repeated = 0;
     }
-    LineInfo { lines: self.lines }
   }
-}
 
-#[derive(Clone)]
-struct LineInfo {
-  lines: Vec<Line>,
-}
-impl LineInfo {
   fn get(&self, opcode_position: usize) -> LineNumber {
     let length = self.lines.len();
     let mut count = 0;
@@ -113,20 +106,21 @@ impl LineInfo {
   }
 }
 
-#[derive(Default)]
-pub struct Builder {
-  code: Vec<u8>,
-  constants: Vec<Value>,
-  strings: Vec<Rc<str>>,
-  lines: LineInfoBuilder,
+#[must_use]
+#[derive(Clone, Default)]
+pub struct Chunk {
+  pub code: Vec<u8>,
+  pub constants: Vec<Value>,
+  pub strings: Vec<Rc<str>>,
+  lines: LineInfo,
 }
-impl Builder {
+impl Chunk {
   pub fn new() -> Self {
     Self {
       code: Vec::new(),
       constants: Vec::new(),
       strings: Vec::new(),
-      lines: LineInfoBuilder::new(),
+      lines: LineInfo::new(),
     }
   }
 
@@ -180,24 +174,18 @@ impl Builder {
     self.code[offset + 1] = second_byte;
   }
 
-  pub fn finalize(self) -> Chunk {
-    Chunk {
-      code: self.code,
-      constants: self.constants,
-      strings: self.strings,
-      lines: self.lines.finalize(),
-    }
+  pub(crate) fn merge(&mut self, chunk: &Self) -> usize {
+    let offset = self.code.len();
+    self.code.extend_from_slice(&chunk.code);
+    self.lines.lines.extend_from_slice(&chunk.lines.lines);
+    offset
   }
-}
 
-#[derive(Clone)]
-pub struct Chunk {
-  pub code: Vec<u8>,
-  pub constants: Vec<Value>,
-  pub strings: Vec<Rc<str>>,
-  lines: LineInfo,
-}
-impl Chunk {
+  pub fn finalize(mut self) -> Self {
+    self.lines.finalize();
+    self
+  }
+
   #[inline]
   pub fn get(&self, position: usize) -> OpCode {
     // Assume bytecode is valid, so position exists and OpCode is valid
@@ -230,13 +218,6 @@ impl Chunk {
   pub fn get_line_number(&self, opcode_position: usize) -> LineNumber {
     self.lines.get(opcode_position)
   }
-
-  pub(crate) fn merge(&mut self, chunk: &Self) -> usize {
-    let offset = self.code.len();
-    self.code.extend_from_slice(&chunk.code);
-    self.lines.lines.extend_from_slice(&chunk.lines.lines);
-    offset
-  }
 }
 
 #[cfg(test)]
@@ -252,6 +233,7 @@ mod test {
       strings: Vec::new(),
       lines: LineInfo {
         lines: vec![(1, 1)],
+        ..Default::default()
       },
     };
     let mut vm = VM::default();

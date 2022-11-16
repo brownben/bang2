@@ -178,7 +178,11 @@ impl VM {
   }
 
   pub fn run(&mut self, chunk: &Chunk) -> Result<(), RuntimeError> {
-    let mut ip: usize = 0;
+    self.run_from(chunk, 0)
+  }
+
+  pub fn run_from(&mut self, chunk: &Chunk, ip: usize) -> Result<(), RuntimeError> {
+    let mut ip: usize = ip;
     let mut offset: usize = 0;
 
     loop {

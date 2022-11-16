@@ -1,5 +1,5 @@
 use crate::{
-  chunk::{Builder as ChunkBuilder, Chunk, OpCode},
+  chunk::{Chunk, OpCode},
   collections::HashMap,
   context::{BytecodeFunctionCreator, Context, ImportValue},
   value::{Arity, ClosureKind, Function, Object, Value},
@@ -76,6 +76,7 @@ struct Local<'s> {
   closed: bool,
 }
 
+#[derive(Default)]
 struct Compiler<'s, 'c> {
   source: &'s str,
   context: &'c dyn Context,
@@ -84,8 +85,8 @@ struct Compiler<'s, 'c> {
   closures: Vec<SmallVec<[(u8, ClosureKind); 8]>>,
   scope_depth: u8,
 
-  chunk: ChunkBuilder,
-  chunk_stack: Vec<ChunkBuilder>,
+  chunk: Chunk,
+  chunk_stack: Vec<Chunk>,
   finished_chunks: Vec<Chunk>,
 
   import_cache: HashMap<(&'s str, &'s str), usize>,
@@ -117,7 +118,7 @@ impl Compiler<'_, '_> {
       .write_long_value(value, span.get_line_number(self.source));
   }
 
-  fn base_chunk(&mut self) -> &mut ChunkBuilder {
+  fn base_chunk(&mut self) -> &mut Chunk {
     if self.chunk_stack.is_empty() {
       &mut self.chunk
     } else {
@@ -188,17 +189,9 @@ impl<'s, 'c> Compiler<'s, 'c> {
       source,
       context,
 
-      chunk: ChunkBuilder::new(),
-      chunk_stack: Vec::new(),
-      finished_chunks: Vec::new(),
-
       locals: vec![Vec::new()],
-      closures: Vec::new(),
-      scope_depth: 0,
 
-      import_cache: HashMap::new(),
-
-      error: None,
+      ..Default::default()
     }
   }
 
@@ -245,7 +238,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
   }
 
   fn new_chunk(&mut self) {
-    let chunk = mem::replace(&mut self.chunk, ChunkBuilder::new());
+    let chunk = mem::replace(&mut self.chunk, Chunk::new());
     self.chunk_stack.push(chunk);
     self.locals.push(Vec::new());
     self.begin_scope();
