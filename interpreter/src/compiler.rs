@@ -6,13 +6,10 @@ use crate::{
 };
 use bang_syntax::{
   ast::{
-    expression::{
-      AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, UnaryOperator,
-    },
+    expression::{operators, Expr, Expression, LiteralType},
     statement::{DeclarationIdentifier, Statement, Stmt},
-    Span,
   },
-  Diagnostic, Parser,
+  Diagnostic, Parser, Span,
 };
 use smallvec::SmallVec;
 use std::mem;
@@ -412,8 +409,8 @@ impl<'s, 'c> Compiler<'s, 'c> {
         self.compile_expression(expression);
 
         match operator {
-          UnaryOperator::Minus => self.emit_opcode(span, OpCode::Negate),
-          UnaryOperator::Not => self.emit_opcode(span, OpCode::Not),
+          operators::Unary::Minus => self.emit_opcode(span, OpCode::Negate),
+          operators::Unary::Not => self.emit_opcode(span, OpCode::Not),
         }
       }
       Expr::Binary {
@@ -423,10 +420,10 @@ impl<'s, 'c> Compiler<'s, 'c> {
         ..
       } => {
         match operator {
-          BinaryOperator::Nullish => return self.nullish(span, left, right),
-          BinaryOperator::And => return self.and(span, left, right),
-          BinaryOperator::Or => return self.or(span, left, right),
-          BinaryOperator::Pipeline => return self.pipeline(span, left, right),
+          operators::Binary::Nullish => return self.nullish(span, left, right),
+          operators::Binary::And => return self.and(span, left, right),
+          operators::Binary::Or => return self.or(span, left, right),
+          operators::Binary::Pipeline => return self.pipeline(span, left, right),
           _ => {}
         }
 
@@ -434,16 +431,16 @@ impl<'s, 'c> Compiler<'s, 'c> {
         self.compile_expression(right);
 
         match operator {
-          BinaryOperator::Plus => self.emit_opcode(span, OpCode::Add),
-          BinaryOperator::Minus => self.emit_opcode(span, OpCode::Subtract),
-          BinaryOperator::Multiply => self.emit_opcode(span, OpCode::Multiply),
-          BinaryOperator::Divide => self.emit_opcode(span, OpCode::Divide),
-          BinaryOperator::Equal => self.emit_opcode(span, OpCode::Equal),
-          BinaryOperator::Greater => self.emit_opcode(span, OpCode::Greater),
-          BinaryOperator::Less => self.emit_opcode(span, OpCode::Less),
-          BinaryOperator::NotEqual => self.emit_opcode(span, OpCode::NotEqual),
-          BinaryOperator::GreaterEqual => self.emit_opcode(span, OpCode::GreaterEqual),
-          BinaryOperator::LessEqual => self.emit_opcode(span, OpCode::LessEqual),
+          operators::Binary::Plus => self.emit_opcode(span, OpCode::Add),
+          operators::Binary::Minus => self.emit_opcode(span, OpCode::Subtract),
+          operators::Binary::Multiply => self.emit_opcode(span, OpCode::Multiply),
+          operators::Binary::Divide => self.emit_opcode(span, OpCode::Divide),
+          operators::Binary::Equal => self.emit_opcode(span, OpCode::Equal),
+          operators::Binary::Greater => self.emit_opcode(span, OpCode::Greater),
+          operators::Binary::Less => self.emit_opcode(span, OpCode::Less),
+          operators::Binary::NotEqual => self.emit_opcode(span, OpCode::NotEqual),
+          operators::Binary::GreaterEqual => self.emit_opcode(span, OpCode::GreaterEqual),
+          operators::Binary::LessEqual => self.emit_opcode(span, OpCode::LessEqual),
           _ => unreachable!(),
         }
       }
@@ -660,10 +657,10 @@ impl<'s, 'c> Compiler<'s, 'c> {
           self.emit_opcode(span, OpCode::GetIndex);
           self.compile_expression(value);
           match operator {
-            AssignmentOperator::Plus => self.emit_opcode(span, OpCode::Add),
-            AssignmentOperator::Minus => self.emit_opcode(span, OpCode::Subtract),
-            AssignmentOperator::Multiply => self.emit_opcode(span, OpCode::Multiply),
-            AssignmentOperator::Divide => self.emit_opcode(span, OpCode::Divide),
+            operators::Assignment::Plus => self.emit_opcode(span, OpCode::Add),
+            operators::Assignment::Minus => self.emit_opcode(span, OpCode::Subtract),
+            operators::Assignment::Multiply => self.emit_opcode(span, OpCode::Multiply),
+            operators::Assignment::Divide => self.emit_opcode(span, OpCode::Divide),
           }
         } else {
           self.compile_expression(value);

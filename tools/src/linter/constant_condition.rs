@@ -1,6 +1,6 @@
 use super::{lint_rule, Diagnostic, LintRule, Visitor};
 use bang_syntax::ast::{
-  expression::{BinaryOperator, Expr},
+  expression::{operators, Expr},
   statement::{Statement, Stmt},
   Span,
 };
@@ -18,7 +18,9 @@ pub fn is_constant(expr: &Expr) -> bool {
       right,
       operator,
     } => {
-      is_constant(&left.expr) && is_constant(&right.expr) && *operator != BinaryOperator::Pipeline
+      is_constant(&left.expr)
+        && is_constant(&right.expr)
+        && *operator != operators::Binary::Pipeline
     }
     Expr::List { items } => items.iter().all(|e| is_constant(&e.expr)),
     Expr::Index {

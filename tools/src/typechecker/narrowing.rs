@@ -4,7 +4,7 @@ use super::{
   Error, HashMap, Typechecker,
 };
 use bang_syntax::ast::{
-  expression::{BinaryOperator, Expr, Expression},
+  expression::{operators, Expr, Expression},
   statement::Statement,
 };
 use std::collections::hash_map::Entry as HashMapEntry;
@@ -42,7 +42,7 @@ impl<'s> Typechecker<'s> {
         return self.get_restrictions(expression);
       }
       Expr::Binary {
-        operator: BinaryOperator::Equal,
+        operator: operators::Binary::Equal,
         left,
         right,
       } => {
@@ -53,7 +53,7 @@ impl<'s> Typechecker<'s> {
         }
       }
       Expr::Binary {
-        operator: BinaryOperator::NotEqual,
+        operator: operators::Binary::NotEqual,
         left,
         right,
       } => {
@@ -67,7 +67,7 @@ impl<'s> Typechecker<'s> {
         }
       }
       Expr::Binary {
-        operator: BinaryOperator::And,
+        operator: operators::Binary::And,
         left,
         right,
       } => {
@@ -95,7 +95,7 @@ impl<'s> Typechecker<'s> {
         );
       }
       Expr::Binary {
-        operator: BinaryOperator::Or,
+        operator: operators::Binary::Or,
         left,
         right,
       } => {

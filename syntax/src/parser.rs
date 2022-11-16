@@ -1,15 +1,11 @@
 use crate::{
   ast::{
-    expression::{
-      expression, AssignmentOperator, BinaryOperator, Expr, Expression, LiteralType, Parameter,
-      UnaryOperator,
-    },
+    expression::{expression, operators, Expr, Expression, LiteralType, Parameter},
     statement::{statement, AliasItem, DeclarationIdentifier, Statement, Stmt},
     types::{types, Type, TypeExpression},
-    Span,
   },
   tokens::{Token, TokenType, Tokeniser},
-  LineNumber,
+  LineNumber, Span,
 };
 use std::{error, fmt, iter, str};
 
@@ -738,7 +734,7 @@ impl<'source> Parser<'source> {
 
     Ok(expression!(
       Unary {
-        operator: UnaryOperator::from(token.ttype),
+        operator: operators::Unary::from(token.ttype),
         expression: Box::new(expression),
       },
       (token, expression.span)
@@ -842,7 +838,7 @@ impl<'source> Parser<'source> {
 
       let binary = expression!(
         Binary {
-          operator: AssignmentOperator::token_to_binary(operator.ttype),
+          operator: operators::Assignment::token_to_binary(operator.ttype),
           left: Box::new(expression!(Variable { name }, identifier)),
           right: Box::new(right),
         },
@@ -907,7 +903,7 @@ impl<'source> Parser<'source> {
         IndexAssignment {
           expression: Box::new(previous),
           index: Box::new(expression),
-          assignment_operator: AssignmentOperator::from_token(operator.ttype),
+          assignment_operator: operators::Assignment::from_token(operator.ttype),
           value: Box::new(right)
         },
         (previous.span, right.span)
@@ -980,7 +976,7 @@ impl<'source> Parser<'source> {
 
     Ok(expression!(
       Binary {
-        operator: BinaryOperator::from(operator.ttype),
+        operator: operators::Binary::from(operator.ttype),
         left: Box::new(previous),
         right: Box::new(right),
       },
@@ -1291,7 +1287,7 @@ mod tests {
     } = unwrap_expression(&statements[0])
     {
       assert_literal(&expression.expr, "false", LiteralType::False);
-      assert_eq!(*operator, UnaryOperator::Not);
+      assert_eq!(*operator, operators::Unary::Not);
     } else {
       panic!("Expected unary expression statement");
     }
@@ -1309,7 +1305,7 @@ mod tests {
     {
       assert_literal(&left.expr, "10", LiteralType::Number);
       assert_literal(&right.expr, "5", LiteralType::Number);
-      assert_eq!(*operator, BinaryOperator::Plus);
+      assert_eq!(*operator, operators::Binary::Plus);
     } else {
       panic!("Expected binary expression statement");
     }

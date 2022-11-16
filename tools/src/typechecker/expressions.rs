@@ -5,7 +5,7 @@ use super::{
   Error, ErrorKind, HashMap, Typechecker,
 };
 use bang_syntax::ast::{
-  expression::{AssignmentOperator, BinaryOperator, Expression, Parameter, UnaryOperator},
+  expression::{operators, Expression, Parameter},
   statement::Statement,
   types::TypeExpression,
   Span,
@@ -34,11 +34,13 @@ impl<'s> Typechecker<'s> {
 
   pub fn binary_expression(
     &mut self,
-    operator: BinaryOperator,
+    operator: operators::Binary,
     left: &Expression<'s>,
     right: &Expression<'s>,
     span: Span,
   ) -> Result<Type, Error> {
+    use operators::Binary as BinaryOperator;
+
     if operator == BinaryOperator::Pipeline {
       return self.synthesize_pipeline(left, right, span);
     }
@@ -216,7 +218,7 @@ impl<'s> Typechecker<'s> {
     expression: &Expression<'s>,
     index: &Expression<'s>,
     value: &Expression<'s>,
-    assignment_operator: Option<AssignmentOperator>,
+    assignment_operator: Option<operators::Assignment>,
     span: Span,
   ) -> Result<Type, Error> {
     let list_interior = self.context.new_existential();
@@ -231,7 +233,7 @@ impl<'s> Typechecker<'s> {
     let value_ty = self.assert_type(value_ty, &list_interior, value.span)?;
 
     match assignment_operator {
-      Some(AssignmentOperator::Plus) => {
+      Some(operators::Assignment::Plus) => {
         self.assert_type(value_ty, &Type::string_or_number(), span)?;
         self.assert_type(list_interior.clone(), &Type::string_or_number(), span)?;
       }
@@ -260,14 +262,15 @@ impl<'s> Typechecker<'s> {
   pub fn unary_expression(
     &mut self,
     expression: &Expression<'s>,
-    operator: UnaryOperator,
+    operator: operators::Unary,
     span: Span,
   ) -> Result<Type, Error> {
+    use operators::Unary;
     let ty = self.synthesize_expression(expression)?;
 
     match operator {
-      UnaryOperator::Minus => self.assert_type(ty, &Type::Literal(Literal::Number), span),
-      UnaryOperator::Not => Ok(match ty {
+      Unary::Minus => self.assert_type(ty, &Type::Literal(Literal::Number), span),
+      Unary::Not => Ok(match ty {
         ty if ty.is_truthy() => Type::Literal(Literal::False),
         ty if ty.is_falsy() => Type::Literal(Literal::True),
         _ => Type::boolean(),

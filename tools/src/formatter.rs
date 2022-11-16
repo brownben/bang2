@@ -1,11 +1,10 @@
 use bang_syntax::{
   ast::{
-    expression::{AssignmentOperator, Expr, Expression, LiteralType},
+    expression::{operators, Expr, Expression, LiteralType},
     statement::{DeclarationIdentifier, Statement, Stmt},
     types::{Type, TypeExpression},
-    Span,
   },
-  LineNumber, Parser,
+  LineNumber, Parser, Span,
 };
 
 const INDENTATION: &str = "  ";
@@ -186,7 +185,7 @@ impl<'source> Formatter<'source> {
       } => {
         if let Expr::Binary { operator, left, right, .. } = &expression.expr
           && let Expr::Variable { name } = &left.expr
-          && let Some(assignment_operator) = AssignmentOperator::from_binary(operator)
+          && let Some(assignment_operator) = operators::Assignment::from_binary(operator)
           && name == identifier
         {
           write!(f, "{identifier} {assignment_operator} ")?;

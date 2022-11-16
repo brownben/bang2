@@ -5,7 +5,7 @@ mod visitor;
 
 use bang_syntax::{
   ast::{
-    expression::{BinaryOperator, Expr, Expression},
+    expression::{operators::Binary as BinaryOperator, Expr, Expression},
     statement::{Statement, Stmt},
     Span,
   },

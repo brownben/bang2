@@ -4,6 +4,7 @@ pub mod ast;
 mod parser;
 mod tokens;
 
+pub use ast::Span;
 pub use parser::Diagnostic;
 pub use parser::{parse, parse_type, Parser};
 pub use tokens::LineNumber;

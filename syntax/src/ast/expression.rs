@@ -1,6 +1,4 @@
-use super::statement::Statement;
-use super::types::TypeExpression;
-use super::Span;
+use super::{statement::Statement, types::TypeExpression, Span};
 use crate::tokens::TokenType;
 use smartstring::alias::String;
 use std::fmt;
@@ -35,7 +33,7 @@ pub enum Expr<'source> {
     expression: Box<Expression<'source>>,
   },
   Binary {
-    operator: BinaryOperator,
+    operator: operators::Binary,
     left: Box<Expression<'source>>,
     right: Box<Expression<'source>>,
   },
@@ -68,7 +66,7 @@ pub enum Expr<'source> {
     expression: Box<Expression<'source>>,
     index: Box<Expression<'source>>,
     value: Box<Expression<'source>>,
-    assignment_operator: Option<AssignmentOperator>,
+    assignment_operator: Option<operators::Assignment>,
   },
   List {
     items: Vec<Expression<'source>>,
@@ -82,7 +80,7 @@ pub enum Expr<'source> {
     item: &'source str,
   },
   Unary {
-    operator: UnaryOperator,
+    operator: operators::Unary,
     expression: Box<Expression<'source>>,
   },
   Variable {
@@ -122,133 +120,138 @@ impl fmt::Display for LiteralType {
   }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum BinaryOperator {
-  Plus,
-  Minus,
-  Multiply,
-  Divide,
-  NotEqual,
-  Equal,
-  Greater,
-  GreaterEqual,
-  Less,
-  LessEqual,
-  And,
-  Or,
-  Nullish,
-  Pipeline,
-}
-impl From<TokenType> for BinaryOperator {
-  fn from(token_type: TokenType) -> Self {
-    match token_type {
-      TokenType::Plus => Self::Plus,
-      TokenType::Minus => Self::Minus,
-      TokenType::Star => Self::Multiply,
-      TokenType::Slash => Self::Divide,
-      TokenType::BangEqual => Self::NotEqual,
-      TokenType::EqualEqual => Self::Equal,
-      TokenType::Greater => Self::Greater,
-      TokenType::GreaterEqual => Self::GreaterEqual,
-      TokenType::Less => Self::Less,
-      TokenType::LessEqual => Self::LessEqual,
-      TokenType::And => Self::And,
-      TokenType::Or => Self::Or,
-      TokenType::QuestionQuestion => Self::Nullish,
-      TokenType::RightRight => Self::Pipeline,
-      _ => unreachable!(),
-    }
-  }
-}
-impl fmt::Display for BinaryOperator {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self {
-      Self::Plus => write!(f, "+"),
-      Self::Minus => write!(f, "-"),
-      Self::Multiply => write!(f, "*"),
-      Self::Divide => write!(f, "/"),
-      Self::NotEqual => write!(f, "!="),
-      Self::Equal => write!(f, "=="),
-      Self::Greater => write!(f, ">"),
-      Self::GreaterEqual => write!(f, ">="),
-      Self::Less => write!(f, "<"),
-      Self::LessEqual => write!(f, "<="),
-      Self::And => write!(f, "and"),
-      Self::Or => write!(f, "or"),
-      Self::Nullish => write!(f, "??"),
-      Self::Pipeline => write!(f, ">>"),
-    }
-  }
-}
+pub mod operators {
+  use super::TokenType;
+  use std::fmt;
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum AssignmentOperator {
-  Plus,
-  Minus,
-  Multiply,
-  Divide,
-}
-impl AssignmentOperator {
-  pub fn from_binary(operator: &BinaryOperator) -> Option<Self> {
-    match operator {
-      BinaryOperator::Plus => Some(Self::Plus),
-      BinaryOperator::Minus => Some(Self::Minus),
-      BinaryOperator::Multiply => Some(Self::Multiply),
-      BinaryOperator::Divide => Some(Self::Divide),
-      _ => None,
+  #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+  pub enum Binary {
+    Plus,
+    Minus,
+    Multiply,
+    Divide,
+    NotEqual,
+    Equal,
+    Greater,
+    GreaterEqual,
+    Less,
+    LessEqual,
+    And,
+    Or,
+    Nullish,
+    Pipeline,
+  }
+  impl From<TokenType> for Binary {
+    fn from(token_type: TokenType) -> Self {
+      match token_type {
+        TokenType::Plus => Self::Plus,
+        TokenType::Minus => Self::Minus,
+        TokenType::Star => Self::Multiply,
+        TokenType::Slash => Self::Divide,
+        TokenType::BangEqual => Self::NotEqual,
+        TokenType::EqualEqual => Self::Equal,
+        TokenType::Greater => Self::Greater,
+        TokenType::GreaterEqual => Self::GreaterEqual,
+        TokenType::Less => Self::Less,
+        TokenType::LessEqual => Self::LessEqual,
+        TokenType::And => Self::And,
+        TokenType::Or => Self::Or,
+        TokenType::QuestionQuestion => Self::Nullish,
+        TokenType::RightRight => Self::Pipeline,
+        _ => unreachable!(),
+      }
+    }
+  }
+  impl fmt::Display for Binary {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      match self {
+        Self::Plus => write!(f, "+"),
+        Self::Minus => write!(f, "-"),
+        Self::Multiply => write!(f, "*"),
+        Self::Divide => write!(f, "/"),
+        Self::NotEqual => write!(f, "!="),
+        Self::Equal => write!(f, "=="),
+        Self::Greater => write!(f, ">"),
+        Self::GreaterEqual => write!(f, ">="),
+        Self::Less => write!(f, "<"),
+        Self::LessEqual => write!(f, "<="),
+        Self::And => write!(f, "and"),
+        Self::Or => write!(f, "or"),
+        Self::Nullish => write!(f, "??"),
+        Self::Pipeline => write!(f, ">>"),
+      }
     }
   }
 
-  pub fn from_token(operator: TokenType) -> Option<Self> {
-    match operator {
-      TokenType::PlusEqual => Some(Self::Plus),
-      TokenType::MinusEqual => Some(Self::Minus),
-      TokenType::StarEqual => Some(Self::Multiply),
-      TokenType::SlashEqual => Some(Self::Divide),
-      _ => None,
+  #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+  pub enum Assignment {
+    Plus,
+    Minus,
+    Multiply,
+    Divide,
+  }
+  impl Assignment {
+    pub fn from_binary(operator: &Binary) -> Option<Self> {
+      match operator {
+        Binary::Plus => Some(Self::Plus),
+        Binary::Minus => Some(Self::Minus),
+        Binary::Multiply => Some(Self::Multiply),
+        Binary::Divide => Some(Self::Divide),
+        _ => None,
+      }
+    }
+
+    pub fn from_token(operator: TokenType) -> Option<Self> {
+      match operator {
+        TokenType::PlusEqual => Some(Self::Plus),
+        TokenType::MinusEqual => Some(Self::Minus),
+        TokenType::StarEqual => Some(Self::Multiply),
+        TokenType::SlashEqual => Some(Self::Divide),
+        _ => None,
+      }
+    }
+
+    pub fn token_to_binary(token_type: TokenType) -> Binary {
+      match token_type {
+        TokenType::PlusEqual => Binary::Plus,
+        TokenType::MinusEqual => Binary::Minus,
+        TokenType::StarEqual => Binary::Multiply,
+        TokenType::SlashEqual => Binary::Divide,
+        _ => unreachable!("The only supported assignment operators are: +, -, *, /"),
+      }
+    }
+  }
+  impl fmt::Display for Assignment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      match self {
+        Self::Plus => write!(f, "+="),
+        Self::Minus => write!(f, "-="),
+        Self::Multiply => write!(f, "*="),
+        Self::Divide => write!(f, "/="),
+      }
     }
   }
 
-  pub fn token_to_binary(token_type: TokenType) -> BinaryOperator {
-    match token_type {
-      TokenType::PlusEqual => BinaryOperator::Plus,
-      TokenType::MinusEqual => BinaryOperator::Minus,
-      TokenType::StarEqual => BinaryOperator::Multiply,
-      TokenType::SlashEqual => BinaryOperator::Divide,
-      _ => unreachable!("The only supported assignment operators are: +, -, *, /"),
+  #[derive(Copy, Clone, Debug, PartialEq, Eq)]
+  pub enum Unary {
+    Not,
+    Minus,
+  }
+  impl From<TokenType> for Unary {
+    fn from(token_type: TokenType) -> Self {
+      match token_type {
+        TokenType::Bang => Self::Not,
+        TokenType::Minus => Self::Minus,
+        _ => unreachable!(),
+      }
     }
   }
-}
-impl fmt::Display for AssignmentOperator {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self {
-      Self::Plus => write!(f, "+="),
-      Self::Minus => write!(f, "-="),
-      Self::Multiply => write!(f, "*="),
-      Self::Divide => write!(f, "/="),
-    }
-  }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum UnaryOperator {
-  Not,
-  Minus,
-}
-impl From<TokenType> for UnaryOperator {
-  fn from(token_type: TokenType) -> Self {
-    match token_type {
-      TokenType::Bang => Self::Not,
-      TokenType::Minus => Self::Minus,
-      _ => unreachable!(),
-    }
-  }
-}
-impl fmt::Display for UnaryOperator {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    match self {
-      Self::Not => write!(f, "!"),
-      Self::Minus => write!(f, "-"),
+  impl fmt::Display for Unary {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+      match self {
+        Self::Not => write!(f, "!"),
+        Self::Minus => write!(f, "-"),
+      }
     }
   }
 }
