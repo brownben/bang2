@@ -196,7 +196,7 @@ macro_rules! module {
         $(
           stringify!($item_name) => ImportValue::Constant(
             NativeFunction::new(
-              stringify!($item_name),
+              concat!(stringify!($name), "::", stringify!($item_name)),
               count!($($type)*),
               |args| unwrap_type!($($type)*, args, $item_value),
             ).into()
@@ -205,7 +205,7 @@ macro_rules! module {
         $(
           stringify!($var_item_name) => ImportValue::Constant(
             NativeFunction::new_catch_all(
-              stringify!($var_item_name),
+              concat!(stringify!($name), "::", stringify!($var_item_name)),
               |args| unwrap_type!(Varadic, args, $var_item_value),
             ).into()
           ),
@@ -213,7 +213,11 @@ macro_rules! module {
         $(
           stringify!($bytecode_item_name) => {
             let mut function = Function::default();
-            function.name = stringify!($bytecode_item_name).into();
+            function.name = concat!(
+              stringify!($name),
+              "::",
+              stringify!($bytecode_item_name)
+            ).into();
             function.arity = count!($($by_type)*).into();
 
             ImportValue::Bytecode($bytecode_item_value, function)

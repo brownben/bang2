@@ -85,7 +85,7 @@ let a = maths::cos(0)
 let b = '${list::push}'
   "
   a == 1
-  b == "<function push>"
+  b == "<function list::push>"
 );
 
 bang_test!(equality
