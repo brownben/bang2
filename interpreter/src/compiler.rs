@@ -192,7 +192,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
     }
   }
 
-  fn finish(mut self) -> Chunk {
+  fn finish(mut self, existing_constants: usize) -> Chunk {
     self.emit_opcode_blank(OpCode::Null);
     self.emit_opcode_blank(OpCode::Return);
 
@@ -203,7 +203,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
       .map(|c| chunk.merge(c))
       .collect();
 
-    for constant in &mut chunk.constants.iter_mut() {
+    for constant in &mut chunk.constants[existing_constants..].iter_mut() {
       if constant.is_object() && let Object::Function(func) = constant.as_object() {
         *constant = Value::from(Function {
           name: func.name.clone(),
@@ -819,5 +819,33 @@ pub fn compile(source: &str, context: &dyn Context) -> Result<Chunk, Diagnostic>
     }
   }
 
-  Ok(compiler.finish())
+  Ok(compiler.finish(0))
+}
+
+pub fn compile_into_chunk(
+  source: &str,
+  chunk: Chunk,
+  context: &dyn Context,
+) -> Result<(Chunk, usize), Diagnostic> {
+  let start = chunk.code.len();
+  let existing_constants = chunk.constants.len();
+
+  let parser = Parser::new(source);
+  let mut compiler = Compiler {
+    source,
+    context,
+    chunk,
+    locals: vec![Vec::new()],
+    ..Default::default()
+  };
+
+  for statement in parser {
+    compiler.compile_statement(&statement?);
+
+    if let Some(error) = compiler.error {
+      return Err(error);
+    }
+  }
+
+  Ok((compiler.finish(existing_constants), start))
 }
