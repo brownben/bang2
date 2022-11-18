@@ -15,7 +15,7 @@ macro_rules! unwrap_type {
   }};
   (String, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::String(value) = &*$args[0].as_object() {
+      if let Object::String(value) = $args[0].as_object() {
         return $do(value as &str).into();
       }
     }
@@ -23,7 +23,7 @@ macro_rules! unwrap_type {
   }};
   (List, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::List(value) = &*$args[0].as_object() {
+      if let Object::List(value) = $args[0].as_object() {
         return $do(&mut value.borrow_mut()).into();
       }
     }
@@ -31,7 +31,7 @@ macro_rules! unwrap_type {
   }};
   (ListRef, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::List(value) = &*$args[0].as_object() {
+      if let Object::List(value) = $args[0].as_object() {
         return $do(&value.borrow()).into();
       }
     }
@@ -45,8 +45,8 @@ macro_rules! unwrap_type {
   }};
   (String String, $args: expr, $do: expr) => {{
     if $args[0].is_object() && $args[1].is_object() {
-      if let Object::String(a) = &*$args[0].as_object() {
-        if let Object::String(b) = &*$args[1].as_object() {
+      if let Object::String(a) = $args[0].as_object() {
+        if let Object::String(b) = $args[1].as_object() {
           return $do(a as &str, b as &str).into();
         }
       }
@@ -55,9 +55,9 @@ macro_rules! unwrap_type {
   }};
   (String String String, $args: expr, $do: expr) => {{
     if $args[0].is_object() && $args[1].is_object() && $args[2].is_object() {
-      if let Object::String(a) = &*$args[0].as_object() {
-        if let Object::String(b) = &*$args[1].as_object() {
-          if let Object::String(c) = &*$args[2].as_object() {
+      if let Object::String(a) = $args[0].as_object() {
+        if let Object::String(b) = $args[1].as_object() {
+          if let Object::String(c) = $args[2].as_object() {
             return $do(a as &str, b as &str, c as &str).into();
           }
         }
@@ -67,7 +67,7 @@ macro_rules! unwrap_type {
   }};
   (String Usize, $args: expr, $do: expr) => {{
     if $args[0].is_object() && $args[1].is_number() {
-      if let Object::String(value) = &*$args[0].as_object() {
+      if let Object::String(value) = $args[0].as_object() {
         return $do(value as &str, $args[1].as_number() as usize).into();
       }
     }
@@ -75,7 +75,7 @@ macro_rules! unwrap_type {
   }};
   (List Any, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::List(value) = &*$args[0].as_object() {
+      if let Object::List(value) = $args[0].as_object() {
         return $do(&mut value.borrow_mut(), $args[1].clone()).into();
       }
     }
@@ -83,7 +83,7 @@ macro_rules! unwrap_type {
   }};
   (ListReturned Any, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::List(value) = &*$args[0].as_object() {
+      if let Object::List(value) = $args[0].as_object() {
         $do(&mut value.borrow_mut(), $args[1].clone());
         return $args[0].clone();
       }
@@ -92,7 +92,7 @@ macro_rules! unwrap_type {
   }};
   (List Number, $args: expr, $do: expr) => {{
     if $args[0].is_object() && $args[1].is_number() {
-      if let Object::List(value) = &*$args[0].as_object() {
+      if let Object::List(value) = $args[0].as_object() {
         return $do(&mut value.borrow_mut(), $args[1].as_number()).into();
       }
     }
@@ -100,7 +100,7 @@ macro_rules! unwrap_type {
   }};
   (SetRef, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::Set(value) = &*$args[0].as_object() {
+      if let Object::Set(value) = $args[0].as_object() {
         return $do(&value.borrow()).into();
       }
     }
@@ -108,7 +108,7 @@ macro_rules! unwrap_type {
   }};
   (Set Any, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::Set(value) = &*$args[0].as_object() {
+      if let Object::Set(value) = $args[0].as_object() {
         return $do(&mut value.borrow_mut(), $args[1].clone()).into();
       }
     }
@@ -116,7 +116,7 @@ macro_rules! unwrap_type {
   }};
   (Set AnyRef, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::Set(value) = &*$args[0].as_object() {
+      if let Object::Set(value) = $args[0].as_object() {
         return $do(&mut value.borrow_mut(), &$args[1].clone()).into();
       }
     }
@@ -124,7 +124,7 @@ macro_rules! unwrap_type {
   }};
   (SetRef AnyRef, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::Set(value) = &*$args[0].as_object() {
+      if let Object::Set(value) = $args[0].as_object() {
         return $do(&value.borrow(), &$args[1].clone()).into();
       }
     }
@@ -132,8 +132,8 @@ macro_rules! unwrap_type {
   }};
   (Set Set, $args: expr, $do: expr) => {{
     if $args[0].is_object() && $args[1].is_object() {
-      if let Object::Set(a) = &*$args[0].as_object() {
-        if let Object::Set(b) = &*$args[1].as_object() {
+      if let Object::Set(a) = $args[0].as_object() {
+        if let Object::Set(b) = $args[1].as_object() {
           return $do(&a.borrow(), &b.borrow()).into();
         }
       }
@@ -142,8 +142,8 @@ macro_rules! unwrap_type {
   }};
   (SetCloned Set, $args: expr, $do: expr) => {{
     if $args[0].is_object() && $args[1].is_object() {
-      if let Object::Set(a) = &*$args[0].as_object() {
-        if let Object::Set(b) = &*$args[1].as_object() {
+      if let Object::Set(a) = $args[0].as_object() {
+        if let Object::Set(b) = $args[1].as_object() {
           return $do(&a.borrow(), &b.borrow())
             .cloned()
             .collect::<BangHashSet<Value>>()
@@ -155,7 +155,7 @@ macro_rules! unwrap_type {
   }};
   (Varadic, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::List(a) = &*$args[0].as_object() {
+      if let Object::List(a) = $args[0].as_object() {
         return $do(a.borrow().iter().cloned()).into();
       }
     }
@@ -163,7 +163,7 @@ macro_rules! unwrap_type {
   }};
   (DictRef, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::Dict(value) = &*$args[0].as_object() {
+      if let Object::Dict(value) = $args[0].as_object() {
         return $do(&value.borrow()).into();
       }
     }
@@ -171,7 +171,7 @@ macro_rules! unwrap_type {
   }};
   (DictRef Any, $args: expr, $do: expr) => {{
     if $args[0].is_object() {
-      if let Object::Dict(value) = &*$args[0].as_object() {
+      if let Object::Dict(value) = $args[0].as_object() {
         return $do(&value.borrow(), &$args[1]).into();
       }
     }

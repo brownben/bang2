@@ -41,29 +41,29 @@ impl fmt::Display for RuntimeError {
 impl error::Error for RuntimeError {}
 
 macro_rules! runtime_error {
-  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $($message:tt)+) => {{
+  (traceback, $vm:expr, $chunk:expr, $ip:expr, $offset:expr) => {{
     let line = $chunk.get_line_number($ip);
     let kind = if $offset == 0 {
       StackTraceLocationKind::Root
     } else {
       StackTraceLocationKind::Function(
-        $vm.stack[$offset - 1].as_object().get_function_name()
+        $vm.stack[$offset - 1].as_object().get_function_name().clone()
       )
     };
-    let mut stack = vec![StackTraceLocation { kind, line }];
 
-    for frame in $vm.frames.iter().rev() {
-      let line = $chunk.get_line_number(frame.ip);
-      let kind = if frame.offset == 0 {
-        StackTraceLocationKind::Root
-      } else {
-        StackTraceLocationKind::Function(
-          $vm.stack[frame.offset - 1].as_object().get_function_name()
-        )
-      };
+    StackTraceLocation { kind, line }
+  }};
 
-      stack.push(StackTraceLocation { kind, line });
-    }
+  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $($message:tt)+) => {{
+    let stack = std::iter::once(runtime_error!(traceback, $vm, $chunk, $ip, $offset))
+      .chain(
+        $vm
+          .frames
+          .iter()
+          .rev()
+          .map(|frame| runtime_error!(traceback, $vm, $chunk, frame.ip, frame.offset)),
+      )
+      .collect();
 
     $vm.stack.clear();
 
@@ -114,8 +114,8 @@ macro_rules! comparison_expression {
     if left.is_number() && right.is_number() {
       $vm.push(Value::from(left.as_number() $token right.as_number()));
     } else if left.is_object() && right.is_object()
-      && let Object::String(left) = &*left.as_object()
-      && let Object::String(right) = &*right.as_object()
+      && let Object::String(left) = left.as_object()
+      && let Object::String(right) = right.as_object()
     {
       $vm.push(Value::from(left $token right));
     } else {
@@ -219,8 +219,8 @@ impl VM {
           if left.is_number() && right.is_number() {
             self.push(Value::from(left.as_number() + right.as_number()));
           } else if left.is_object() && right.is_object()
-            && let Object::String(left) = &*left.as_object()
-            && let Object::String(right) = &*right.as_object()
+            && let Object::String(left) = left.as_object()
+            && let Object::String(right) = right.as_object()
           {
             let mut new = left.clone();
             new.push_str(right);
@@ -397,32 +397,37 @@ impl VM {
             break runtime_error!((self, chunk, ip, offset), "Can only call functions.");
           }
 
-          if let Object::Function(func) = &*callee.as_object() {
-            function_arity_check!((self, chunk, ip, offset), func.arity, arg_count);
+          match callee.as_object() {
+            Object::Function(func) => {
+              function_arity_check!((self, chunk, ip, offset), func.arity, arg_count);
 
-            self.store_frame(ip + 2, offset, SmallVec::new());
-            offset = self.stack.len() - usize::from(func.arity.get_count());
-            ip = func.start;
-          } else if let Object::Closure(closure) = &*callee.as_object() {
-            function_arity_check!((self, chunk, ip, offset), closure.func.arity, arg_count);
+              self.store_frame(ip + 2, offset, SmallVec::new());
+              offset = self.stack.len() - usize::from(func.arity.get_count());
+              ip = func.start;
+            }
+            Object::Closure(closure) => {
+              function_arity_check!((self, chunk, ip, offset), closure.func.arity, arg_count);
 
-            self.store_frame(ip + 2, offset, closure.upvalues.clone());
-            offset = self.stack.len() - usize::from(closure.func.arity.get_count());
-            ip = closure.func.start;
-          } else if let Object::NativeFunction(func) = &*callee.as_object() {
-            function_arity_check!((self, chunk, ip, offset), func.arity, arg_count);
+              self.store_frame(ip + 2, offset, closure.upvalues.clone());
+              offset = self.stack.len() - usize::from(closure.func.arity.get_count());
+              ip = closure.func.start;
+            }
+            Object::NativeFunction(func) => {
+              function_arity_check!((self, chunk, ip, offset), func.arity, arg_count);
 
-            let start_of_args = self.stack.len() - usize::from(func.arity.get_count());
-            let result = {
-              let args = self.stack.drain(start_of_args..);
-              (func.func)(args.as_slice())
-            };
-            self.pop();
-            self.push(result);
+              let start_of_args = self.stack.len() - usize::from(func.arity.get_count());
+              let result = {
+                let args = self.stack.drain(start_of_args..);
+                (func.func)(args.as_slice())
+              };
+              self.pop();
+              self.push(result);
 
-            ip += 2;
-          } else {
-            break runtime_error!((self, chunk, ip, offset), "Can only call functions.");
+              ip += 2;
+            }
+            _ => {
+              break runtime_error!((self, chunk, ip, offset), "Can only call functions.");
+            }
           }
         }
 
@@ -498,7 +503,7 @@ impl VM {
         OpCode::Closure => {
           let value = self.pop();
 
-          if value.is_object() && let Object::Function(func) = &*value.as_object() {
+          if value.is_object() && let Object::Function(func) = value.as_object() {
             let upvalues = func
               .upvalues
               .iter()
@@ -512,7 +517,9 @@ impl VM {
                 ClosureKind::Closed => {
                   self.stack[offset + usize::from(*index)].clone()
                 }
-                ClosureKind::Upvalue => self.peek_frame().upvalues[*index as usize].clone(),
+                ClosureKind::Upvalue => {
+                  self.peek_frame().upvalues[usize::from(*index)].clone()
+                },
               })
               .collect();
 

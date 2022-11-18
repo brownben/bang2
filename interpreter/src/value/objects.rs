@@ -55,7 +55,7 @@ impl Object {
       return false;
     }
 
-    match (&*a.as_object(), &*b.as_object()) {
+    match (a.as_object(), b.as_object()) {
       (Self::String(value), Self::String(other)) => value == other,
       (Self::Function(value), Self::Function(other)) => value == other,
       // Native Function and Closure are compared by pointer in Value::eq

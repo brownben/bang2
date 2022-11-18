@@ -48,7 +48,7 @@ pub fn calculate_index(number: f64, length: usize) -> usize {
 impl Index for Value {
   fn get_property(&self, index: &Value) -> GetResult {
     if self.is_object() {
-      match &*self.as_object() {
+      match self.as_object() {
         Object::String(string) => string.get_property(index),
         Object::List(list) => list.borrow().get_property(index),
         Object::Dict(dict) => dict.borrow().get_property(index),
@@ -61,7 +61,7 @@ impl Index for Value {
 
   fn set_property(&mut self, index: &Value, value: Value) -> SetResult {
     if self.is_object() {
-      match &*self.as_object() {
+      match self.as_object() {
         Object::List(list) => list.borrow_mut().set_property(index, value),
         Object::Dict(dict) => dict.borrow_mut().set_property(index, value),
         _ => SetResult::NotSupported,

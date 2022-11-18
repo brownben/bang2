@@ -11,10 +11,9 @@ impl Value {
   pub fn is_object(&self) -> bool {
     (self.0.addr() & TO_STORED) == TO_STORED
   }
-  pub fn as_object(&self) -> Rc<Object> {
+  pub fn as_object(&self) -> &Object {
     let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED);
-    unsafe { Rc::increment_strong_count(pointer) };
-    unsafe { Rc::from_raw(pointer) }
+    unsafe { &*pointer }
   }
 
   pub fn is_number(&self) -> bool {
@@ -71,19 +70,19 @@ impl Drop for Value {
     if self.is_object() {
       let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED);
 
-      unsafe { Rc::from_raw(pointer) };
+      unsafe { Rc::decrement_strong_count(pointer) };
     } else if self.is_allocated() {
       let pointer = self.0.map_addr(|ptr| ptr & FROM_STORED_ADDRESS);
       let pointer = pointer.cast::<RefCell<Self>>();
 
-      unsafe { Rc::from_raw(pointer) };
+      unsafe { Rc::decrement_strong_count(pointer) };
     }
   }
 }
 
 impl From<f64> for Value {
   fn from(value: f64) -> Self {
-    #[allow(clippy::cast_possible_truncation)] // as 64 bit code, usize == u64
+    #[allow(clippy::cast_possible_truncation)] // u64 == usize
     Self(ptr::invalid(value.to_bits() as usize))
   }
 }

@@ -145,7 +145,7 @@ impl fmt::Display for Value {
         let mut seen = HashSet::default();
         seen.insert(self.as_bytes());
 
-        Object::format(f, &b.as_object(), &mut seen, false)
+        Object::format(f, b.as_object(), &mut seen, false)
       }
     }
   }
@@ -157,7 +157,7 @@ impl fmt::Debug for Value {
         let mut seen = HashSet::default();
         seen.insert(self.as_bytes());
 
-        Object::format(f, &a.as_object(), &mut seen, true)
+        Object::format(f, a.as_object(), &mut seen, true)
       }
       b if b.is_allocated() => write!(f, "pointer"),
       c => write!(f, "{c}"),

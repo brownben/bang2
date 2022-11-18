@@ -157,13 +157,12 @@ impl Chunk {
   }
 
   pub fn add_constant_string(&mut self, string: &str) -> usize {
-    let value = Rc::from(string);
     self
       .strings
       .iter()
-      .position(|x| value == *x)
+      .position(|x| &**x == string)
       .unwrap_or_else(|| {
-        self.strings.push(value);
+        self.strings.push(Rc::from(string));
         self.strings.len() - 1
       })
   }
