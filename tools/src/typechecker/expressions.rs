@@ -101,7 +101,7 @@ impl<'s> Typechecker<'s> {
     span: Span,
   ) -> Result<Type, Error> {
     let return_type = if let Some(return_type) = return_type {
-      self.type_from_annotation(return_type, &mut HashMap::new())?
+      self.type_from_annotation(return_type, &mut HashMap::default())?
     } else {
       self.context.new_existential()
     };
@@ -109,7 +109,7 @@ impl<'s> Typechecker<'s> {
       .iter()
       .map(|param| {
         if let Some(ty) = &param.type_ {
-          self.type_from_annotation(ty, &mut HashMap::new())
+          self.type_from_annotation(ty, &mut HashMap::default())
         } else {
           Ok(self.context.new_existential())
         }

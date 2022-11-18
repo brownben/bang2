@@ -72,7 +72,7 @@ impl<'s> Typechecker<'s> {
     span: Span,
   ) -> Result<StatementType, Error> {
     let annotation = if let Some(annotation) = type_ {
-      self.type_from_annotation(annotation, &mut HashMap::new())?
+      self.type_from_annotation(annotation, &mut HashMap::default())?
     } else if let Some(expression) = expression {
       self.synthesize_expression(expression)?.uplevel_boolean()
     } else {

@@ -1,6 +1,6 @@
 use super::{Object, Value};
-use crate::collections::HashMap;
 use smartstring::alias::String;
+use std::collections::HashMap;
 
 pub enum GetResult {
   Found(Value),
@@ -107,7 +107,7 @@ impl Index for Vec<Value> {
     SetResult::NotSupported
   }
 }
-impl Index for HashMap<Value, Value> {
+impl<S: ::std::hash::BuildHasher> Index for HashMap<Value, Value, S> {
   fn get_property(&self, index: &Value) -> GetResult {
     self.get(index).cloned().into()
   }

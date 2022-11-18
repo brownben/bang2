@@ -106,7 +106,7 @@ impl PartialEq for Value {
       return (a - b).abs() < f64::EPSILON;
     }
 
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::default();
     seen.insert(self.as_bytes());
     seen.insert(other.as_bytes());
 
@@ -142,7 +142,7 @@ impl fmt::Display for Value {
       Self(FALSE) => write!(f, "false"),
       a if a.is_number() => write!(f, "{}", a.as_number()),
       b => {
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         seen.insert(self.as_bytes());
 
         Object::format(f, &b.as_object(), &mut seen, false)
@@ -154,7 +154,7 @@ impl fmt::Debug for Value {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
       a if a.is_object() => {
-        let mut seen = HashSet::new();
+        let mut seen = HashSet::default();
         seen.insert(self.as_bytes());
 
         Object::format(f, &a.as_object(), &mut seen, true)

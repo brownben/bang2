@@ -1,5 +1,4 @@
-use super::{Type, Typechecker};
-use ahash::AHashMap as HashMap;
+use super::{HashMap, Type, Typechecker};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ImportValue {
@@ -13,7 +12,7 @@ macro_rules! register_globals {
     $(
       let annotation = $typechecker.type_from_annotation(
         &bang_syntax::parse_type($text).expect("to be valid syntax"),
-        &mut HashMap::new(),
+        &mut HashMap::default(),
       ).expect("annotation to be valid");
 
       $typechecker.scope.insert(stringify!($name), annotation);
@@ -31,7 +30,7 @@ macro_rules! module {
           ImportValue::Value(
             $typechecker.type_from_annotation(
               &bang_syntax::parse_type($text).expect("to be valid syntax"),
-              &mut HashMap::new(),
+              &mut HashMap::default(),
             ).expect("annotation to be valid")
           )
         }

@@ -17,6 +17,6 @@ pub mod errors {
 }
 
 pub mod collections {
-  pub use ahash::AHashMap as HashMap;
-  pub use ahash::AHashSet as HashSet;
+  pub use rustc_hash::FxHashMap as HashMap;
+  pub use rustc_hash::FxHashSet as HashSet;
 }

@@ -155,8 +155,8 @@ fn displays_correctly() {
     "<function native>"
   );
 
-  assert_eq!(Value::from(HashSet::new()).to_string(), "set()");
-  assert_eq!(Value::from(HashMap::new()).to_string(), "{  }");
+  assert_eq!(Value::from(HashSet::default()).to_string(), "set()");
+  assert_eq!(Value::from(HashMap::default()).to_string(), "{  }");
 }
 
 #[test]

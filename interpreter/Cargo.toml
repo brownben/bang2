@@ -15,8 +15,8 @@ edition.workspace = true
 debug = []
 
 [dependencies]
-ahash = "0.7.6"
 bang-syntax = { path = "../syntax" }
+rustc-hash = "1.1.0"
 smallvec = { version="1", features=["union"] }
 smartstring = "1"
 

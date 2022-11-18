@@ -8,13 +8,13 @@ mod types;
 use statements::StatementType;
 use types::{Existential, Function, Literal, Type};
 
-use ahash::AHashMap as HashMap;
 use bang_syntax::ast::{
   expression::{Expr, Expression},
   statement::{Statement, Stmt},
   types::{Type as TypeItem, TypeExpression},
   Span,
 };
+use rustc_hash::FxHashMap as HashMap;
 use std::{error, fmt, mem};
 
 #[derive(Clone, Debug, PartialEq, Eq)]

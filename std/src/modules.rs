@@ -100,8 +100,8 @@ module!(set, {
 });
 
 module!(dict, {
-  fn new() -> BangHashMap::new;
-  fn dict() -> BangHashMap::new;
+  fn new() -> BangHashMap::default;
+  fn dict() -> BangHashMap::default;
   fn size(DictRef) -> HashMap::len;
   fn isEmpty(DictRef) -> HashMap::is_empty;
   fn keys(DictRef) -> |d: &BangHashMap<_, _>| d.keys().cloned().collect::<Vec<_>>();

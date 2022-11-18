@@ -593,7 +593,7 @@ impl Default for VM {
     Self {
       stack: Vec::with_capacity(64),
       frames: Vec::with_capacity(16),
-      globals: HashMap::with_capacity(8),
+      globals: HashMap::default(),
     }
   }
 }

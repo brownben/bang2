@@ -13,4 +13,4 @@ edition.workspace = true
 
 [dependencies]
 bang-syntax = { path = "../syntax" }
-ahash = "0.7.6"
+rustc-hash = "1.1.0"
