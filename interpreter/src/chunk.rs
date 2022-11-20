@@ -1,11 +1,12 @@
+mod verifier;
+
 use crate::value::Value;
 use bang_syntax::LineNumber;
-use std::rc::Rc;
-
-use std::mem;
+use std::{mem, rc::Rc};
 
 #[non_exhaustive]
 #[repr(u8)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum OpCode {
   Constant = 0,
   ConstantLong,
@@ -228,12 +229,11 @@ mod test {
   fn bytecode_with_invalid_bytecode() {
     let chunk = Chunk {
       code: vec![245],
-      constants: Vec::new(),
-      strings: Vec::new(),
       lines: LineInfo {
         lines: vec![(1, 1)],
         ..Default::default()
       },
+      ..Default::default()
     };
     let mut vm = VM::default();
     let error = vm.run(&chunk).unwrap_err();

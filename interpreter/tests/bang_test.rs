@@ -20,6 +20,10 @@ pub fn run(source: &str) -> (RunResult, bang::VM) {
     Err(_) => return (RunResult::CompileError, Default::default()),
   };
 
+  if chunk.verify().is_err() {
+    return (RunResult::CompileError, Default::default());
+  }
+
   let mut vm = bang::VM::new(&bang::StdContext);
   match vm.run(&chunk) {
     Ok(_) => (RunResult::Success, vm),
