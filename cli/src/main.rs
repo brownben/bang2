@@ -131,7 +131,7 @@ fn run_command(app: &clap::ArgMatches) -> Result<(), ()> {
         let source = &read_file(filename)?;
         let bytecode = &compile(filename, source)?;
 
-        print::chunk(bytecode);
+        println!("{bytecode:?}");
       }
       _ => unreachable!(),
     },

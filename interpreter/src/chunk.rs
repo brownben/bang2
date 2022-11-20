@@ -1,3 +1,4 @@
+mod display;
 mod verifier;
 
 use crate::value::Value;
@@ -110,9 +111,9 @@ impl LineInfo {
 #[must_use]
 #[derive(Clone, Default)]
 pub struct Chunk {
-  pub code: Vec<u8>,
-  pub constants: Vec<Value>,
-  pub strings: Vec<Rc<str>>,
+  pub(crate) code: Vec<u8>,
+  pub(crate) constants: Vec<Value>,
+  pub(crate) strings: Vec<Rc<str>>,
   lines: LineInfo,
 }
 impl Chunk {
