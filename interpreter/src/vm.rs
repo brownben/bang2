@@ -10,7 +10,7 @@ use crate::{
 use bang_syntax::LineNumber;
 use smallvec::SmallVec;
 use smartstring::alias::String;
-use std::{collections::hash_map, error, fmt, rc::Rc};
+use std::{collections::hash_map, collections::BTreeSet, error, fmt, rc::Rc};
 
 #[derive(Debug)]
 pub struct StackTraceLocation {
@@ -134,6 +134,7 @@ pub struct VM {
   stack: Vec<Value>,
   frames: Vec<CallFrame>,
   globals: HashMap<Rc<str>, Value>,
+  cyclic: BTreeSet<u64>,
 }
 
 impl VM {
@@ -268,12 +269,18 @@ impl VM {
 
         OpCode::Equal => {
           let (right, left) = (self.pop(), self.pop());
-          self.push(Value::from(left == right));
+          let equals = Value::equals(&left, &right, &mut self.cyclic);
+          self.push(equals.into());
+
+          self.cyclic.clear();
           ip += 1;
         }
         OpCode::NotEqual => {
           let (right, left) = (self.pop(), self.pop());
-          self.push(Value::from(left != right));
+          let not_equals = !Value::equals(&left, &right, &mut self.cyclic);
+          self.push(not_equals.into());
+
+          self.cyclic.clear();
           ip += 1;
         }
         OpCode::Less => {
@@ -601,6 +608,7 @@ impl Default for VM {
       stack: Vec::with_capacity(64),
       frames: Vec::with_capacity(16),
       globals: HashMap::default(),
+      cyclic: BTreeSet::default(),
     }
   }
 }

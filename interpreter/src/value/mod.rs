@@ -25,6 +25,7 @@ pub use indexing::calculate_index;
 pub use objects::Object;
 use smartstring::alias::String;
 use std::{
+  collections::BTreeSet,
   fmt::{self, Write},
   hash,
   rc::Rc,
@@ -54,7 +55,7 @@ impl Value {
     string
   }
 
-  fn equals(a: &Self, b: &Self, seen: &mut HashSet<u64>) -> bool {
+  pub fn equals(a: &Self, b: &Self, seen: &mut BTreeSet<u64>) -> bool {
     if a.as_bytes() == b.as_bytes() {
       return true;
     }
@@ -65,7 +66,11 @@ impl Value {
       return (a - b).abs() < f64::EPSILON;
     }
 
-    if seen.contains(&a.as_bytes()) || seen.contains(&b.as_bytes()) {
+    if seen.contains(&a.as_bytes())
+      || seen.contains(&b.as_bytes())
+      || !a.is_object()
+      || !b.is_object()
+    {
       return false;
     }
 
@@ -76,7 +81,7 @@ impl Value {
       seen.insert(b.as_bytes());
     }
 
-    Object::equals(a, b, seen)
+    Object::equals(a.as_object(), b.as_object(), seen)
   }
 
   fn format(f: &mut fmt::Formatter, value: &Self, seen: &mut HashSet<u64>) -> fmt::Result {
@@ -106,11 +111,15 @@ impl PartialEq for Value {
       return (a - b).abs() < f64::EPSILON;
     }
 
-    let mut seen = HashSet::default();
-    seen.insert(self.as_bytes());
-    seen.insert(other.as_bytes());
+    if !self.is_object() || !other.is_object() {
+      return false;
+    }
 
-    Object::equals(self, other, &mut seen)
+    match (self.as_object(), other.as_object()) {
+      (Object::String(value), Object::String(other)) => value == other,
+      (Object::Function(value), Object::Function(other)) => value == other,
+      _ => false,
+    }
   }
 }
 impl Eq for Value {}

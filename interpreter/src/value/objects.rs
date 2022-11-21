@@ -1,7 +1,7 @@
 use super::{Closure, Function, NativeFunction, Value};
 use crate::collections::{HashMap, HashSet};
 use smartstring::alias::String;
-use std::{cell::RefCell, fmt, hash, mem, ptr, str};
+use std::{cell::RefCell, collections::BTreeSet, fmt, hash, mem, ptr, str};
 
 pub enum Object {
   String(String),
@@ -50,12 +50,8 @@ impl Object {
     }
   }
 
-  pub fn equals(a: &Value, b: &Value, seen: &mut HashSet<u64>) -> bool {
-    if !a.is_object() || !b.is_object() {
-      return false;
-    }
-
-    match (a.as_object(), b.as_object()) {
+  pub fn equals(a: &Self, b: &Self, seen: &mut BTreeSet<u64>) -> bool {
+    match (a, b) {
       (Self::String(value), Self::String(other)) => value == other,
       (Self::Function(value), Self::Function(other)) => value == other,
       // Native Function and Closure are compared by pointer in Value::eq
@@ -72,7 +68,7 @@ impl Object {
           value
             .iter()
             .zip(other.iter())
-            .all(|(a, b)| Value::equals(a, b, &mut seen.clone()))
+            .all(|(a, b)| Value::equals(a, b, seen))
         }
       }
       (Self::Dict(value), Self::Dict(other)) => {
@@ -86,7 +82,7 @@ impl Object {
         value.iter().all(|(key, value)| {
           other
             .get(key)
-            .map_or(false, |v| Value::equals(value, v, &mut seen.clone()))
+            .map_or(false, |v| Value::equals(value, v, seen))
         })
       }
       _ => false,

@@ -185,7 +185,9 @@ fn equality() {
     Value::from(native_base.clone())
   );
   assert_ne!(Value::from(native_base), function);
-  assert_eq!(Value::from(vec![]), Value::from(vec![]));
+  assert_ne!(Value::from(vec![]), Value::from(vec![]));
+  let list: Value = Vec::new().into();
+  assert_eq!(list, list.clone());
   assert_ne!(
     Value::from(vec!["hello".into(), 7.into()]),
     Value::from(vec![])
