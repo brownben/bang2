@@ -310,7 +310,7 @@ impl<'source> Tokeniser<'source> {
 
     if !self.at_end(position)
       && self.source[position] == b'.'
-      && matches!(self.source[position + 1], b'0'..=b'9')
+      && self.source[position + 1].is_ascii_digit()
     {
       position += 1;
     }
@@ -326,7 +326,7 @@ impl<'source> Tokeniser<'source> {
     let mut position = self.position;
 
     while !self.at_end(position + 1)
-      && matches!(self.source[position + 1], b'_' | b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9')
+      && (self.source[position + 1].is_ascii_alphanumeric() || self.source[position + 1] == b'_')
     {
       position += 1;
     }

@@ -11,15 +11,15 @@ impl fmt::Debug for Chunk {
     while position < self.code.len() {
       let line_number = self.get_line_number(position);
       if line_number == last_line_number {
-        write!(f, "     {position:0>4} │ ")?;
+        write!(f, "\n     {position:0>4} │ ")?;
       } else {
-        write!(f, "{line_number:<4} {position:0>4} │ ")?;
+        write!(f, "\n{line_number:<4} {position:0>4} │ ")?;
         last_line_number = line_number;
       }
 
       position = disassemble_instruction(f, self, position)?;
     }
-    write!(f, "──────────╯")
+    write!(f, "\n──────────╯")
   }
 }
 

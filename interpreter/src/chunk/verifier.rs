@@ -41,7 +41,6 @@ fn opcode_jump(code: OpCode) -> Result<usize, Error> {
     | OpCode::SetLocal
     | OpCode::Call
     | OpCode::List
-    | OpCode::ListLong
     | OpCode::GetUpvalue
     | OpCode::SetUpvalue
     | OpCode::GetAllocated
@@ -50,6 +49,7 @@ fn opcode_jump(code: OpCode) -> Result<usize, Error> {
     | OpCode::JumpIfFalse
     | OpCode::JumpIfNull
     | OpCode::Loop
+    | OpCode::ListLong
     | OpCode::ConstantLong => Ok(3),
     _ => Err(Error::UnknownOpcode),
   }
