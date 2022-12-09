@@ -692,6 +692,30 @@ let [c, d, e] = [1, 2, 3] >> map((x) => x * 2)
     d == 4
     e == 6
   );
+
+  bang_test!(max_min
+  "
+from list import { max, min }
+
+let a = max([]) == -maths::INFINITY
+let b = max([5])
+let c = max([3, 2, 1])
+let d = max([2, 1, 3])
+
+let e = min([]) == maths::INFINITY
+let f = min([1])
+let g = min([3, 2, 1])
+let h = min([2, 1, 3])
+  "
+  a == true
+  b == 5
+  c == 3
+  d == 3
+  e == true
+  f == 1
+  g == 1
+  h == 1
+  );
 }
 
 mod set {

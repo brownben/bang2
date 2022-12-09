@@ -79,6 +79,8 @@ module!(list, {
   bytecode fn reduce(List, Accum, Transform) -> bytecode::REDUCE;
   bytecode fn find(List, Predicate) -> bytecode::FIND;
   bytecode fn forEach(List, Operation) -> bytecode::FOR_EACH;
+  bytecode fn max(List) -> bytecode::MAX;
+  bytecode fn min(List) -> bytecode::MIN;
 });
 
 module!(set, {

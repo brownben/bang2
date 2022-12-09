@@ -109,6 +109,8 @@ impl Typechecker<'_> {
         reduce: "<S, T>(T[], S, (T) -> S) -> S",
         find: "<T>(T[], (T) -> boolean) -> T?",
         forEach: "<T>(T[], (T) -> any) -> null",
+        max: "((string[]) -> string) | ((number[]) -> number)",
+        min: "((string[]) -> string) | ((number[]) -> number)",
       }),
       "set" => module!(item, self, {
         new: "<T>(..T) -> set(T)",

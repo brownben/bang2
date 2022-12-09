@@ -12,6 +12,7 @@ pub enum RunResult {
   Success,
   RuntimeError,
   CompileError,
+  ValidationError,
 }
 
 pub fn run(source: &str) -> (RunResult, bang::VM) {
@@ -21,7 +22,7 @@ pub fn run(source: &str) -> (RunResult, bang::VM) {
   };
 
   if chunk.verify().is_err() {
-    return (RunResult::CompileError, Default::default());
+    return (RunResult::ValidationError, Default::default());
   }
 
   let mut vm = bang::VM::new(&bang::StdContext);
