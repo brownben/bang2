@@ -74,6 +74,9 @@ impl Typechecker<'_> {
         degreesToRadians: "(number) -> number",
       }),
       "string" => module!(item, self, {
+        NEW_LINE: "string",
+        TAB: "string",
+        CARRIAGE_RETURN: "string",
         length: "(string) -> number",
         trim: "(string) -> string",
         trimStart: "(string) -> string",

@@ -42,6 +42,9 @@ module!(maths, {
 });
 
 module!(string, {
+  const NEW_LINE = "\n";
+  const TAB = "\t";
+  const CARRIAGE_RETURN = "\r";
   fn length(String) -> str::len;
   fn trim(String) -> str::trim;
   fn trimStart(String) -> str::trim_start;
