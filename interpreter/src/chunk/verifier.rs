@@ -9,58 +9,12 @@ pub enum Error {
   NotEnoughParameters,
 }
 
-fn opcode_jump(code: OpCode) -> Result<usize, Error> {
-  match code {
-    OpCode::Null
-    | OpCode::True
-    | OpCode::False
-    | OpCode::Add
-    | OpCode::Subtract
-    | OpCode::Multiply
-    | OpCode::Divide
-    | OpCode::Negate
-    | OpCode::Not
-    | OpCode::Equal
-    | OpCode::Greater
-    | OpCode::Less
-    | OpCode::NotEqual
-    | OpCode::GreaterEqual
-    | OpCode::LessEqual
-    | OpCode::Pop
-    | OpCode::Return
-    | OpCode::GetIndex
-    | OpCode::SetIndex
-    | OpCode::ToString
-    | OpCode::Closure => Ok(1),
-    OpCode::Constant
-    | OpCode::DefineGlobal
-    | OpCode::GetGlobal
-    | OpCode::SetGlobal
-    | OpCode::GetLocal
-    | OpCode::GetTemp
-    | OpCode::SetLocal
-    | OpCode::Call
-    | OpCode::List
-    | OpCode::GetUpvalue
-    | OpCode::SetUpvalue
-    | OpCode::GetAllocated
-    | OpCode::SetAllocated => Ok(2),
-    OpCode::Jump
-    | OpCode::JumpIfFalse
-    | OpCode::JumpIfNull
-    | OpCode::Loop
-    | OpCode::ListLong
-    | OpCode::ConstantLong => Ok(3),
-    _ => Err(Error::UnknownOpcode),
-  }
-}
-
 fn check_opcodes(chunk: &Chunk) -> Result<(), Error> {
   let mut ip = 0;
 
   while ip < chunk.code.len() {
     let opcode = chunk.get(ip);
-    let next_opcode_jump = opcode_jump(opcode)?;
+    let next_opcode_jump = opcode.number_of_bytes().ok_or(Error::UnknownOpcode)?;
 
     if ip + next_opcode_jump > chunk.code.len() {
       return Err(Error::NotEnoughParameters);

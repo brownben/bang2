@@ -17,39 +17,36 @@ impl fmt::Debug for Chunk {
         last_line_number = line_number;
       }
 
-      position = disassemble_instruction(f, self, position)?;
+      disassemble_instruction(f, self, position)?;
+      position += self.get(position).number_of_bytes().unwrap_or(1);
     }
     write!(f, "\n──────────╯")
   }
 }
 
-fn disassemble_instruction(
-  f: &mut fmt::Formatter<'_>,
-  chunk: &Chunk,
-  pos: usize,
-) -> Result<usize, fmt::Error> {
+fn disassemble_instruction(f: &mut fmt::Formatter<'_>, chunk: &Chunk, pos: usize) -> fmt::Result {
   let instruction = chunk.get(pos);
 
   match instruction {
     OpCode::Constant => constant_instruction(f, "Constant", chunk, pos),
     OpCode::ConstantLong => constant_long_instruction(f, "Constant Long", chunk, pos),
-    OpCode::Null => simple_instruction(f, "Null", pos),
-    OpCode::True => simple_instruction(f, "True", pos),
-    OpCode::False => simple_instruction(f, "False", pos),
-    OpCode::Add => simple_instruction(f, "Add", pos),
-    OpCode::Subtract => simple_instruction(f, "Subtract", pos),
-    OpCode::Multiply => simple_instruction(f, "Multiply", pos),
-    OpCode::Divide => simple_instruction(f, "Divide", pos),
-    OpCode::Negate => simple_instruction(f, "Negate", pos),
-    OpCode::Not => simple_instruction(f, "Not", pos),
-    OpCode::Equal => simple_instruction(f, "Equal", pos),
-    OpCode::Greater => simple_instruction(f, "Greater", pos),
-    OpCode::Less => simple_instruction(f, "Less", pos),
-    OpCode::NotEqual => simple_instruction(f, "Not Equal", pos),
-    OpCode::GreaterEqual => simple_instruction(f, "Greater Equal", pos),
-    OpCode::LessEqual => simple_instruction(f, "Less Equal", pos),
-    OpCode::Pop => simple_instruction(f, "Pop", pos),
-    OpCode::Return => simple_instruction(f, "Return", pos),
+    OpCode::Null => write!(f, "Null"),
+    OpCode::True => write!(f, "True"),
+    OpCode::False => write!(f, "False"),
+    OpCode::Add => write!(f, "Add"),
+    OpCode::Subtract => write!(f, "Subtract"),
+    OpCode::Multiply => write!(f, "Multiply"),
+    OpCode::Divide => write!(f, "Divide"),
+    OpCode::Negate => write!(f, "Negate"),
+    OpCode::Not => write!(f, "Not"),
+    OpCode::Equal => write!(f, "Equal"),
+    OpCode::Greater => write!(f, "Greater"),
+    OpCode::Less => write!(f, "Less"),
+    OpCode::NotEqual => write!(f, "Not Equal"),
+    OpCode::GreaterEqual => write!(f, "Greater Equal"),
+    OpCode::LessEqual => write!(f, "Less Equal"),
+    OpCode::Pop => write!(f, "Pop"),
+    OpCode::Return => write!(f, "Return"),
     OpCode::DefineGlobal => string_instruction(f, "Define Global", chunk, pos),
     OpCode::GetGlobal => string_instruction(f, "Get Global", chunk, pos),
     OpCode::SetGlobal => string_instruction(f, "Set Global", chunk, pos),
@@ -63,25 +60,16 @@ fn disassemble_instruction(
     OpCode::Call => byte_instruction(f, "Call", chunk, pos),
     OpCode::List => byte_instruction(f, "List", chunk, pos),
     OpCode::ListLong => double_byte_instruction(f, "List Long", chunk, pos),
-    OpCode::GetIndex => simple_instruction(f, "Get Index", pos),
-    OpCode::SetIndex => simple_instruction(f, "Set Index", pos),
-    OpCode::ToString => simple_instruction(f, "To String", pos),
-    OpCode::Closure => simple_instruction(f, "Closure", pos),
+    OpCode::GetIndex => write!(f, "Get Index"),
+    OpCode::SetIndex => write!(f, "Set Index"),
+    OpCode::ToString => write!(f, "To String"),
+    OpCode::Closure => write!(f, "Closure"),
     OpCode::GetUpvalue => byte_instruction(f, "Get Upvalue", chunk, pos),
     OpCode::SetUpvalue => byte_instruction(f, "Set Upvalue", chunk, pos),
     OpCode::GetAllocated => byte_instruction(f, "Get Upvalue from Local", chunk, pos),
     OpCode::SetAllocated => byte_instruction(f, "Set Upvalue from Local", chunk, pos),
-    _ => simple_instruction(f, "Unknown OpCode", pos),
+    _ => write!(f, "Unknown OpCode"),
   }
-}
-
-fn simple_instruction(
-  f: &mut fmt::Formatter<'_>,
-  name: &str,
-  position: usize,
-) -> Result<usize, fmt::Error> {
-  write!(f, "{name}")?;
-  Ok(position + 1)
 }
 
 fn constant_instruction(
@@ -89,13 +77,11 @@ fn constant_instruction(
   name: &str,
   chunk: &Chunk,
   position: usize,
-) -> Result<usize, fmt::Error> {
+) -> fmt::Result {
   let constant_location = chunk.get_value(position + 1);
   let constant = chunk.get_constant(constant_location as usize);
 
-  write!(f, "{name} {constant} ({constant_location})")?;
-
-  Ok(position + 2)
+  write!(f, "{name} {constant} ({constant_location})")
 }
 
 fn string_instruction(
@@ -103,13 +89,11 @@ fn string_instruction(
   name: &str,
   chunk: &Chunk,
   position: usize,
-) -> Result<usize, fmt::Error> {
+) -> fmt::Result {
   let string_location: usize = chunk.get_value(position + 1).into();
   let string = chunk.get_string(string_location);
 
-  write!(f, "{name} {string} ({string_location})")?;
-
-  Ok(position + 2)
+  write!(f, "{name} {string} ({string_location})")
 }
 
 fn constant_long_instruction(
@@ -117,12 +101,11 @@ fn constant_long_instruction(
   name: &str,
   chunk: &Chunk,
   position: usize,
-) -> Result<usize, fmt::Error> {
+) -> fmt::Result {
   let constant_location: usize = chunk.get_long_value(position + 1).into();
   let constant = chunk.get_constant(constant_location);
 
-  write!(f, "{name} '{constant}' ({constant_location})")?;
-  Ok(position + 3)
+  write!(f, "{name} '{constant}' ({constant_location})")
 }
 
 fn byte_instruction(
@@ -130,11 +113,10 @@ fn byte_instruction(
   name: &str,
   chunk: &Chunk,
   position: usize,
-) -> Result<usize, fmt::Error> {
+) -> fmt::Result {
   let value = chunk.get_value(position + 1);
 
-  write!(f, "{name} {value}")?;
-  Ok(position + 2)
+  write!(f, "{name} {value}")
 }
 
 fn double_byte_instruction(
@@ -142,11 +124,10 @@ fn double_byte_instruction(
   name: &str,
   chunk: &Chunk,
   position: usize,
-) -> Result<usize, fmt::Error> {
+) -> fmt::Result {
   let value = chunk.get_long_value(position + 1);
 
-  write!(f, "{name} {value}")?;
-  Ok(position + 3)
+  write!(f, "{name} {value}")
 }
 
 fn jump_instruction(
@@ -155,9 +136,8 @@ fn jump_instruction(
   direction: i8,
   chunk: &Chunk,
   position: usize,
-) -> Result<usize, fmt::Error> {
+) -> fmt::Result {
   let jump = chunk.get_long_value(position + 1);
 
-  write!(f, "{name} {}", i32::from(jump) * i32::from(direction))?;
-  Ok(position + 3)
+  write!(f, "{name} {}", i32::from(jump) * i32::from(direction))
 }

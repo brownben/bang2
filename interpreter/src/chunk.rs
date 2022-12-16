@@ -51,6 +51,53 @@ pub enum OpCode {
   SetAllocated,
   Unknown,
 }
+impl OpCode {
+  pub fn number_of_bytes(&self) -> Option<usize> {
+    match self {
+      Self::Null
+      | Self::True
+      | Self::False
+      | Self::Add
+      | Self::Subtract
+      | Self::Multiply
+      | Self::Divide
+      | Self::Negate
+      | Self::Not
+      | Self::Equal
+      | Self::Greater
+      | Self::Less
+      | Self::NotEqual
+      | Self::GreaterEqual
+      | Self::LessEqual
+      | Self::Pop
+      | Self::Return
+      | Self::GetIndex
+      | Self::SetIndex
+      | Self::ToString
+      | Self::Closure => Some(1),
+      Self::Constant
+      | Self::DefineGlobal
+      | Self::GetGlobal
+      | Self::SetGlobal
+      | Self::GetLocal
+      | Self::GetTemp
+      | Self::SetLocal
+      | Self::Call
+      | Self::List
+      | Self::GetUpvalue
+      | Self::SetUpvalue
+      | Self::GetAllocated
+      | Self::SetAllocated => Some(2),
+      Self::Jump
+      | Self::JumpIfFalse
+      | Self::JumpIfNull
+      | Self::Loop
+      | Self::ListLong
+      | Self::ConstantLong => Some(3),
+      _ => None,
+    }
+  }
+}
 
 type TokensOnLine = u16;
 type Line = (LineNumber, TokensOnLine);
