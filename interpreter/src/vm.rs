@@ -54,8 +54,9 @@ macro_rules! runtime_error {
     StackTraceLocation { kind, line }
   }};
 
-  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $($message:tt)+) => {{
-    let stack = std::iter::once(runtime_error!(traceback, $vm, $chunk, $ip, $offset))
+  (($vm:expr, $chunk:expr), $($message:tt)+) => {{
+    let stack =
+      std::iter::once(runtime_error!(traceback, $vm, $chunk, $vm.ip, $vm.offset))
       .chain(
         $vm
           .frames
@@ -75,10 +76,10 @@ macro_rules! runtime_error {
 }
 
 macro_rules! function_arity_check {
-  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $arity:expr, $arg_count:expr) => {{
+  (($vm:expr, $chunk:expr), $arity:expr, $arg_count:expr) => {{
     if !$arity.check_arg_count($arg_count) {
       break runtime_error!(
-        ($vm, $chunk, $ip, $offset),
+        ($vm, $chunk),
         "Expected {} arguments but got {}.",
         $arity.get_count(),
         $arg_count
@@ -96,19 +97,19 @@ macro_rules! function_arity_check {
 }
 
 macro_rules! numeric_expression {
-  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $token:tt) => {
+  (($vm:expr, $chunk:expr), $token:tt) => {
     let (right, left) = ($vm.pop(), $vm.pop());
 
     if left.is_number() && right.is_number() {
       $vm.push(Value::from(left.as_number() $token right.as_number()));
     } else {
-      break runtime_error!(($vm, $chunk, $ip, $offset), "Both operands must be numbers.");
+      break runtime_error!(($vm, $chunk), "Both operands must be numbers.");
     }
   };
 }
 
 macro_rules! comparison_expression {
-  (($vm:expr, $chunk:expr, $ip:expr, $offset:expr), $token:tt) => {
+  (($vm:expr, $chunk:expr), $token:tt) => {
     let (right, left) = ($vm.pop(), $vm.pop());
 
     if left.is_number() && right.is_number() {
@@ -119,7 +120,7 @@ macro_rules! comparison_expression {
     {
       $vm.push(Value::from(left $token right));
     } else {
-      break runtime_error!(($vm, $chunk, $ip, $offset), "Operands must be two numbers or two strings.");
+      break runtime_error!(($vm, $chunk), "Operands must be two numbers or two strings.");
     }
   };
 }
@@ -131,6 +132,9 @@ struct CallFrame {
 }
 
 pub struct VM {
+  ip: usize,
+  offset: usize,
+
   stack: Vec<Value>,
   frames: Vec<CallFrame>,
   globals: HashMap<Rc<str>, Value>,
@@ -145,10 +149,10 @@ impl VM {
   }
 
   #[inline]
-  fn store_frame(&mut self, ip: usize, offset: usize, upvalues: SmallVec<[Value; 4]>) {
+  fn store_frame(&mut self, upvalues: SmallVec<[Value; 4]>) {
     self.frames.push(CallFrame {
-      ip,
-      offset,
+      ip: self.ip + 2,
+      offset: self.offset,
       upvalues,
     });
   }
@@ -183,36 +187,36 @@ impl VM {
   }
 
   pub fn run_from(&mut self, chunk: &Chunk, ip: usize) -> Result<(), RuntimeError> {
-    let mut ip: usize = ip;
-    let mut offset: usize = 0;
+    self.ip = ip;
+    self.offset = 0;
 
     loop {
-      let instruction = chunk.get(ip);
+      let instruction = chunk.get(self.ip);
 
       match instruction {
         OpCode::Constant => {
-          let constant_location = chunk.get_value(ip + 1);
+          let constant_location = chunk.get_value(self.ip + 1);
           let constant = chunk.get_constant(constant_location.into());
           self.push(constant);
-          ip += 2;
+          self.ip += 2;
         }
         OpCode::ConstantLong => {
-          let constant_location = chunk.get_long_value(ip + 1);
+          let constant_location = chunk.get_long_value(self.ip + 1);
           let constant = chunk.get_constant(constant_location.into());
           self.push(constant);
-          ip += 3;
+          self.ip += 3;
         }
         OpCode::Null => {
           self.push(Value::NULL);
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::True => {
           self.push(Value::TRUE);
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::False => {
           self.push(Value::FALSE);
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::Add => {
           let (right, left) = (self.pop(), self.pop());
@@ -228,24 +232,24 @@ impl VM {
             self.push(Value::from(new));
           } else {
             break runtime_error!(
-              (self, chunk, ip, offset),
+              (self, chunk),
               "Operands must be two numbers or two strings."
             );
           }
 
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::Subtract => {
-          numeric_expression!((self, chunk, ip, offset), -);
-          ip += 1;
+          numeric_expression!((self, chunk), -);
+          self.ip += 1;
         }
         OpCode::Multiply => {
-          numeric_expression!((self, chunk, ip, offset), *);
-          ip += 1;
+          numeric_expression!((self, chunk), *);
+          self.ip += 1;
         }
         OpCode::Divide => {
-          numeric_expression!((self, chunk, ip, offset), /);
-          ip += 1;
+          numeric_expression!((self, chunk), /);
+          self.ip += 1;
         }
         OpCode::Negate => {
           let value = self.pop();
@@ -253,18 +257,18 @@ impl VM {
             self.push(Value::from(-value.as_number()));
           } else {
             break runtime_error!(
-              (self, chunk, ip, offset),
+              (self, chunk),
               "Operand must be a number but recieved {}.",
               value.get_type()
             );
           }
 
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::Not => {
           let value = self.pop();
           self.push(Value::from(value.is_falsy()));
-          ip += 1;
+          self.ip += 1;
         }
 
         OpCode::Equal => {
@@ -273,7 +277,7 @@ impl VM {
           self.push(equals.into());
 
           self.cyclic.clear();
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::NotEqual => {
           let (right, left) = (self.pop(), self.pop());
@@ -281,41 +285,41 @@ impl VM {
           self.push(not_equals.into());
 
           self.cyclic.clear();
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::Less => {
-          comparison_expression!((self, chunk, ip, offset), <);
-          ip += 1;
+          comparison_expression!((self, chunk), <);
+          self.ip += 1;
         }
         OpCode::Greater => {
-          comparison_expression!((self, chunk, ip, offset), >);
-          ip += 1;
+          comparison_expression!((self, chunk), >);
+          self.ip += 1;
         }
         OpCode::LessEqual => {
-          comparison_expression!((self, chunk, ip, offset), <=);
-          ip += 1;
+          comparison_expression!((self, chunk), <=);
+          self.ip += 1;
         }
         OpCode::GreaterEqual => {
-          comparison_expression!((self, chunk, ip, offset), >=);
-          ip += 1;
+          comparison_expression!((self, chunk), >=);
+          self.ip += 1;
         }
 
         OpCode::Pop => {
           self.stack.pop(); // Don't unwrap as could be empty.
-          ip += 1;
+          self.ip += 1;
         }
 
         OpCode::DefineGlobal => {
-          let name_location = chunk.get_value(ip + 1);
+          let name_location = chunk.get_value(self.ip + 1);
           let name = chunk.get_string(name_location.into());
 
           let value = self.pop();
           self.globals.insert(name, value);
 
-          ip += 2;
+          self.ip += 2;
         }
         OpCode::GetGlobal => {
-          let name_location = chunk.get_value(ip + 1);
+          let name_location = chunk.get_value(self.ip + 1);
           let name = chunk.get_string(name_location.into());
 
           let value = self.globals.get(&name).cloned();
@@ -323,63 +327,63 @@ impl VM {
           if let Some(value) = value {
             self.push(value);
           } else {
-            break runtime_error!((self, chunk, ip, offset), "Undefined variable '{}'", name);
+            break runtime_error!((self, chunk), "Undefined variable '{}'", name);
           }
 
-          ip += 2;
+          self.ip += 2;
         }
         OpCode::SetGlobal => {
-          let name_location = chunk.get_value(ip + 1);
+          let name_location = chunk.get_value(self.ip + 1);
           let name = chunk.get_string(name_location.into());
           let value = self.peek().clone();
 
           if let hash_map::Entry::Occupied(mut entry) = self.globals.entry(name.clone()) {
             entry.insert(value);
           } else {
-            break runtime_error!((self, chunk, ip, offset), "Undefined variable '{}'", name);
+            break runtime_error!((self, chunk), "Undefined variable '{}'", name);
           }
 
-          ip += 2;
+          self.ip += 2;
         }
         OpCode::GetLocal => {
-          let slot = chunk.get_value(ip + 1);
-          self.push(self.stack[offset + usize::from(slot)].clone());
-          ip += 2;
+          let slot = chunk.get_value(self.ip + 1);
+          self.push(self.stack[self.offset + usize::from(slot)].clone());
+          self.ip += 2;
         }
         OpCode::SetLocal => {
-          let slot = chunk.get_value(ip + 1);
-          self.stack[offset + usize::from(slot)] = self.peek().clone();
-          ip += 2;
+          let slot = chunk.get_value(self.ip + 1);
+          self.stack[self.offset + usize::from(slot)] = self.peek().clone();
+          self.ip += 2;
         }
         OpCode::GetTemp => {
-          let slot = chunk.get_value(ip + 1);
+          let slot = chunk.get_value(self.ip + 1);
           self.push(self.stack[self.stack.len() - usize::from(slot) - 1].clone());
-          ip += 2;
+          self.ip += 2;
         }
 
         OpCode::JumpIfFalse => {
-          let offset = chunk.get_long_value(ip + 1);
+          let jump = chunk.get_long_value(self.ip + 1);
           if self.peek().is_falsy() {
-            ip += usize::from(offset) + 1;
+            self.ip += usize::from(jump) + 1;
           } else {
-            ip += 3;
+            self.ip += 3;
           }
         }
         OpCode::JumpIfNull => {
-          let offset = chunk.get_long_value(ip + 1);
-          ip += if *self.peek() == Value::NULL {
-            usize::from(offset) + 1
+          let jump = chunk.get_long_value(self.ip + 1);
+          self.ip += if *self.peek() == Value::NULL {
+            usize::from(jump) + 1
           } else {
             3
           };
         }
         OpCode::Jump => {
-          let offset = chunk.get_long_value(ip + 1);
-          ip += usize::from(offset) + 1;
+          let jump = chunk.get_long_value(self.ip + 1);
+          self.ip += usize::from(jump) + 1;
         }
         OpCode::Loop => {
-          let offset = chunk.get_long_value(ip + 1);
-          ip -= usize::from(offset) - 1;
+          let jump = chunk.get_long_value(self.ip + 1);
+          self.ip -= usize::from(jump) - 1;
         }
 
         OpCode::Return => {
@@ -388,39 +392,39 @@ impl VM {
           }
 
           let result = self.pop();
-          self.stack.drain(offset - 1..);
+          self.stack.drain(self.offset - 1..);
           self.push(result);
 
           let frame = self.restore_frame();
-          ip = frame.ip;
-          offset = frame.offset;
+          self.ip = frame.ip;
+          self.offset = frame.offset;
         }
         OpCode::Call => {
-          let arg_count = chunk.get_value(ip + 1);
+          let arg_count = chunk.get_value(self.ip + 1);
           let pos = self.stack.len() - usize::from(arg_count) - 1;
           let callee = self.stack[pos].clone();
 
           if !callee.is_object() {
-            break runtime_error!((self, chunk, ip, offset), "Can only call functions.");
+            break runtime_error!((self, chunk), "Can only call functions.");
           }
 
           match callee.as_object() {
             Object::Function(func) => {
-              function_arity_check!((self, chunk, ip, offset), func.arity, arg_count);
+              function_arity_check!((self, chunk), func.arity, arg_count);
 
-              self.store_frame(ip + 2, offset, SmallVec::new());
-              offset = self.stack.len() - usize::from(func.arity.get_count());
-              ip = func.start;
+              self.store_frame(SmallVec::new());
+              self.offset = self.stack.len() - usize::from(func.arity.get_count());
+              self.ip = func.start;
             }
             Object::Closure(closure) => {
-              function_arity_check!((self, chunk, ip, offset), closure.func.arity, arg_count);
+              function_arity_check!((self, chunk), closure.func.arity, arg_count);
 
-              self.store_frame(ip + 2, offset, closure.upvalues.clone());
-              offset = self.stack.len() - usize::from(closure.func.arity.get_count());
-              ip = closure.func.start;
+              self.store_frame(closure.upvalues.clone());
+              self.offset = self.stack.len() - usize::from(closure.func.arity.get_count());
+              self.ip = closure.func.start;
             }
             Object::NativeFunction(func) => {
-              function_arity_check!((self, chunk, ip, offset), func.arity, arg_count);
+              function_arity_check!((self, chunk), func.arity, arg_count);
 
               let start_of_args = self.stack.len() - usize::from(func.arity.get_count());
               let result = {
@@ -430,31 +434,31 @@ impl VM {
               self.pop();
               self.push(result);
 
-              ip += 2;
+              self.ip += 2;
             }
             _ => {
-              break runtime_error!((self, chunk, ip, offset), "Can only call functions.");
+              break runtime_error!((self, chunk), "Can only call functions.");
             }
           }
         }
 
         OpCode::List => {
-          let length = chunk.get_value(ip + 1);
+          let length = chunk.get_value(self.ip + 1);
           let start_of_items = self.stack.len() - usize::from(length);
 
           let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
           self.push(Value::from(items));
 
-          ip += 2;
+          self.ip += 2;
         }
         OpCode::ListLong => {
-          let length = chunk.get_long_value(ip + 1);
+          let length = chunk.get_long_value(self.ip + 1);
           let start_of_items = self.stack.len() - usize::from(length);
 
           let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
           self.push(Value::from(items));
 
-          ip += 3;
+          self.ip += 3;
         }
 
         OpCode::GetIndex => {
@@ -464,18 +468,14 @@ impl VM {
           match item.get_property(&index) {
             GetResult::Found(value) => self.push(value),
             GetResult::NotFound => {
-              break runtime_error!((self, chunk, ip, offset), "Index '{}' not found", index);
+              break runtime_error!((self, chunk), "Index '{}' not found", index);
             }
             GetResult::NotSupported => {
-              break runtime_error!(
-                (self, chunk, ip, offset),
-                "Can't index type {}",
-                item.get_type()
-              );
+              break runtime_error!((self, chunk), "Can't index type {}", item.get_type());
             }
           }
 
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::SetIndex => {
           let value = self.pop();
@@ -485,26 +485,22 @@ impl VM {
           match item.set_property(&index, value.clone()) {
             SetResult::Set => {}
             SetResult::NotFound => {
-              break runtime_error!((self, chunk, ip, offset), "Index '{}' not found", index);
+              break runtime_error!((self, chunk), "Index '{}' not found", index);
             }
             SetResult::NotSupported => {
-              break runtime_error!(
-                (self, chunk, ip, offset),
-                "Can't index type {}",
-                item.get_type()
-              );
+              break runtime_error!((self, chunk), "Can't index type {}", item.get_type());
             }
           }
 
           self.push(value);
-          ip += 1;
+          self.ip += 1;
         }
 
         OpCode::ToString => {
           let value = self.pop();
           self.push(Value::from(value.to_string()));
 
-          ip += 1;
+          self.ip += 1;
         }
 
         OpCode::Closure => {
@@ -516,13 +512,13 @@ impl VM {
               .iter()
               .map(|(index, closed)| match closed {
                 ClosureKind::Open => {
-                  let local = &mut self.stack[offset + usize::from(*index)];
+                  let local = &mut self.stack[self.offset + usize::from(*index)];
                   let allocated = local.clone().allocate();
                   *local = allocated.clone();
                   allocated
                 }
                 ClosureKind::Closed => {
-                  self.stack[offset + usize::from(*index)].clone()
+                  self.stack[self.offset + usize::from(*index)].clone()
                 }
                 ClosureKind::Upvalue => {
                   self.peek_frame().upvalues[usize::from(*index)].clone()
@@ -532,51 +528,51 @@ impl VM {
 
             self.push(Closure::new(func.clone(), upvalues).into());
           } else {
-            break runtime_error!((self, chunk, ip, offset), "Can only close over functions");
+            break runtime_error!((self, chunk), "Can only close over functions");
           }
 
-          ip += 1;
+          self.ip += 1;
         }
         OpCode::GetUpvalue => {
-          let upvalue = chunk.get_value(ip + 1);
+          let upvalue = chunk.get_value(self.ip + 1);
           let address = self.peek_frame().upvalues[usize::from(upvalue)].as_allocated();
 
           self.push(address.borrow().clone());
 
-          ip += 2;
+          self.ip += 2;
         }
         OpCode::SetUpvalue => {
-          let upvalue = chunk.get_value(ip + 1);
+          let upvalue = chunk.get_value(self.ip + 1);
           let address = self.peek_frame().upvalues[usize::from(upvalue)].as_allocated();
 
           address.replace(self.peek().clone());
 
-          ip += 2;
+          self.ip += 2;
         }
         OpCode::GetAllocated => {
-          let slot = chunk.get_value(ip + 1);
-          let address = self.stack[offset + usize::from(slot)].as_allocated();
+          let slot = chunk.get_value(self.ip + 1);
+          let address = self.stack[self.offset + usize::from(slot)].as_allocated();
 
           self.push(address.borrow().clone());
 
-          ip += 2;
+          self.ip += 2;
         }
         OpCode::SetAllocated => {
-          let slot = chunk.get_value(ip + 1);
-          let address = self.stack[offset + usize::from(slot)].as_allocated();
+          let slot = chunk.get_value(self.ip + 1);
+          let address = self.stack[self.offset + usize::from(slot)].as_allocated();
 
           address.replace(self.peek().clone());
 
-          ip += 2;
+          self.ip += 2;
         }
 
         _ => {
-          break runtime_error!((self, chunk, ip, offset), "Unknown OpCode");
+          break runtime_error!((self, chunk), "Unknown OpCode");
         }
       }
 
       #[cfg(feature = "debug")]
-      self.print_stack(ip);
+      self.print_stack(self.ip);
     }
   }
 
@@ -605,6 +601,9 @@ impl VM {
 impl Default for VM {
   fn default() -> Self {
     Self {
+      ip: 0,
+      offset: 0,
+
       stack: Vec::with_capacity(64),
       frames: Vec::with_capacity(16),
       globals: HashMap::default(),
