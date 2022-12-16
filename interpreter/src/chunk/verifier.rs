@@ -9,71 +9,67 @@ pub enum Error {
   NotEnoughParameters,
 }
 
-fn check_opcodes(chunk: &Chunk) -> Result<(), Error> {
-  let mut ip = 0;
-
-  while ip < chunk.code.len() {
-    let opcode = chunk.get(ip);
-    let next_opcode_jump = opcode.number_of_bytes().ok_or(Error::UnknownOpcode)?;
-
-    if ip + next_opcode_jump > chunk.code.len() {
-      return Err(Error::NotEnoughParameters);
-    }
-
-    match opcode {
-      OpCode::Constant => {
-        let constant_location: usize = chunk.get_value(ip + 1).into();
-        if constant_location >= chunk.constants.len() {
-          return Err(Error::UnknownConstant);
-        }
-      }
-      OpCode::ConstantLong => {
-        let constant_location: usize = chunk.get_long_value(ip + 1).into();
-        if constant_location >= chunk.constants.len() {
-          return Err(Error::UnknownConstant);
-        }
-      }
-
-      OpCode::JumpIfFalse | OpCode::JumpIfNull | OpCode::Jump => {
-        let offset: usize = chunk.get_long_value(ip + 1).into();
-        if ip + offset + 1 >= chunk.code.len() {
-          return Err(Error::UnknownLocation);
-        }
-      }
-      OpCode::Loop => {
-        let offset: usize = chunk.get_long_value(ip + 1).into();
-        if offset > ip || ip - offset > chunk.code.len() {
-          return Err(Error::UnknownLocation);
-        }
-      }
-
-      OpCode::DefineGlobal | OpCode::GetGlobal | OpCode::SetGlobal => {
-        let name_location: usize = chunk.get_value(ip + 1).into();
-        if name_location >= chunk.strings.len() {
-          return Err(Error::UnknownGlobalName);
-        }
-      }
-
-      _ => {}
-    }
-
-    ip += next_opcode_jump;
-  }
-
-  Ok(())
-}
-
 impl Chunk {
   pub fn verify(&self) -> Result<(), Error> {
     for constant in &self.constants {
       if constant.is_object()
         && let Object::Function(function) = constant.as_object()
       {
-        check_opcodes(&function.chunk)?;
+        function.chunk.verify()?;
       }
     }
 
-    check_opcodes(self)
+    let mut ip = 0;
+
+    while ip < self.code.len() {
+      let opcode = self.get(ip);
+      let next_opcode_jump = opcode.number_of_bytes().ok_or(Error::UnknownOpcode)?;
+
+      if ip + next_opcode_jump > self.code.len() {
+        return Err(Error::NotEnoughParameters);
+      }
+
+      match opcode {
+        OpCode::Constant => {
+          let constant_location: usize = self.get_value(ip + 1).into();
+          if constant_location >= self.constants.len() {
+            return Err(Error::UnknownConstant);
+          }
+        }
+        OpCode::ConstantLong => {
+          let constant_location: usize = self.get_long_value(ip + 1).into();
+          if constant_location >= self.constants.len() {
+            return Err(Error::UnknownConstant);
+          }
+        }
+
+        OpCode::JumpIfFalse | OpCode::JumpIfNull | OpCode::Jump => {
+          let offset: usize = self.get_long_value(ip + 1).into();
+          if ip + offset + 1 >= self.code.len() {
+            return Err(Error::UnknownLocation);
+          }
+        }
+        OpCode::Loop => {
+          let offset: usize = self.get_long_value(ip + 1).into();
+          if offset > ip || ip - offset > self.code.len() {
+            return Err(Error::UnknownLocation);
+          }
+        }
+
+        OpCode::DefineGlobal | OpCode::GetGlobal | OpCode::SetGlobal => {
+          let name_location: usize = self.get_value(ip + 1).into();
+          if name_location >= self.strings.len() {
+            return Err(Error::UnknownGlobalName);
+          }
+        }
+
+        _ => {}
+      }
+
+      ip += next_opcode_jump;
+    }
+
+    Ok(())
   }
 }
 
