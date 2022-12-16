@@ -1,6 +1,8 @@
 use super::Value;
+use crate::chunk::Chunk;
 use smallvec::SmallVec;
 use smartstring::alias::String;
+use std::rc::Rc;
 
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Arity {
@@ -16,8 +18,8 @@ impl Arity {
     self.catch_all
   }
 
-  pub fn get_count(self) -> u8 {
-    self.count
+  pub fn get_count(self) -> usize {
+    usize::from(self.count)
   }
 
   pub fn check_arg_count(self, provided: u8) -> bool {
@@ -53,12 +55,22 @@ impl From<bool> for ClosureKind {
   }
 }
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone)]
 pub struct Function {
   pub name: String,
   pub arity: Arity,
-  pub(crate) start: usize,
-  pub(crate) upvalues: SmallVec<[(u8, ClosureKind); 8]>,
+  pub chunk: Rc<Chunk>,
+  pub upvalues: SmallVec<[(u8, ClosureKind); 8]>,
+}
+impl Default for Function {
+  fn default() -> Self {
+    Self {
+      name: "".into(),
+      arity: 0.into(),
+      chunk: Chunk::new().into(),
+      upvalues: SmallVec::new(),
+    }
+  }
 }
 
 #[derive(Clone)]

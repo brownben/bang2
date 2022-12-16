@@ -212,15 +212,18 @@ macro_rules! module {
         )*
         $(
           stringify!($bytecode_item_name) => {
-            let mut function = Function::default();
-            function.name = concat!(
-              stringify!($name),
-              "::",
-              stringify!($bytecode_item_name)
-            ).into();
-            function.arity = count!($($by_type)*).into();
+            let function = |builder| Function {
+              name: concat!(
+                stringify!($name),
+                "::",
+                stringify!($bytecode_item_name)
+              ).into(),
+              arity: count!($($by_type)*).into(),
+              chunk: $bytecode_item_value(builder).into(),
+              upvalues: Default::default(),
+            };
 
-            ImportValue::Bytecode($bytecode_item_value, function)
+            ImportValue::Bytecode(function)
           }
         )*
         _ => ImportValue::ItemNotFound,

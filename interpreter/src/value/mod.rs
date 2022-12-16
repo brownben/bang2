@@ -117,7 +117,6 @@ impl PartialEq for Value {
 
     match (self.as_object(), other.as_object()) {
       (Object::String(value), Object::String(other)) => value == other,
-      (Object::Function(value), Object::Function(other)) => value == other,
       _ => false,
     }
   }

@@ -148,7 +148,6 @@ fn repl() {
   let mut rl = rustyline::Editor::<()>::new().expect("REPL Editor to be created");
 
   let context = &bang::StdContext;
-  let mut chunk = bang::Chunk::new();
   let mut vm = bang::VM::new(context);
 
   loop {
@@ -169,19 +168,12 @@ fn repl() {
           format!("print({line})\n")
         };
 
-        match bang::compile_into_chunk(&source, std::mem::take(&mut chunk), context) {
-          Ok((updated_chunk, start)) => {
-            chunk = updated_chunk;
-            if let Err(error) = vm.run_from(&chunk, start) {
-              print::stack_trace("REPL", &source, error);
-            }
-          }
-          Err(diagnostic) => {
-            print::error_message(&diagnostic.title);
-            eprintln!("{}\n", &diagnostic.message);
-            print::code_frame("REPL", &source, diagnostic.line);
-          }
-        };
+        if let Ok(chunk) = compile("REPL", &source) {
+          match vm.run(&chunk) {
+            Ok(()) => {}
+            Err(error) => print::stack_trace("REPL", &source, error),
+          };
+        }
       }
       Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
         break;

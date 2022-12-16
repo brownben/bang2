@@ -53,8 +53,7 @@ impl Object {
   pub fn equals(a: &Self, b: &Self, seen: &mut BTreeSet<u64>) -> bool {
     match (a, b) {
       (Self::String(value), Self::String(other)) => value == other,
-      (Self::Function(value), Self::Function(other)) => value == other,
-      // Native Function and Closure are compared by pointer in Value::eq
+      // Function types (Function, Native, Closure) are compared by pointer in Value::eq
       (Self::Set(value), Self::Set(other)) => *value.borrow() == *other.borrow(),
       (Self::List(value), Self::List(other)) => {
         value.as_ptr() == other.as_ptr() || {

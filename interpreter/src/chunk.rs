@@ -175,13 +175,6 @@ impl Chunk {
     self.code[offset + 1] = second_byte;
   }
 
-  pub(crate) fn merge(&mut self, chunk: &Self) -> usize {
-    let offset = self.code.len();
-    self.code.extend_from_slice(&chunk.code);
-    self.lines.lines.extend_from_slice(&chunk.lines.lines);
-    offset
-  }
-
   pub fn finalize(mut self) -> Self {
     self.lines.finalize();
     self
@@ -225,17 +218,19 @@ impl Chunk {
 mod test {
   use super::{Chunk, LineInfo};
   use crate::VM;
+  use std::rc::Rc;
 
   #[test]
   fn bytecode_with_invalid_bytecode() {
-    let chunk = Chunk {
+    let chunk = Rc::from(Chunk {
       code: vec![245],
       lines: LineInfo {
         lines: vec![(1, 1)],
         ..Default::default()
       },
       ..Default::default()
-    };
+    });
+
     let mut vm = VM::default();
     let error = vm.run(&chunk).unwrap_err();
     assert_eq!(error.message, "Unknown OpCode");

@@ -2,7 +2,7 @@ use crate::{
   chunk::{Chunk, OpCode},
   collections::HashMap,
   context::{BytecodeFunctionCreator, Context, ImportValue},
-  value::{Arity, ClosureKind, Function, Object, Value},
+  value::{Arity, ClosureKind, Function, Value},
 };
 use bang_syntax::{
   ast::{
@@ -12,7 +12,7 @@ use bang_syntax::{
   Diagnostic, Parser, Span,
 };
 use smallvec::SmallVec;
-use std::mem;
+use std::{mem, rc::Rc};
 
 enum Error {
   TooBigJump,
@@ -84,9 +84,8 @@ struct Compiler<'s, 'c> {
 
   chunk: Chunk,
   chunk_stack: Vec<Chunk>,
-  finished_chunks: Vec<Chunk>,
 
-  import_cache: HashMap<(&'s str, &'s str), usize>,
+  import_cache: HashMap<(&'s str, &'s str), Value>,
 
   error: Option<Diagnostic>,
 }
@@ -115,21 +114,9 @@ impl Compiler<'_, '_> {
       .write_long_value(value, span.get_line_number(self.source));
   }
 
-  fn base_chunk(&mut self) -> &mut Chunk {
-    if self.chunk_stack.is_empty() {
-      &mut self.chunk
-    } else {
-      &mut self.chunk_stack[0]
-    }
-  }
-
   fn emit_constant(&mut self, span: Span, value: Value) -> usize {
-    let constant_position = self.base_chunk().add_constant(value);
-    self.emit_constant_id(span, constant_position);
-    constant_position
-  }
+    let constant_position = self.chunk.add_constant(value);
 
-  fn emit_constant_id(&mut self, span: Span, constant_position: usize) {
     if let Ok(constant_position) = u8::try_from(constant_position) {
       self.emit_opcode(span, OpCode::Constant);
       self.emit_value(span, constant_position);
@@ -139,10 +126,12 @@ impl Compiler<'_, '_> {
     } else {
       self.error(Error::TooManyConstants, span, "");
     }
+
+    constant_position
   }
 
   fn emit_constant_string(&mut self, span: Span, value: &str) {
-    let constant_position = self.base_chunk().add_constant_string(value);
+    let constant_position = self.chunk.add_constant_string(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
       self.emit_value(span, constant_position);
@@ -192,29 +181,11 @@ impl<'s, 'c> Compiler<'s, 'c> {
     }
   }
 
-  fn finish(mut self, existing_constants: usize) -> Chunk {
+  fn finish(mut self) -> Chunk {
     self.emit_opcode_blank(OpCode::Null);
     self.emit_opcode_blank(OpCode::Return);
 
-    let mut chunk = self.chunk.finalize();
-    let chunk_locations: Vec<_> = self
-      .finished_chunks
-      .iter()
-      .map(|c| chunk.merge(c))
-      .collect();
-
-    for constant in &mut chunk.constants[existing_constants..].iter_mut() {
-      if constant.is_object() && let Object::Function(func) = constant.as_object() {
-        *constant = Value::from(Function {
-          name: func.name.clone(),
-          arity: func.arity,
-          start: chunk_locations[func.start],
-          upvalues: func.upvalues.clone(),
-        });
-      };
-    }
-
-    chunk
+    self.chunk.finalize()
   }
 
   fn begin_scope(&mut self) {
@@ -241,14 +212,12 @@ impl<'s, 'c> Compiler<'s, 'c> {
     self.begin_scope();
   }
 
-  fn finish_chunk(&mut self) -> usize {
+  fn finish_chunk(&mut self) -> Chunk {
     self.end_scope();
     self.locals.pop();
 
     let chunk = mem::replace(&mut self.chunk, self.chunk_stack.pop().unwrap());
-    let chunk_id = self.finished_chunks.len();
-    self.finished_chunks.push(chunk.finalize());
-    chunk_id
+    chunk.finalize()
   }
 
   fn error(&mut self, error: Error, span: Span, value: &str) {
@@ -609,7 +578,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
               arity,
               parameters.iter().any(|parameter| parameter.catch_remaining),
             ),
-            start: chunk,
+            chunk: chunk.into(),
             upvalues,
           }),
         );
@@ -711,25 +680,23 @@ impl<'s, 'c> Compiler<'s, 'c> {
   }
 
   fn import(&mut self, module: &'s str, item: &'s str, span: Span) {
-    if let Some(constant_id) = self.import_cache.get(&(module, item)) {
-      return self.emit_constant_id(span, *constant_id);
+    if let Some(constant) = self.import_cache.get(&(module, item)) {
+      self.emit_constant(span, constant.clone());
+      return;
     }
 
     match self.context.get_value(module, item) {
       ImportValue::Constant(value) => {
-        let constant_id = self.emit_constant(span, value);
-        self.import_cache.insert((module, item), constant_id);
+        self.emit_constant(span, value.clone());
+        self.import_cache.insert((module, item), value);
       }
-      ImportValue::Bytecode(create_chunk, mut function) => {
+      ImportValue::Bytecode(create_function) => {
         let line = span.get_line_number(self.source);
-        let creator = BytecodeFunctionCreator::new(self.base_chunk(), line);
-        let chunk = create_chunk(creator);
+        let creator = BytecodeFunctionCreator::new(line);
+        let function: Value = create_function(creator).into();
 
-        function.start = self.finished_chunks.len();
-        self.finished_chunks.push(chunk);
-
-        let constant_id = self.emit_constant(span, function.into());
-        self.import_cache.insert((module, item), constant_id);
+        self.emit_constant(span, function.clone());
+        self.import_cache.insert((module, item), function);
       }
       ImportValue::ModuleNotFound => self.error(Error::ModuleNotFound, span, module),
       ImportValue::ItemNotFound => self.error(Error::ItemNotFound, span, item),
@@ -807,7 +774,7 @@ impl<'s, 'c> Compiler<'s, 'c> {
   }
 }
 
-pub fn compile(source: &str, context: &dyn Context) -> Result<Chunk, Diagnostic> {
+pub fn compile(source: &str, context: &dyn Context) -> Result<Rc<Chunk>, Diagnostic> {
   let parser = Parser::new(source);
   let mut compiler = Compiler::new(source, context);
 
@@ -819,33 +786,5 @@ pub fn compile(source: &str, context: &dyn Context) -> Result<Chunk, Diagnostic>
     }
   }
 
-  Ok(compiler.finish(0))
-}
-
-pub fn compile_into_chunk(
-  source: &str,
-  chunk: Chunk,
-  context: &dyn Context,
-) -> Result<(Chunk, usize), Diagnostic> {
-  let start = chunk.code.len();
-  let existing_constants = chunk.constants.len();
-
-  let parser = Parser::new(source);
-  let mut compiler = Compiler {
-    source,
-    context,
-    chunk,
-    locals: vec![Vec::new()],
-    ..Default::default()
-  };
-
-  for statement in parser {
-    compiler.compile_statement(&statement?);
-
-    if let Some(error) = compiler.error {
-      return Err(error);
-    }
-  }
-
-  Ok((compiler.finish(existing_constants), start))
+  Ok(compiler.finish().into())
 }

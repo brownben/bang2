@@ -8,7 +8,7 @@ use crate::{
 
 pub enum ImportValue {
   Constant(Value),
-  Bytecode(fn(BytecodeFunctionCreator) -> Chunk, Function),
+  Bytecode(fn(BytecodeFunctionCreator) -> Function),
   ModuleNotFound,
   ItemNotFound,
 }
@@ -40,21 +40,19 @@ impl<'a> Default for &'a dyn Context {
   }
 }
 
-pub struct BytecodeFunctionCreator<'a> {
-  base_chunk: &'a mut Chunk,
+pub struct BytecodeFunctionCreator {
   chunk: Chunk,
   line: LineNumber,
 }
-impl<'a> BytecodeFunctionCreator<'a> {
-  pub fn new(base_chunk: &'a mut Chunk, line: LineNumber) -> Self {
+impl BytecodeFunctionCreator {
+  pub fn new(line: LineNumber) -> Self {
     Self {
-      base_chunk,
       chunk: Chunk::new(),
       line,
     }
   }
 }
-impl BytecodeFunctionCreator<'_> {
+impl BytecodeFunctionCreator {
   pub fn emit_opcode(&mut self, code: OpCode) {
     self.chunk.write_opcode(code, self.line);
   }
@@ -68,14 +66,11 @@ impl BytecodeFunctionCreator<'_> {
   }
 
   pub fn emit_constant(&mut self, value: Value) {
-    let constant_position = self.base_chunk.add_constant(value);
+    let constant_position = self.chunk.add_constant(value);
 
     if let Ok(constant_position) = u8::try_from(constant_position) {
       self.emit_opcode(OpCode::Constant);
       self.emit_value(constant_position);
-    } else if let Ok(constant_position) = u16::try_from(constant_position) {
-      self.emit_opcode(OpCode::ConstantLong);
-      self.emit_long_value(constant_position);
     } else {
       unreachable!()
     }

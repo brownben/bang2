@@ -110,25 +110,13 @@ fn check_opcodes(chunk: &Chunk) -> Result<(), Error> {
 }
 
 impl Chunk {
-  fn functions_point_to_opcode(&self) -> bool {
-    let code_length = self.code.len();
-
-    self
-      .constants
-      .iter()
-      .filter_map(|constant| {
-        if constant.is_object() && let Object::Function(func) = constant.as_object() {
-          Some(func)
-        } else {
-          None
-        }
-      })
-      .all(|func| func.start < code_length)
-  }
-
   pub fn verify(&self) -> Result<(), Error> {
-    if !self.functions_point_to_opcode() {
-      return Err(Error::UnknownLocation);
+    for constant in &self.constants {
+      if constant.is_object()
+        && let Object::Function(function) = constant.as_object()
+      {
+        check_opcodes(&function.chunk)?;
+      }
     }
 
     check_opcodes(self)
@@ -138,7 +126,6 @@ impl Chunk {
 #[cfg(test)]
 mod test {
   use super::*;
-  use crate::value::Function;
 
   #[test]
   fn invalid_opcode() {
@@ -224,19 +211,6 @@ mod test {
 
     let chunk = Chunk {
       code: vec![OpCode::GetGlobal as u8, 5],
-      ..Default::default()
-    };
-    assert!(chunk.verify().is_err());
-  }
-
-  #[test]
-  fn functions_point_to_opcode() {
-    let chunk = Chunk {
-      constants: vec![Function {
-        start: 4,
-        ..Default::default()
-      }
-      .into()],
       ..Default::default()
     };
     assert!(chunk.verify().is_err());

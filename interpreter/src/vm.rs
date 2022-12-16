@@ -1,16 +1,17 @@
 use crate::{
-  chunk::{Chunk, OpCode},
+  chunk::OpCode,
   collections::HashMap,
   context::Context,
   value::{
     indexing::{GetResult, Index, SetResult},
     Closure, ClosureKind, Object, Value,
   },
+  Chunk,
 };
 use bang_syntax::LineNumber;
 use smallvec::SmallVec;
 use smartstring::alias::String;
-use std::{collections::hash_map, collections::BTreeSet, error, fmt, rc::Rc};
+use std::{collections::hash_map, collections::BTreeSet, error, fmt, mem, rc::Rc};
 
 #[derive(Debug)]
 pub struct StackTraceLocation {
@@ -88,9 +89,8 @@ macro_rules! function_arity_check {
 
     // If more arguments than expected, wrap the overflowing ones into a list
     if $arity.has_varadic_param() {
-      let overflow_count = $arg_count + 1 - $arity.get_count();
-      let start_of_items = $vm.stack.len() - usize::from(overflow_count);
-      let items = $vm.stack.drain(start_of_items..).collect::<Vec<_>>();
+      let start = $vm.stack.len() + $arity.get_count() - usize::from($arg_count) - 1;
+      let items = $vm.stack.drain(start..).collect::<Vec<_>>();
       $vm.push(Value::from(items));
     }
   }};
@@ -128,6 +128,7 @@ macro_rules! comparison_expression {
 struct CallFrame {
   ip: usize,
   offset: usize,
+  chunk: Chunk,
   upvalues: SmallVec<[Value; 4]>,
 }
 
@@ -149,10 +150,11 @@ impl VM {
   }
 
   #[inline]
-  fn store_frame(&mut self, upvalues: SmallVec<[Value; 4]>) {
+  fn store_frame(&mut self, chunk: Chunk, upvalues: SmallVec<[Value; 4]>) {
     self.frames.push(CallFrame {
       ip: self.ip + 2,
       offset: self.offset,
+      chunk,
       upvalues,
     });
   }
@@ -163,8 +165,13 @@ impl VM {
   }
 
   #[inline]
-  fn restore_frame(&mut self) -> CallFrame {
-    unsafe { self.frames.pop().unwrap_unchecked() }
+  fn restore_frame(&mut self) -> Chunk {
+    let frame = unsafe { self.frames.pop().unwrap_unchecked() };
+
+    self.ip = frame.ip;
+    self.offset = frame.offset;
+
+    frame.chunk
   }
 
   #[inline]
@@ -183,12 +190,9 @@ impl VM {
   }
 
   pub fn run(&mut self, chunk: &Chunk) -> Result<(), RuntimeError> {
-    self.run_from(chunk, 0)
-  }
-
-  pub fn run_from(&mut self, chunk: &Chunk, ip: usize) -> Result<(), RuntimeError> {
-    self.ip = ip;
+    self.ip = 0;
     self.offset = 0;
+    let mut chunk: Chunk = chunk.clone();
 
     loop {
       let instruction = chunk.get(self.ip);
@@ -395,9 +399,7 @@ impl VM {
           self.stack.drain(self.offset - 1..);
           self.push(result);
 
-          let frame = self.restore_frame();
-          self.ip = frame.ip;
-          self.offset = frame.offset;
+          chunk = self.restore_frame();
         }
         OpCode::Call => {
           let arg_count = chunk.get_value(self.ip + 1);
@@ -412,21 +414,25 @@ impl VM {
             Object::Function(func) => {
               function_arity_check!((self, chunk), func.arity, arg_count);
 
-              self.store_frame(SmallVec::new());
-              self.offset = self.stack.len() - usize::from(func.arity.get_count());
-              self.ip = func.start;
+              let chunk = mem::replace(&mut chunk, func.chunk.clone());
+              self.store_frame(chunk, SmallVec::new());
+
+              self.ip = 0;
+              self.offset = self.stack.len() - func.arity.get_count();
             }
             Object::Closure(closure) => {
               function_arity_check!((self, chunk), closure.func.arity, arg_count);
 
-              self.store_frame(closure.upvalues.clone());
-              self.offset = self.stack.len() - usize::from(closure.func.arity.get_count());
-              self.ip = closure.func.start;
+              let chunk = mem::replace(&mut chunk, closure.func.chunk.clone());
+              self.store_frame(chunk, closure.upvalues.clone());
+
+              self.ip = 0;
+              self.offset = self.stack.len() - closure.func.arity.get_count();
             }
             Object::NativeFunction(func) => {
               function_arity_check!((self, chunk), func.arity, arg_count);
 
-              let start_of_args = self.stack.len() - usize::from(func.arity.get_count());
+              let start_of_args = self.stack.len() - func.arity.get_count();
               let result = {
                 let args = self.stack.drain(start_of_args..);
                 (func.func)(args.as_slice())

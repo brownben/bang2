@@ -7,8 +7,8 @@ pub mod context;
 pub mod value;
 mod vm;
 
-pub use chunk::Chunk;
-pub use compiler::{compile, compile_into_chunk};
+pub type Chunk = std::rc::Rc<chunk::Chunk>;
+pub use compiler::compile;
 pub use value::Value;
 pub use vm::{RuntimeError, VM};
 
