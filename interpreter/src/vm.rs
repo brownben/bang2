@@ -9,6 +9,7 @@ use crate::{
   Chunk,
 };
 use bang_syntax::LineNumber;
+use itertools::Itertools;
 use smallvec::SmallVec;
 use smartstring::alias::String;
 use std::{collections::hash_map, collections::BTreeSet, error, fmt, mem, rc::Rc};
@@ -91,7 +92,7 @@ macro_rules! function_arity_check {
     if $arity.has_varadic_param() {
       let start = $vm.stack.len() + $arity.get_count() - usize::from($arg_count) - 1;
       let items = $vm.stack.drain(start..).collect::<Vec<_>>();
-      $vm.push(Value::from(items));
+      $vm.push(items.into());
     }
   }};
 }
@@ -233,7 +234,7 @@ impl VM {
           {
             let mut new = left.clone();
             new.push_str(right);
-            self.push(Value::from(new));
+            self.push(new.into());
           } else {
             break runtime_error!(
               (self, chunk),
@@ -271,7 +272,7 @@ impl VM {
         }
         OpCode::Not => {
           let value = self.pop();
-          self.push(Value::from(value.is_falsy()));
+          self.push(value.is_falsy().into());
           self.ip += 1;
         }
 
@@ -453,7 +454,7 @@ impl VM {
           let start_of_items = self.stack.len() - usize::from(length);
 
           let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
-          self.push(Value::from(items));
+          self.push(items.into());
 
           self.ip += 2;
         }
@@ -462,9 +463,23 @@ impl VM {
           let start_of_items = self.stack.len() - usize::from(length);
 
           let items = self.stack.drain(start_of_items..).collect::<Vec<_>>();
-          self.push(Value::from(items));
+          self.push(items.into());
 
           self.ip += 3;
+        }
+        OpCode::Dict => {
+          let length = chunk.get_value(self.ip + 1);
+          let start_of_items = self.stack.len() - usize::from(length) * 2;
+
+          let items = self
+            .stack
+            .drain(start_of_items..)
+            .tuples()
+            .collect::<HashMap<_, _>>();
+
+          self.push(items.into());
+
+          self.ip += 2;
         }
 
         OpCode::GetIndex => {
@@ -504,7 +519,7 @@ impl VM {
 
         OpCode::ToString => {
           let value = self.pop();
-          self.push(Value::from(value.to_string()));
+          self.push(value.to_string().into());
 
           self.ip += 1;
         }

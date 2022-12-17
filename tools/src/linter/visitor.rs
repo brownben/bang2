@@ -83,6 +83,10 @@ pub trait Visitor {
         self.visit_expression(index);
         self.visit_expression(value);
       }
+      Expr::Dictionary { items } => items.iter().for_each(|(key, value)| {
+        self.visit_expression(key);
+        self.visit_expression(value);
+      }),
       Expr::Literal { .. } | Expr::Variable { .. } | Expr::ModuleAccess { .. } => {}
     }
 

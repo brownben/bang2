@@ -884,6 +884,9 @@ let a = (a) ->
     assert_fails!("let a: list(string) = dict::new()");
     assert_fails!("let a: unknown(string, string) = dict::new()");
     assert_fails!("let a: dict(string) = dict::new()");
+
+    assert_correct!("let a: dict(string, number) = { 'hello': 7 }");
+    assert_correct!("let a: dict(string, number) = { }");
   }
 }
 

@@ -8,7 +8,11 @@ use bang_syntax::ast::{
 pub fn is_constant(expr: &Expr) -> bool {
   match expr {
     Expr::Call { .. } | Expr::Variable { .. } => false,
-    Expr::Function { .. } | Expr::Literal { .. } | Expr::ModuleAccess { .. } => true,
+    Expr::Function { .. }
+    | Expr::Literal { .. }
+    | Expr::ModuleAccess { .. }
+    | Expr::List { .. }
+    | Expr::Dictionary { .. } => true,
     Expr::Group { expression, .. }
     | Expr::Unary { expression, .. }
     | Expr::Assignment { expression, .. }
@@ -22,7 +26,6 @@ pub fn is_constant(expr: &Expr) -> bool {
         && is_constant(&right.expr)
         && *operator != operators::Binary::Pipeline
     }
-    Expr::List { items } => items.iter().all(|e| is_constant(&e.expr)),
     Expr::Index {
       expression, index, ..
     } => is_constant(&expression.expr) && is_constant(&index.expr),

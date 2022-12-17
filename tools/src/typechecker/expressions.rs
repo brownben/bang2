@@ -166,6 +166,34 @@ impl<'s> Typechecker<'s> {
     Ok(Type::List(inner_ty.into()))
   }
 
+  pub fn dictionary_expression(
+    &mut self,
+    items: &[(Expression<'s>, Expression<'s>)],
+  ) -> Result<Type, Error> {
+    let key_ty = if items.is_empty() {
+      self.context.new_existential()
+    } else {
+      items
+        .iter()
+        .map(|item| self.synthesize_expression(&item.0))
+        .collect::<Result<Vec<_>, Error>>()?
+        .into_iter()
+        .fold(Type::Never, Type::union)
+    };
+    let value_ty = if items.is_empty() {
+      self.context.new_existential()
+    } else {
+      items
+        .iter()
+        .map(|item| self.synthesize_expression(&item.1))
+        .collect::<Result<Vec<_>, Error>>()?
+        .into_iter()
+        .fold(Type::Never, Type::union)
+    };
+
+    Ok(Type::Dict(key_ty.into(), value_ty.into()))
+  }
+
   pub fn index_expression(
     &mut self,
     index: &Expression<'s>,

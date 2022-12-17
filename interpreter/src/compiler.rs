@@ -21,6 +21,7 @@ enum Error {
   TooManyParameters,
   TooManyLocals,
   TooLongList,
+  TooLargeDict,
   VariableAlreadyExists,
   ModuleNotFound,
   ItemNotFound,
@@ -37,6 +38,7 @@ impl Error {
       Self::ItemNotFound => "Item Not Found in Module",
       Self::TooManyLocals => "Too Many Local Variables",
       Self::TooLongList => "Too Long List",
+      Self::TooLargeDict => "Too Large Dict",
     }
   }
 
@@ -54,6 +56,9 @@ impl Error {
       Self::ModuleNotFound => format!("Could not find module '{value}'"),
       Self::ItemNotFound => format!("Could not find '{value}' in module"),
       Self::TooLongList => "List is too long, can have a maximum of 2^16 elements".to_string(),
+      Self::TooLargeDict => {
+        "Dictionary is too large, can have a maximum of 255 static items".to_string()
+      }
     }
   }
 
@@ -601,6 +606,19 @@ impl<'s, 'c> Compiler<'s, 'c> {
           self.emit_long_value(span, length);
         } else {
           self.error(Error::TooLongList, span, "");
+        }
+      }
+      Expr::Dictionary { items } => {
+        for (key, value) in items {
+          self.compile_expression(key);
+          self.compile_expression(value);
+        }
+
+        if let Ok(length) = u8::try_from(items.len()) {
+          self.emit_opcode(span, OpCode::Dict);
+          self.emit_value(span, length);
+        } else {
+          self.error(Error::TooLargeDict, span, "");
         }
       }
       Expr::Index { expression, index } => {

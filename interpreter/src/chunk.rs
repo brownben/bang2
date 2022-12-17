@@ -41,6 +41,7 @@ pub enum OpCode {
   Call,
   List,
   ListLong,
+  Dict,
   GetIndex,
   SetIndex,
   ToString,
@@ -84,6 +85,7 @@ impl OpCode {
       | Self::SetLocal
       | Self::Call
       | Self::List
+      | Self::Dict
       | Self::GetUpvalue
       | Self::SetUpvalue
       | Self::GetAllocated

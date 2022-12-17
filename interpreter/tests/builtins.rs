@@ -913,6 +913,37 @@ let j = (a >> get(44)) == null
     j == true
   );
 
+  bang_test!(dict_literal
+  "
+from dict import { new, get, size, isEmpty, keys, values }
+from list import { includes }
+
+let a = {}
+let b = size(a)
+a = {
+  'hello': 5,
+  'world': 3,
+}
+let c = size(a)
+let d = isEmpty(a)
+let e = keys(a) >> includes('hello')
+let f = keys(a) >> includes('world')
+let g = values(a) >> includes(3)
+let h = values(a) >> includes(5)
+let i = a >> get('hello')
+let j = (a >> get(44)) == null
+  "
+      b == 0
+      c == 2
+      d == false
+      e == true
+      f == true
+      g == true
+      h == true
+      i == 5
+      j == true
+    );
+
   bang_test!(falsy
 "
 let a = 0

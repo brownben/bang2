@@ -22,6 +22,9 @@ fn has_possible_side_effect(expression: &Expr) -> bool {
       has_possible_side_effect(&left.expr) || has_possible_side_effect(&right.expr)
     }
     Expr::List { items } => items.iter().any(|e| has_possible_side_effect(&e.expr)),
+    Expr::Dictionary { items } => items.iter().any(|(key, value)| {
+      has_possible_side_effect(&key.expr) || has_possible_side_effect(&value.expr)
+    }),
     Expr::FormatString { expressions, .. } => expressions
       .iter()
       .any(|e| has_possible_side_effect(&e.expr)),

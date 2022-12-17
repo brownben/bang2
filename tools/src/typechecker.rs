@@ -372,6 +372,7 @@ impl<'s> Typechecker<'s> {
       Expr::Comment { expression, .. } | Expr::Group { expression } => {
         self.synthesize_expression(expression)
       }
+      Expr::Dictionary { items } => self.dictionary_expression(items),
       Expr::FormatString { expressions, .. } => {
         expressions
           .iter()

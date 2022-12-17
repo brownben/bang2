@@ -613,3 +613,15 @@ let bubbleSort = (list) -> null
 "
   );
 }
+
+#[test]
+fn dictionary() {
+  assert_format!("{ a, b }");
+  assert_format!("{ a }");
+  assert_format!("{ \n  a, \n }");
+  assert_format!("{ 'hello': 'world' }");
+  assert_format!("{ 'hello': 'world' + 7 }");
+  assert_format!("{'hello':'world'+7}", "{ 'hello': 'world' + 7 }");
+  assert_format!("{ 'hello': hello }", "{ hello }");
+  assert_format!("{}");
+}

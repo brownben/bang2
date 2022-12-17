@@ -232,6 +232,36 @@ impl<'source> Formatter<'source> {
         self.fmt_expression(expression, indentation, f)?;
         write!(f, " // {}", message.trim())?;
       }
+      Expr::Dictionary {
+        items
+      } => {
+        if items.is_empty() {
+          return write!(f, "{{}}");
+        }
+
+        write!(f, "{{ ")?;
+        Self::write_list(
+          items,
+          |item| self.line(item.0.span),
+          &mut |f, item, i| {
+            if let Expr::Literal { type_: LiteralType::String, value } = &item.0.expr
+              && let Expr::Variable { name } = &item.1.expr
+              && value == name
+            {
+              write!(f, "{name}")
+            } else {
+              self.fmt_expression(&item.0, i, f)?;
+              write!(f, ": ")?;
+              self.fmt_expression(&item.1, i, f)
+            }
+          },
+          self.line(expression.span),
+          indentation,
+          false,
+          f,
+        )?;
+        write!(f, " }}")?;
+      }
       Expr::FormatString { expressions, strings } => {
         write!(f, "'{}", strings[0])?;
         for (index, expression) in expressions.iter().enumerate() {

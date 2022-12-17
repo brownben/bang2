@@ -83,6 +83,7 @@ enum Error {
   ExpectedType,
   ExpectedCatchAllLast,
   ExpectedModuleItem,
+  ExpectedColon,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -93,6 +94,7 @@ impl Error {
       Self::ExpectedClosingBrace => "Expected '}'",
       Self::ExpectedClosingSquare => "Expected ']'",
       Self::ExpectedClosingAngle => "Expected '>'",
+      Self::ExpectedColon => "Expected ':'",
       Self::ExpectedExpression => "Expected Expression",
       Self::ExpectedFunctionArrow => "Expected Function Arrow (-> / =>)",
       Self::ExpectedNewLine => "Expected New Line",
@@ -122,6 +124,7 @@ impl Error {
       | Self::ExpectedIdentifier
       | Self::ExpectedImportKeyword
       | Self::ExpectedModuleItem
+      | Self::ExpectedColon
       | Self::ExpectedType => format!("but recieved '{}'", token.get_value(source)),
       Self::UnexpectedCharacter => format!("Unknown character '{}'", token.get_value(source)),
       Self::UnterminatedString => {
@@ -293,6 +296,7 @@ impl<'source> Parser<'source> {
       | TokenType::Null => self.literal(),
       TokenType::FormatStringStart => self.format_string(),
       TokenType::LeftSquare => self.list(),
+      TokenType::LeftBrace => self.dictionary(),
       TokenType::Unknown => Err(Error::UnexpectedCharacter),
       _ => Err(Error::ExpectedExpression),
     }
@@ -824,6 +828,48 @@ impl<'source> Parser<'source> {
     };
 
     Ok(expression!(List { items }, (start_token, end_token)))
+  }
+
+  fn dictionary(&mut self) -> ExpressionResult<'source> {
+    let start_token = self.current_advance();
+
+    let mut items = Vec::new();
+    let end_token = loop {
+      self.ignore_newline();
+      if self.current.ttype == TokenType::RightBrace {
+        break self.current_advance();
+      }
+
+      if self.current.ttype == TokenType::Identifier
+        && (self.peek() == TokenType::Comma || self.peek() == TokenType::RightBrace)
+      {
+        let name = self.current.get_value(self.source);
+        let key = expression!(
+          Literal {
+            type_: LiteralType::String,
+            value: name
+          },
+          self.current
+        );
+        let value = expression!(Variable { name }, self.current);
+
+        items.push((key, value));
+        self.next();
+      } else {
+        let key = self.expression()?;
+        self.consume(TokenType::Colon, Error::ExpectedColon)?;
+        self.ignore_newline();
+        let value = self.expression()?;
+        items.push((key, value));
+      }
+
+      if !self.matches(TokenType::Comma) {
+        self.ignore_newline();
+        break self.consume(TokenType::RightBrace, Error::ExpectedClosingSquare)?;
+      }
+    };
+
+    Ok(expression!(Dictionary { items }, (start_token, end_token)))
   }
 
   fn variable(&mut self, can_assign: bool) -> ExpressionResult<'source> {
@@ -1638,5 +1684,20 @@ from maths import { sin }";
     assert!(super::parse("::sin").is_err());
     assert!(super::parse("maths::").is_err());
     assert!(super::parse("(x + 4)::max").is_err());
+  }
+
+  #[test]
+  fn should_parse_dictionary() {
+    assert!(super::parse("{}").is_ok());
+    assert!(super::parse("{ hello }").is_ok());
+    assert!(super::parse("{ a, b, c, }").is_ok());
+    assert!(super::parse("{ false: 5 }").is_ok());
+    assert!(super::parse("{ false: 5, }").is_ok());
+    assert!(super::parse("{ false: 5 + 4 }").is_ok());
+    assert!(super::parse("{ hello: 5 + 4 }").is_ok());
+    assert!(super::parse("{ 'false': 5 + 4 }").is_ok());
+    assert!(super::parse("{ hello: }").is_err());
+    assert!(super::parse("{ false }").is_err());
+    assert!(super::parse("{ 3 }").is_err());
   }
 }

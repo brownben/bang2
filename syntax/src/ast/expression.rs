@@ -68,6 +68,9 @@ pub enum Expr<'source> {
     value: Box<Expression<'source>>,
     assignment_operator: Option<operators::Assignment>,
   },
+  Dictionary {
+    items: Vec<(Expression<'source>, Expression<'source>)>,
+  },
   List {
     items: Vec<Expression<'source>>,
   },

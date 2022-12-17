@@ -162,6 +162,19 @@ fn print_expression(source: &[u8], expression: &Expression, prefix: &str, prefix
     Expr::ModuleAccess { module, item } => {
       println!("{prefix}Module Access ({module}::{item})");
     }
+    Expr::Dictionary { items } => {
+      println!("{prefix_start}Dictionary");
+
+      for (key, value) in items {
+        print_expression(source, key, prefix_list_indent_start, prefix_list_indent);
+        print_expression(
+          source,
+          value,
+          &format!("{prefix_list_indent}╰─ "),
+          &format!("{prefix_raw}   │     "),
+        );
+      }
+    }
   }
 }
 

@@ -60,6 +60,7 @@ fn disassemble_instruction(f: &mut fmt::Formatter<'_>, chunk: &Chunk, pos: usize
     OpCode::Call => byte_instruction(f, "Call", chunk, pos),
     OpCode::List => byte_instruction(f, "List", chunk, pos),
     OpCode::ListLong => double_byte_instruction(f, "List Long", chunk, pos),
+    OpCode::Dict => byte_instruction(f, "Dict", chunk, pos),
     OpCode::GetIndex => write!(f, "Get Index"),
     OpCode::SetIndex => write!(f, "Set Index"),
     OpCode::ToString => write!(f, "To String"),
