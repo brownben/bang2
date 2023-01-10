@@ -1,27 +1,50 @@
-use super::{Chunk, OpCode};
-use std::fmt;
+use crate::{
+  chunk::{Chunk, OpCode},
+  collections::String,
+  value::Object,
+};
+use std::{fmt, rc::Rc};
 
 impl fmt::Debug for Chunk {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    write!(f, "          ╭─[Bytecode]")?;
+    let mut functions: Vec<(String, Rc<Self>)> = vec![("Root".into(), self.clone().into())];
 
-    let mut position: usize = 0;
-    let mut last_line_number = 0;
+    while let Some((name, chunk)) = functions.pop() {
+      print_chunk(f, &name, &chunk)?;
 
-    while position < self.code.len() {
-      let line_number = self.get_line_number(position);
-      if line_number == last_line_number {
-        write!(f, "\n     {position:0>4} │ ")?;
-      } else {
-        write!(f, "\n{line_number:<4} {position:0>4} │ ")?;
-        last_line_number = line_number;
-      }
-
-      disassemble_instruction(f, self, position)?;
-      position += self.get(position).number_of_bytes().unwrap_or(1);
+      functions.extend(chunk.constants.iter().filter_map(|constant| {
+        if constant.is_object() && let Object::Function(func) = constant.as_object() {
+          Some((func.name.clone(), func.chunk.clone()))
+        } else {
+          None
+        }
+      }));
     }
-    write!(f, "\n──────────╯")
+
+    Ok(())
   }
+}
+
+fn print_chunk(f: &mut fmt::Formatter<'_>, name: &String, chunk: &Chunk) -> fmt::Result {
+  write!(f, "          ╭─[Function: {name}]")?;
+
+  let mut position: usize = 0;
+  let mut last_line_number = 0;
+
+  while position < chunk.code.len() {
+    let line_number = chunk.get_line_number(position);
+    if line_number == last_line_number {
+      write!(f, "\n     {position:0>4} │ ")?;
+    } else {
+      write!(f, "\n{line_number:<4} {position:0>4} │ ")?;
+      last_line_number = line_number;
+    }
+
+    disassemble_instruction(f, chunk, position)?;
+    position += chunk.get(position).number_of_bytes().unwrap_or(1);
+  }
+
+  writeln!(f, "\n──────────╯")
 }
 
 fn disassemble_instruction(f: &mut fmt::Formatter<'_>, chunk: &Chunk, pos: usize) -> fmt::Result {
