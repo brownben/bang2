@@ -38,12 +38,12 @@ type(1,2)
 
 bang_test!(unknown_module_import
   "from unknown_module import { stuff }"
-  CompileError
+  RuntimeError
 );
 
 bang_test!(unknown_module_value
   "from maths import { stuff }"
-  CompileError
+  RuntimeError
 );
 
 bang_test!(misformed_import
@@ -71,12 +71,12 @@ let squareRootIsFunction = type(squareRoot) == 'function'
 
 bang_test!(unknown_module_access
   "unknown_module::stuff"
-  CompileError
+  RuntimeError
 );
 
 bang_test!(unknown_module_item
   "maths::item"
-  CompileError
+  RuntimeError
 );
 
 bang_test!(module_access

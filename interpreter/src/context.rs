@@ -1,14 +1,11 @@
-use bang_syntax::LineNumber;
-
 use crate::{
   chunk::{Chunk, OpCode},
-  value::{Function, Value},
-  vm::VM,
+  Value, VM,
 };
 
+#[derive(Clone)]
 pub enum ImportValue {
   Constant(Value),
-  Bytecode(fn(BytecodeFunctionCreator) -> Function),
   ModuleNotFound,
   ItemNotFound,
 }
@@ -42,27 +39,25 @@ impl<'a> Default for &'a dyn Context {
 
 pub struct BytecodeFunctionCreator {
   chunk: Chunk,
-  line: LineNumber,
 }
-impl BytecodeFunctionCreator {
-  pub fn new(line: LineNumber) -> Self {
+impl Default for BytecodeFunctionCreator {
+  fn default() -> Self {
     Self {
       chunk: Chunk::new(),
-      line,
     }
   }
 }
 impl BytecodeFunctionCreator {
   pub fn emit_opcode(&mut self, code: OpCode) {
-    self.chunk.write_opcode(code, self.line);
+    self.chunk.write_opcode(code, u16::MAX);
   }
 
   pub fn emit_value(&mut self, value: u8) {
-    self.chunk.write_value(value, self.line);
+    self.chunk.write_value(value, u16::MAX);
   }
 
   pub fn emit_long_value(&mut self, value: u16) {
-    self.chunk.write_long_value(value, self.line);
+    self.chunk.write_long_value(value, u16::MAX);
   }
 
   pub fn emit_constant(&mut self, value: Value) {

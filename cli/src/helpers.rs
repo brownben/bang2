@@ -37,7 +37,7 @@ pub fn parse<'a>(filename: &str, source: &'a str) -> Result<bang::Ast<'a>, ()> {
 }
 
 pub fn compile(filename: &str, source: &str) -> Result<bang::Chunk, ()> {
-  match bang::compile(source, &bang::StdContext) {
+  match bang::compile(source) {
     Ok(chunk) => Ok(chunk),
     Err(diagnostic) => {
       print::error_message(&diagnostic.title);
@@ -50,7 +50,8 @@ pub fn compile(filename: &str, source: &str) -> Result<bang::Chunk, ()> {
 }
 
 pub fn run(filename: &str, source: &str, chunk: &bang::Chunk) {
-  match bang::VM::new(&bang::StdContext).run(chunk) {
+  let context = bang::StdContext::default();
+  match bang::VM::new(&context).run(chunk) {
     Ok(()) => {}
     Err(error) => print::stack_trace(filename, source, error),
   }

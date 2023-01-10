@@ -147,8 +147,8 @@ fn repl() {
   println!("Bang! ({VERSION})");
   let mut rl = rustyline::Editor::<()>::new().expect("REPL Editor to be created");
 
-  let context = &bang::StdContext;
-  let mut vm = bang::VM::new(context);
+  let context = bang::StdContext::default();
+  let mut vm = bang::VM::new(&context);
 
   loop {
     let readline = rl.readline("> ");

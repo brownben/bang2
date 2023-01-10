@@ -20,4 +20,5 @@ pub mod errors {
 pub mod collections {
   pub use rustc_hash::FxHashMap as HashMap;
   pub use rustc_hash::FxHashSet as HashSet;
+  pub use smartstring::alias::String;
 }

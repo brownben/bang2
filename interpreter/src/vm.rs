@@ -1,7 +1,7 @@
 use crate::{
   chunk::OpCode,
   collections::HashMap,
-  context::Context,
+  context::{self, Context, ImportValue},
   value::{
     indexing::{GetResult, Index, SetResult},
     Closure, ClosureKind, Object, Value,
@@ -24,6 +24,7 @@ pub struct StackTraceLocation {
 pub enum StackTraceLocationKind {
   Function(String),
   Root,
+  Builtin,
 }
 
 #[derive(Debug)]
@@ -45,7 +46,10 @@ impl error::Error for RuntimeError {}
 macro_rules! runtime_error {
   (traceback, $vm:expr, $chunk:expr, $ip:expr, $offset:expr) => {{
     let line = $chunk.get_line_number($ip);
-    let kind = if $offset == 0 {
+
+    let kind = if line == u16::MAX {
+      StackTraceLocationKind::Builtin
+    } else if $offset == 0 {
       StackTraceLocationKind::Root
     } else {
       StackTraceLocationKind::Function(
@@ -133,7 +137,7 @@ struct CallFrame {
   upvalues: SmallVec<[Value; 4]>,
 }
 
-pub struct VM {
+pub struct VM<'context> {
   ip: usize,
   offset: usize,
 
@@ -141,15 +145,21 @@ pub struct VM {
   frames: Vec<CallFrame>,
   globals: HashMap<Rc<str>, Value>,
   cyclic: BTreeSet<u64>,
+
+  context: &'context dyn Context,
 }
 
-impl VM {
-  pub fn new(context: &dyn Context) -> Self {
-    let mut vm = Self::default();
-    context.define_globals(&mut vm);
+impl<'context> VM<'context> {
+  pub fn new(context: &'context dyn Context) -> Self {
+    let mut vm = Self {
+      context,
+      ..Self::default()
+    };
+    vm.context.define_globals(&mut vm);
     vm
   }
-
+}
+impl VM<'_> {
   #[inline]
   fn store_frame(&mut self, chunk: Chunk, upvalues: SmallVec<[Value; 4]>) {
     self.frames.push(CallFrame {
@@ -587,6 +597,24 @@ impl VM {
           self.ip += 2;
         }
 
+        OpCode::Import => {
+          let (item, module) = (self.pop(), self.pop());
+
+          match self.context.get_value(module.as_str(), item.as_str()) {
+            ImportValue::Constant(value) => {
+              self.push(value.clone());
+            }
+            ImportValue::ModuleNotFound => {
+              break runtime_error!((self, chunk), "Module Not Found",);
+            }
+            ImportValue::ItemNotFound => {
+              break runtime_error!((self, chunk), "Item Not Found");
+            }
+          };
+
+          self.ip += 1;
+        }
+
         _ => {
           break runtime_error!((self, chunk), "Unknown OpCode");
         }
@@ -612,14 +640,13 @@ impl VM {
       self
         .stack
         .iter()
-        .map(|item| item.to_string())
+        .map(|item| format!("{item:?}"))
         .collect::<Vec<_>>()
         .join(", ")
     );
   }
 }
-
-impl Default for VM {
+impl Default for VM<'_> {
   fn default() -> Self {
     Self {
       ip: 0,
@@ -629,6 +656,8 @@ impl Default for VM {
       frames: Vec::with_capacity(16),
       globals: HashMap::default(),
       cyclic: BTreeSet::default(),
+
+      context: &context::Empty,
     }
   }
 }

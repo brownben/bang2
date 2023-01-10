@@ -35,7 +35,10 @@ pub fn code_frame(file: &str, source: &str, line_number: LineNumber) {
 
 pub fn stack_trace(filename: &str, source: &str, error: errors::Runtime) {
   error_message(&error.message);
-  code_frame(filename, source, error.stack[0].line);
+
+  if error.stack[0].line != u16::MAX {
+    code_frame(filename, source, error.stack[0].line);
+  }
 
   for location in error.stack {
     match &location.kind {
@@ -47,6 +50,9 @@ pub fn stack_trace(filename: &str, source: &str, error: errors::Runtime) {
       }
       errors::StackTraceLocationKind::Function(name) => {
         eprintln!("    in function '{name}' at line {}", location.line);
+      }
+      errors::StackTraceLocationKind::Builtin => {
+        eprintln!("    in builtin function");
       }
     };
   }

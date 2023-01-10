@@ -69,6 +69,7 @@ fn disassemble_instruction(f: &mut fmt::Formatter<'_>, chunk: &Chunk, pos: usize
     OpCode::SetUpvalue => byte_instruction(f, "Set Upvalue", chunk, pos),
     OpCode::GetAllocated => byte_instruction(f, "Get Upvalue from Local", chunk, pos),
     OpCode::SetAllocated => byte_instruction(f, "Set Upvalue from Local", chunk, pos),
+    OpCode::Import => write!(f, "Import"),
     _ => write!(f, "Unknown OpCode"),
   }
 }
@@ -82,7 +83,7 @@ fn constant_instruction(
   let constant_location = chunk.get_value(position + 1);
   let constant = chunk.get_constant(constant_location as usize);
 
-  write!(f, "{name} {constant} ({constant_location})")
+  write!(f, "{name} {constant:?} ({constant_location})")
 }
 
 fn string_instruction(
@@ -94,7 +95,7 @@ fn string_instruction(
   let string_location: usize = chunk.get_value(position + 1).into();
   let string = chunk.get_string(string_location);
 
-  write!(f, "{name} {string} ({string_location})")
+  write!(f, "{name} {string:?} ({string_location})")
 }
 
 fn constant_long_instruction(

@@ -1,8 +1,10 @@
 use bang_interpreter::{
+  collections::{HashMap, String},
   context::{Context, ImportValue},
   value::NativeFunction,
   VM,
 };
+use std::cell::RefCell;
 
 #[macro_use]
 mod macros;
@@ -10,18 +12,40 @@ mod macros;
 mod bytecode;
 pub mod modules;
 
-pub struct StdContext;
+fn construct_module_identifier(module: &str, item: &str) -> String {
+  let mut module_identifier = String::new();
+  module_identifier.push_str(module);
+  module_identifier.push_str("::");
+  module_identifier.push_str(item);
+  module_identifier
+}
+
+#[derive(Default)]
+pub struct StdContext {
+  import_cache: RefCell<HashMap<String, ImportValue>>,
+}
 impl Context for StdContext {
-  fn get_value(&self, module: &str, value: &str) -> ImportValue {
-    match module {
-      "maths" => modules::maths(value),
-      "string" => modules::string(value),
-      "fs" => modules::fs(value),
-      "list" => modules::list(value),
-      "set" => modules::set(value),
-      "dict" => modules::dict(value),
-      _ => ImportValue::ModuleNotFound,
+  fn get_value(&self, module: &str, item: &str) -> ImportValue {
+    let module_identifer = construct_module_identifier(module, item);
+    if let Some(value) = self.import_cache.borrow().get(&module_identifer) {
+      return value.clone();
     }
+
+    let value = match module {
+      "maths" => modules::maths(item),
+      "string" => modules::string(item),
+      "fs" => modules::fs(item),
+      "list" => modules::list(item),
+      "set" => modules::set(item),
+      "dict" => modules::dict(item),
+      _ => ImportValue::ModuleNotFound,
+    };
+
+    self
+      .import_cache
+      .borrow_mut()
+      .insert(module_identifer, value.clone());
+    value
   }
 
   fn define_globals(&self, vm: &mut VM) {

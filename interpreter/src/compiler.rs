@@ -1,7 +1,5 @@
 use crate::{
   chunk::{Chunk, OpCode},
-  collections::HashMap,
-  context::{BytecodeFunctionCreator, Context, ImportValue},
   value::{Arity, ClosureKind, Function, Value},
 };
 use bang_syntax::{
@@ -23,8 +21,6 @@ enum Error {
   TooLongList,
   TooLargeDict,
   VariableAlreadyExists,
-  ModuleNotFound,
-  ItemNotFound,
 }
 impl Error {
   fn get_title(&self) -> &'static str {
@@ -34,8 +30,6 @@ impl Error {
       Self::TooManyArguments => "Too Many Arguments",
       Self::TooManyParameters => "Too Many Parameters",
       Self::VariableAlreadyExists => "Variable Already Exists",
-      Self::ModuleNotFound => "Module Not Found",
-      Self::ItemNotFound => "Item Not Found in Module",
       Self::TooManyLocals => "Too Many Local Variables",
       Self::TooLongList => "Too Long List",
       Self::TooLargeDict => "Too Large Dict",
@@ -53,8 +47,6 @@ impl Error {
       Self::TooManyParameters => "There is a limit of 255 parameters for a function".to_string(),
       Self::TooManyLocals => "There is a limit of 255 local variables at once".to_string(),
       Self::VariableAlreadyExists => format!("Variable '{value}' has been defined already"),
-      Self::ModuleNotFound => format!("Could not find module '{value}'"),
-      Self::ItemNotFound => format!("Could not find '{value}' in module"),
       Self::TooLongList => "List is too long, can have a maximum of 2^16 elements".to_string(),
       Self::TooLargeDict => {
         "Dictionary is too large, can have a maximum of 255 static items".to_string()
@@ -79,9 +71,8 @@ struct Local<'s> {
 }
 
 #[derive(Default)]
-struct Compiler<'s, 'c> {
+struct Compiler<'s> {
   source: &'s str,
-  context: &'c dyn Context,
 
   locals: Vec<Vec<Local<'s>>>,
   closures: Vec<SmallVec<[(u8, ClosureKind); 8]>>,
@@ -90,13 +81,11 @@ struct Compiler<'s, 'c> {
   chunk: Chunk,
   chunk_stack: Vec<Chunk>,
 
-  import_cache: HashMap<(&'s str, &'s str), Value>,
-
   error: Option<Diagnostic>,
 }
 
 // Emit Bytecode
-impl Compiler<'_, '_> {
+impl Compiler<'_> {
   fn emit_opcode(&mut self, span: Span, code: OpCode) {
     self
       .chunk
@@ -174,14 +163,12 @@ impl Compiler<'_, '_> {
   }
 }
 
-impl<'s, 'c> Compiler<'s, 'c> {
-  fn new(source: &'s str, context: &'c dyn Context) -> Self {
+impl<'s> Compiler<'s> {
+  fn new(source: &'s str) -> Self {
     Self {
       source,
-      context,
 
       locals: vec![Vec::new()],
-
       ..Default::default()
     }
   }
@@ -308,7 +295,9 @@ impl<'s, 'c> Compiler<'s, 'c> {
       }
       Stmt::Import { module, items, .. } => {
         for item in items {
-          self.import(module, item.name, item.span);
+          self.emit_constant(span, (*module).into());
+          self.emit_constant(span, item.name.into());
+          self.emit_opcode(span, OpCode::Import);
           self.define_variable(item.get_name(), item.span);
         }
       }
@@ -668,7 +657,11 @@ impl<'s, 'c> Compiler<'s, 'c> {
           self.emit_opcode(span, OpCode::Add);
         }
       }
-      Expr::ModuleAccess { module, item } => self.import(module, item, span),
+      Expr::ModuleAccess { module, item } => {
+        self.emit_constant(span, (*module).into());
+        self.emit_constant(span, (*item).into());
+        self.emit_opcode(span, OpCode::Import);
+      }
     }
   }
 
@@ -695,30 +688,6 @@ impl<'s, 'c> Compiler<'s, 'c> {
     }
 
     0
-  }
-
-  fn import(&mut self, module: &'s str, item: &'s str, span: Span) {
-    if let Some(constant) = self.import_cache.get(&(module, item)) {
-      self.emit_constant(span, constant.clone());
-      return;
-    }
-
-    match self.context.get_value(module, item) {
-      ImportValue::Constant(value) => {
-        self.emit_constant(span, value.clone());
-        self.import_cache.insert((module, item), value);
-      }
-      ImportValue::Bytecode(create_function) => {
-        let line = span.get_line_number(self.source);
-        let creator = BytecodeFunctionCreator::new(line);
-        let function: Value = create_function(creator).into();
-
-        self.emit_constant(span, function.clone());
-        self.import_cache.insert((module, item), function);
-      }
-      ImportValue::ModuleNotFound => self.error(Error::ModuleNotFound, span, module),
-      ImportValue::ItemNotFound => self.error(Error::ItemNotFound, span, item),
-    };
   }
 
   fn and(&mut self, span: Span, left: &Expression<'s>, right: &Expression<'s>) {
@@ -792,9 +761,9 @@ impl<'s, 'c> Compiler<'s, 'c> {
   }
 }
 
-pub fn compile(source: &str, context: &dyn Context) -> Result<Rc<Chunk>, Diagnostic> {
+pub fn compile(source: &str) -> Result<Rc<Chunk>, Diagnostic> {
   let parser = Parser::new(source);
-  let mut compiler = Compiler::new(source, context);
+  let mut compiler = Compiler::new(source);
 
   for statement in parser {
     compiler.compile_statement(&statement?);

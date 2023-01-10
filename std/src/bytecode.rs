@@ -1,12 +1,13 @@
-use crate::modules::list;
 use bang_interpreter::{
   chunk::{Chunk, OpCode},
   context::BytecodeFunctionCreator,
 };
 
-pub const ANY: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
+pub const ANY: fn() -> Chunk = bytecode![
   const 0,
-  const list("length").unwrap_constant(),
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   JumpIfNull, long 5,
@@ -39,9 +40,11 @@ pub const ANY: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   Return,
 ];
 
-pub const ALL: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
+pub const ALL: fn() -> Chunk = bytecode![
   const 0,
-  const list("length").unwrap_constant(),
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   GetLocal, 2,
@@ -72,18 +75,22 @@ pub const ALL: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   Return,
 ];
 
-pub const MAP: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
+pub const MAP: fn() -> Chunk = bytecode![
   const 0,
-  const list("length").unwrap_constant(),
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   List, 0,
   GetLocal, 2,
   GetLocal, 3,
   Less,
-  JumpIfFalse, long 30,
+  JumpIfFalse, long 33,
   Pop,
-  const list("push").unwrap_constant(),
+  const "list",
+  const "push",
+  Import,
   GetLocal, 4,
   GetLocal, 1,
   GetLocal, 0,
@@ -97,22 +104,24 @@ pub const MAP: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   Add,
   SetLocal,2,
   Pop,
-  Loop, long 34,
+  Loop, long 37,
   Pop,
   GetLocal, 4,
   Return,
 ];
 
-pub const FILTER: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
+pub const FILTER: fn() -> Chunk = bytecode![
   const 0,
-  const list("length").unwrap_constant(),
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   List, 0,
   GetLocal, 2,
   GetLocal, 3,
   Less,
-  JumpIfFalse, long 43,
+  JumpIfFalse, long 46,
   Pop,
   GetLocal, 0,
   GetLocal, 2,
@@ -120,9 +129,11 @@ pub const FILTER: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   GetLocal, 1,
   GetLocal, 5,
   Call, 1,
-  JumpIfFalse, long 15,
+  JumpIfFalse, long 18,
   Pop,
-  const list("push").unwrap_constant(),
+  const "list",
+  const "push",
+  Import,
   GetLocal, 4,
   GetLocal, 5,
   Call, 2,
@@ -135,15 +146,17 @@ pub const FILTER: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   SetLocal, 2,
   Pop,
   Pop,
-  Loop, long 47,
+  Loop, long 50,
   Pop,
   GetLocal, 4,
   Return,
 ];
 
-pub const FIND: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
+pub const FIND: fn() -> Chunk = bytecode![
   const 0,
-  const list("length").unwrap_constant(),
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   GetLocal, 2,
@@ -175,9 +188,11 @@ pub const FIND: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   Return,
 ];
 
-pub const FOR_EACH: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
+pub const FOR_EACH: fn() -> Chunk = bytecode![
   const 0,
-  const list("length").unwrap_constant(),
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   GetLocal, 2,
@@ -204,9 +219,11 @@ pub const FOR_EACH: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   Return,
 ];
 
-pub const REDUCE: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
+pub const REDUCE: fn() -> Chunk = bytecode![
   const 0,
-  const list("length").unwrap_constant(),
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   GetLocal, 1,
@@ -234,8 +251,10 @@ pub const REDUCE: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   Return,
 ];
 
-pub const MAX: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
-  const list("length").unwrap_constant(),
+pub const MAX: fn() -> Chunk = bytecode![
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   const f64::NEG_INFINITY,
@@ -269,8 +288,10 @@ pub const MAX: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
   GetLocal, 2,
   Return,
 ];
-pub const MIN: fn(BytecodeFunctionCreator) -> Chunk = bytecode![
-  const list("length").unwrap_constant(),
+pub const MIN: fn() -> Chunk = bytecode![
+  const "list",
+  const "length",
+  Import,
   GetLocal, 0,
   Call, 1,
   const f64::INFINITY,

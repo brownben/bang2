@@ -50,6 +50,7 @@ pub enum OpCode {
   SetUpvalue,
   GetAllocated,
   SetAllocated,
+  Import,
   Unknown,
 }
 impl OpCode {
@@ -75,7 +76,8 @@ impl OpCode {
       | Self::GetIndex
       | Self::SetIndex
       | Self::ToString
-      | Self::Closure => Some(1),
+      | Self::Closure
+      | Self::Import => Some(1),
       Self::Constant
       | Self::DefineGlobal
       | Self::GetGlobal
@@ -266,7 +268,7 @@ impl Chunk {
 #[cfg(test)]
 mod test {
   use super::{Chunk, LineInfo};
-  use crate::VM;
+  use crate::{context, VM};
   use std::rc::Rc;
 
   #[test]
@@ -280,7 +282,7 @@ mod test {
       ..Default::default()
     });
 
-    let mut vm = VM::default();
+    let mut vm = VM::new(&context::Empty);
     let error = vm.run(&chunk).unwrap_err();
     assert_eq!(error.message, "Unknown OpCode");
   }

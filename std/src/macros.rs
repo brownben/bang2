@@ -212,18 +212,18 @@ macro_rules! module {
         )*
         $(
           stringify!($bytecode_item_name) => {
-            let function = |builder| Function {
+            let function = Function {
               name: concat!(
                 stringify!($name),
                 "::",
                 stringify!($bytecode_item_name)
               ).into(),
               arity: count!($($by_type)*).into(),
-              chunk: $bytecode_item_value(builder).into(),
+              chunk: $bytecode_item_value().into(),
               upvalues: Default::default(),
             };
 
-            ImportValue::Bytecode(function)
+            ImportValue::Constant(function.into())
           }
         )*
         _ => ImportValue::ItemNotFound,
@@ -247,7 +247,8 @@ macro_rules! bytecode {
   }};
 
   ($($ty:tt $($item:expr)?,)+) => {{
-    |mut builder| {
+    || {
+      let mut builder = BytecodeFunctionCreator::default();
       $({ bytecode!(builder, $ty $($item)?) })+;
       builder.finish()
     }

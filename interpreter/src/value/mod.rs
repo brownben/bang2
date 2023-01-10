@@ -55,6 +55,14 @@ impl Value {
     string
   }
 
+  pub fn as_str(&self) -> &str {
+    if self.is_object() && let Object::String(string) = self.as_object() {
+      string
+    } else {
+      ""
+    }
+  }
+
   pub fn equals(a: &Self, b: &Self, seen: &mut BTreeSet<u64>) -> bool {
     if a.as_bytes() == b.as_bytes() {
       return true;
