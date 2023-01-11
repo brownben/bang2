@@ -12,5 +12,5 @@ keywords.workspace = true
 edition.workspace = true
 
 [dependencies]
-smallvec = { version="1", features=["union"] }
+smallvec = { version = "1", features = ["union"] }
 smartstring = "1"

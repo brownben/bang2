@@ -5,10 +5,7 @@ use bang_interpreter::{
   value::{calculate_index, Function, NativeFunction, Object},
   Value,
 };
-use std::{
-  collections::{HashMap, HashSet},
-  fs,
-};
+use std::collections::{HashMap, HashSet};
 
 module!(maths, {
   const PI = std::f64::consts::PI;
@@ -61,11 +58,6 @@ module!(string, {
   fn split(String, String) -> |a, b| str::split(a, b).filter(|x| !x.is_empty()).map(Value::from).collect::<Vec<_>>();
 });
 
-module!(fs, {
-  fn read(String) -> fs::read_to_string;
-  fn write(String, String) -> fs::write;
-});
-
 module!(list, {
   fn length(ListRef) -> Vec::len;
   fn isEmpty(ListRef) -> Vec::is_empty;
@@ -112,4 +104,10 @@ module!(dict, {
   fn keys(DictRef) -> |d: &BangHashMap<_, _>| d.keys().cloned().collect::<Vec<_>>();
   fn values(DictRef) -> |d: &BangHashMap<_, _>| d.values().cloned().collect::<Vec<_>>();
   fn get(DictRef, Any) -> |dict: &BangHashMap<_, _>, index| dict.get(index).cloned();
+});
+
+#[cfg(feature = "fs")]
+module!(fs, {
+  fn read(String) -> std::fs::read_to_string;
+  fn write(String, String) -> std::fs::write;
 });

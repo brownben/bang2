@@ -18,7 +18,7 @@ debug = []
 bang-syntax = { path = "../syntax" }
 itertools = "0.10.5"
 rustc-hash = "1.1.0"
-smallvec = { version="1", features=["union"] }
+smallvec = { version = "1", features = ["union"] }
 smartstring = "1"
 
 [dev-dependencies]

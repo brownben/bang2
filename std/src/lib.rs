@@ -34,10 +34,13 @@ impl Context for StdContext {
     let value = match module {
       "maths" => modules::maths(item),
       "string" => modules::string(item),
-      "fs" => modules::fs(item),
       "list" => modules::list(item),
       "set" => modules::set(item),
       "dict" => modules::dict(item),
+
+      #[cfg(feature = "fs")]
+      "fs" => modules::fs(item),
+
       _ => ImportValue::ModuleNotFound,
     };
 

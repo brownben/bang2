@@ -277,10 +277,7 @@ impl<'source> Tokeniser<'source> {
   }
 
   fn format_string(&mut self) -> (TokenType, TokenLength) {
-    let quote = *self
-      .quote_stack
-      .last()
-      .expect("Only called when quote_stack is not empty");
+    let quote = *self.quote_stack.last().unwrap();
     let mut pos = self.position + 1;
 
     loop {

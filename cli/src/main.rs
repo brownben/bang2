@@ -145,7 +145,7 @@ fn repl() {
   use rustyline::error::ReadlineError;
 
   println!("Bang! ({VERSION})");
-  let mut rl = rustyline::Editor::<()>::new().expect("REPL Editor to be created");
+  let mut rl = rustyline::Editor::<()>::new().unwrap();
 
   let context = bang::StdContext::default();
   let mut vm = bang::VM::new(&context);

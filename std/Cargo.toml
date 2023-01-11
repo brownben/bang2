@@ -11,5 +11,9 @@ categories.workspace = true
 keywords.workspace = true
 edition.workspace = true
 
+[features]
+default = ["fs"]
+fs = []
+
 [dependencies]
 bang-interpreter = { path = "../interpreter" }
