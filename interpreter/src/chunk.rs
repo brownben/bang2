@@ -18,6 +18,7 @@ pub enum OpCode {
   Subtract,
   Multiply,
   Divide,
+  Remainder,
   Negate,
   Not,
   Equal,
@@ -63,6 +64,7 @@ impl OpCode {
       | Self::Subtract
       | Self::Multiply
       | Self::Divide
+      | Self::Remainder
       | Self::Negate
       | Self::Not
       | Self::Equal

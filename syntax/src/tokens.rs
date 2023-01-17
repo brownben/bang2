@@ -38,6 +38,7 @@ pub enum TokenType {
   Or,
   QuestionQuestion,
   RightRight,
+  Percent,
 
   // Comparators
   BangEqual,
@@ -195,6 +196,7 @@ impl<'source> Tokeniser<'source> {
       b'-' => (TokenType::Minus, 1),
       b'/' => (TokenType::Slash, 1),
       b'*' => (TokenType::Star, 1),
+      b'%' => (TokenType::Percent, 1),
       b'!' => (TokenType::Bang, 1),
       b'=' => (TokenType::Equal, 1),
       b'<' => (TokenType::Less, 1),

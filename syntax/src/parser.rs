@@ -52,7 +52,7 @@ impl Precedence {
       TokenType::QuestionQuestion => Self::Nullish,
       TokenType::LeftParen | TokenType::LeftSquare => Self::Call,
       TokenType::Plus | TokenType::Minus => Self::Term,
-      TokenType::Star | TokenType::Slash => Self::Factor,
+      TokenType::Star | TokenType::Slash | TokenType::Percent => Self::Factor,
       TokenType::BangEqual | TokenType::EqualEqual => Self::Equality,
       TokenType::Greater | TokenType::GreaterEqual | TokenType::Less | TokenType::LessEqual => {
         Self::Comparison
@@ -313,6 +313,7 @@ impl<'source> Parser<'source> {
       | TokenType::Minus
       | TokenType::Star
       | TokenType::Slash
+      | TokenType::Percent
       | TokenType::BangEqual
       | TokenType::EqualEqual
       | TokenType::Greater

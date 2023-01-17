@@ -143,6 +143,7 @@ pub mod operators {
     Or,
     Nullish,
     Pipeline,
+    Remainder,
   }
   impl From<TokenType> for Binary {
     fn from(token_type: TokenType) -> Self {
@@ -161,6 +162,7 @@ pub mod operators {
         TokenType::Or => Self::Or,
         TokenType::QuestionQuestion => Self::Nullish,
         TokenType::RightRight => Self::Pipeline,
+        TokenType::Percent => Self::Remainder,
         _ => unreachable!(),
       }
     }
@@ -182,6 +184,7 @@ pub mod operators {
         Self::Or => write!(f, "or"),
         Self::Nullish => write!(f, "??"),
         Self::Pipeline => write!(f, ">>"),
+        Self::Remainder => write!(f, "%"),
       }
     }
   }

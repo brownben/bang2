@@ -52,7 +52,10 @@ impl<'s> Typechecker<'s> {
         self.assert_type(r, &l, span)?;
         self.assert_type(l, &Type::string_or_number(), span)?
       }
-      BinaryOperator::Minus | BinaryOperator::Multiply | BinaryOperator::Divide => {
+      BinaryOperator::Minus
+      | BinaryOperator::Multiply
+      | BinaryOperator::Divide
+      | BinaryOperator::Remainder => {
         self.assert_type(l, &Type::Literal(Literal::Number), span)?;
         self.assert_type(r, &Type::Literal(Literal::Number), span)?
       }

@@ -206,3 +206,16 @@ let f = 'hello ${`world ${'nested'}`}'
   e == "hello world"
   f == "hello world nested"
 );
+
+bang_test!(remainder
+  "
+let a = 5 % 3
+let b = -5 % 3
+let c = 5 % -3
+let d = -5 % -3
+"
+  a == 2
+  b == -2
+  c == 2
+  d == -2
+);

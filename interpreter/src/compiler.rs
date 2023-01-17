@@ -398,13 +398,17 @@ impl<'s> Compiler<'s> {
           operators::Binary::Minus => self.emit_opcode(span, OpCode::Subtract),
           operators::Binary::Multiply => self.emit_opcode(span, OpCode::Multiply),
           operators::Binary::Divide => self.emit_opcode(span, OpCode::Divide),
+          operators::Binary::Remainder => self.emit_opcode(span, OpCode::Remainder),
           operators::Binary::Equal => self.emit_opcode(span, OpCode::Equal),
           operators::Binary::Greater => self.emit_opcode(span, OpCode::Greater),
           operators::Binary::Less => self.emit_opcode(span, OpCode::Less),
           operators::Binary::NotEqual => self.emit_opcode(span, OpCode::NotEqual),
           operators::Binary::GreaterEqual => self.emit_opcode(span, OpCode::GreaterEqual),
           operators::Binary::LessEqual => self.emit_opcode(span, OpCode::LessEqual),
-          _ => unreachable!(),
+          operators::Binary::And
+          | operators::Binary::Or
+          | operators::Binary::Nullish
+          | operators::Binary::Pipeline => unreachable!(),
         }
       }
       Expr::Assignment {

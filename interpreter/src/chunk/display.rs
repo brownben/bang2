@@ -60,6 +60,7 @@ fn disassemble_instruction(f: &mut fmt::Formatter<'_>, chunk: &Chunk, pos: usize
     OpCode::Subtract => write!(f, "Subtract"),
     OpCode::Multiply => write!(f, "Multiply"),
     OpCode::Divide => write!(f, "Divide"),
+    OpCode::Remainder => write!(f, "Remainder"),
     OpCode::Negate => write!(f, "Negate"),
     OpCode::Not => write!(f, "Not"),
     OpCode::Equal => write!(f, "Equal"),

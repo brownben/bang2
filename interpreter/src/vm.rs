@@ -226,6 +226,7 @@ impl VM<'_> {
           self.push(Value::FALSE);
           self.ip += 1;
         }
+
         OpCode::Add => {
           let (right, left) = (self.pop(), self.pop());
 
@@ -259,6 +260,11 @@ impl VM<'_> {
           numeric_expression!((self, chunk), /);
           self.ip += 1;
         }
+        OpCode::Remainder => {
+          numeric_expression!((self, chunk), %);
+          self.ip += 1;
+        }
+
         OpCode::Negate => {
           let value = self.pop();
           if value.is_number() {
