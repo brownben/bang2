@@ -724,12 +724,13 @@ mod set {
   bang_test!(size
 "
 from set import { set, size, isEmpty }
+from list import { toSet }
 
-let a = size(set(1, 2, 3))
+let a = size(toSet([1, 2, 3]))
 let b = size(set())
 let c = size(3) == null
 let d = isEmpty(set())
-let e = isEmpty(set(1, 2, 3))
+let e = isEmpty(toSet([1, 2, 3]))
 "
     a == 3
     b == 0
@@ -764,10 +765,11 @@ let f = size(a)
   bang_test!(includes
 "
 from set import { set, includes }
+from list import { toSet }
 
 let a = set() >> includes(7)
-let b = set(1, 2, 3) >> includes(2)
-let c = set(1, 2, 3) >> includes(4)
+let b = toSet([1, 2, 3]) >> includes(2)
+let c = toSet([1, 2, 3]) >> includes(4)
 "
     a == false
     b == true
@@ -777,10 +779,11 @@ let c = set(1, 2, 3) >> includes(4)
   bang_test!(subset_superset_disjoint
 "
 from set import { set, isDisjoint, isSubset, isSuperset }
+from list import { toSet }
 
-let a = set(1, 2, 3)
-let b = set(1, 2)
-let c = set(4, 5)
+let a = toSet([1, 2, 3])
+let b = toSet([1, 2])
+let c = toSet([4, 5])
 
 let x = isSubset(a, b)
 let y = isSuperset(a, b)
@@ -797,11 +800,12 @@ let w = isDisjoint(a, b)
   bang_test!(union_difference_intersection_symmetric
 "
 from set import { set, size, union, difference, intersection, symmetricDifference }
+from list import { toSet }
 
-let a = set(1, 2, 3)
-let b = set(1, 2)
-let c = set(4, 5)
-let d = set(4, 6)
+let a = toSet([1, 2, 3])
+let b = toSet([1, 2])
+let c = toSet([4, 5])
+let d = toSet([4, 6])
 
 let ac = union(a, c)
 let x = size(a)
@@ -824,13 +828,13 @@ let g = symmetricDifference(c, d) >> size()
   bang_test!(to_list
 "
 from set import { set, toList }
-from list import { length }
+from list import { length, toSet }
 
-let a = set(1, 2, 3) >> toList()
+let a = toSet([1, 2, 3]) >> toList()
 let b = type(a)
 let c = length(a)
 
-let d = set(1,2,1) >> toList()
+let d = toSet([1,2,1]) >> toList()
 let e = length(d)
 "
     b == "list"
@@ -841,7 +845,7 @@ let e = length(d)
   bang_test!(cyclic_equals
   "
 let a = set::new()
-let b = set::new(a)
+let b = list::toSet([a])
 a >> set::insert(b)
 let x = a == a
 let y = a != b
@@ -853,7 +857,7 @@ let y = a != b
   bang_test!(cyclic_to_string
     "
 let a = set::new()
-let b = set::new(a)
+let b = list::toSet([a])
 
 a >> set::insert(b)
 

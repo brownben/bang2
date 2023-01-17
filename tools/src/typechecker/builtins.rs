@@ -116,8 +116,8 @@ impl Typechecker<'_> {
         min: "((string[]) -> string) | ((number[]) -> number)",
       }),
       "set" => module!(item, self, {
-        new: "<T>(..T) -> set(T)",
-        set: "<T>(..T) -> set(T)",
+        new: "<T>() -> set(T)",
+        set: "<T>() -> set(T)",
         size: "<T>(set(T)) -> number",
         isEmpty: "<T>(set(T)) -> boolean",
         insert: "<T>(set(T), T) -> boolean",

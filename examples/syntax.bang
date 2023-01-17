@@ -105,13 +105,6 @@ null
 (() => 3)()        // 3
 ((x: number) => x + 3)(4)  // 7
 
-// Can take an arbitary number of arguments
-((..everything) => everything)(1, 2)  // [1, 2]
-
-// Or pass optional extra
-((a, b, ..c) => c)(1, 2, 3, 4, 5) // [3, 4, 5]
-((a, b, ..c) => c)(1, 2) // []
-
 // Lists
 // ==========================
 

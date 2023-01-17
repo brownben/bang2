@@ -182,7 +182,6 @@ macro_rules! unwrap_type {
 macro_rules! module {
   ($name:ident, {
     $(const $value_name:ident = $value:expr;)*
-    $(var fn $var_item_name:ident() -> $var_item_value:expr;)*
     $(fn $item_name:ident($($type:ident),*) -> $item_value:expr;)*
     $(bytecode fn $bytecode_item_name:ident($($by_type:ident),*) -> $bytecode_item_value:expr;)*
   }) => {
@@ -199,14 +198,6 @@ macro_rules! module {
               concat!(stringify!($name), "::", stringify!($item_name)),
               count!($($type)*),
               |args| unwrap_type!($($type)*, args, $item_value),
-            ).into()
-          ),
-        )*
-        $(
-          stringify!($var_item_name) => ImportValue::Constant(
-            NativeFunction::new_catch_all(
-              concat!(stringify!($name), "::", stringify!($var_item_name)),
-              |args| unwrap_type!(Varadic, args, $var_item_value),
             ).into()
           ),
         )*

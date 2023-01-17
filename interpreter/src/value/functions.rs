@@ -7,15 +7,10 @@ use std::rc::Rc;
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Arity {
   count: u8,
-  catch_all: bool,
 }
 impl Arity {
-  pub fn new(count: u8, catch_all: bool) -> Self {
-    Self { count, catch_all }
-  }
-
-  pub fn has_varadic_param(self) -> bool {
-    self.catch_all
+  pub fn new(count: u8) -> Self {
+    Self { count }
   }
 
   pub fn get_count(self) -> usize {
@@ -23,19 +18,12 @@ impl Arity {
   }
 
   pub fn check_arg_count(self, provided: u8) -> bool {
-    if self.has_varadic_param() {
-      provided >= self.count.saturating_sub(1)
-    } else {
-      self.count == provided
-    }
+    self.count == provided
   }
 }
 impl From<u8> for Arity {
   fn from(count: u8) -> Self {
-    Self {
-      count,
-      catch_all: false,
-    }
+    Self { count }
   }
 }
 
@@ -85,13 +73,6 @@ impl NativeFunction {
       name,
       func,
       arity: arity.into(),
-    }
-  }
-  pub fn new_catch_all(name: &'static str, func: fn(args: &[Value]) -> Value) -> Self {
-    Self {
-      name,
-      func,
-      arity: Arity::new(1, true),
     }
   }
 }

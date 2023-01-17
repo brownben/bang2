@@ -91,13 +91,6 @@ macro_rules! function_arity_check {
         $arg_count
       );
     }
-
-    // If more arguments than expected, wrap the overflowing ones into a list
-    if $arity.has_varadic_param() {
-      let start = $vm.stack.len() + $arity.get_count() - usize::from($arg_count) - 1;
-      let items = $vm.stack.drain(start..).collect::<Vec<_>>();
-      $vm.push(items.into());
-    }
   }};
 }
 

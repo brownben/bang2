@@ -264,5 +264,4 @@ pub struct Parameter<'s> {
   pub name: &'s str,
   pub span: Span,
   pub type_: Option<TypeExpression<'s>>,
-  pub catch_remaining: bool,
 }

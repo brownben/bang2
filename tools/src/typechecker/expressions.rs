@@ -10,7 +10,6 @@ use bang_syntax::ast::{
   types::TypeExpression,
   Span,
 };
-use std::mem;
 
 impl<'s> Typechecker<'s> {
   pub fn assignment_expression(
@@ -105,7 +104,7 @@ impl<'s> Typechecker<'s> {
     } else {
       self.context.new_existential()
     };
-    let mut arg_types = parameters
+    let arg_types = parameters
       .iter()
       .map(|param| {
         if let Some(ty) = &param.type_ {
@@ -115,13 +114,6 @@ impl<'s> Typechecker<'s> {
         }
       })
       .collect::<Result<Vec<_>, _>>()?;
-    let has_catch_all_parameter = parameters
-      .last()
-      .map_or(false, |parameter| parameter.catch_remaining);
-
-    if has_catch_all_parameter && let Some(param) = arg_types.last_mut() {
-      *param = Type::List(mem::take(param).into());
-    }
 
     self.scope.begin_scope();
 
@@ -132,7 +124,6 @@ impl<'s> Typechecker<'s> {
     let function = Type::Function(Function {
       parameters: arg_types,
       return_type: return_type.clone().into(),
-      catch_all: has_catch_all_parameter,
     });
 
     if let Some(name) = name && !self.scope.is_defined(name) {

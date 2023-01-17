@@ -15,7 +15,7 @@ use bang_syntax::ast::{
   Span,
 };
 use rustc_hash::FxHashMap as HashMap;
-use std::{error, fmt, mem};
+use std::{error, fmt};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ErrorKind {
@@ -262,21 +262,16 @@ impl<'s> Typechecker<'s> {
         let b = self.type_from_annotation(b, generics)?;
         a.union(b)
       }
-      TypeItem::Function(return_type, parameters, catch_all) => {
+      TypeItem::Function(return_type, parameters) => {
         let return_type = self.type_from_annotation(return_type, generics)?.into();
-        let mut parameters: Vec<_> = parameters
+        let parameters: Vec<_> = parameters
           .iter()
           .map(|p| self.type_from_annotation(p, generics))
           .collect::<Result<_, _>>()?;
 
-        if *catch_all && let Some(param) = parameters.last_mut() {
-          *param = Type::List(mem::take(param).into());
-        }
-
         Type::Function(Function {
           parameters,
           return_type,
-          catch_all: *catch_all,
         })
       }
       TypeItem::Optional(ty) => {
@@ -485,7 +480,6 @@ impl<'s> Typechecker<'s> {
           Type::Function(Function {
             parameters: alpha_args.clone(),
             return_type: return_type.clone().into(),
-            catch_all: false,
           }),
         );
 
@@ -497,19 +491,15 @@ impl<'s> Typechecker<'s> {
         return_type.apply_context(&self.context)
       }
       Type::Function(function) => {
-        if (function.catch_all && arguments.len() < function.parameters.len() - 1)
-          || (!function.catch_all && arguments.len() != function.parameters.len())
-        {
+        if arguments.len() != function.parameters.len() {
           Error::new(
             ErrorKind::WrongNumberArguments(arguments.len(), function.parameters.len()),
             span,
           )?;
         }
 
-        let normal_parameter_end_index =
-          function.parameters.len() - usize::from(function.catch_all);
-
-        function.parameters[..normal_parameter_end_index]
+        function
+          .parameters
           .iter()
           .zip(arguments.iter())
           .try_for_each(|(arg, e)| {
@@ -517,16 +507,6 @@ impl<'s> Typechecker<'s> {
             self.assert_type(e, arg, span)?;
             Ok(())
           })?;
-
-        if function.catch_all {
-          let items = arguments[(function.parameters.len() - 1)..].to_owned();
-
-          let ty = self.synthesize_expression(&Expression {
-            expr: Expr::List { items },
-            span,
-          })?;
-          self.assert_type(ty, function.parameters.last().unwrap(), span)?;
-        }
 
         function.return_type.clone().apply_context(&self.context)
       }

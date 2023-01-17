@@ -814,14 +814,15 @@ mod compound_structures {
     assert_correct!(
       "
   from set import { set, size, isEmpty, insert, remove, includes, isDisjoint, isSuperset, isSubset, union, difference, intersection, symmetricDifference }
+  from list import { toSet }
 
-  let a = set(1, 2, 3)
+  let a = set()
   let b: number = a >> size()
   let c: boolean = a >> isEmpty()
   let d: boolean = a >> insert(2)
   let e: boolean = a >> remove(3)
   let f: boolean = a >> includes(4)
-  let g = union(a, set(1,2,3))
+  let g = union(a, toSet([1,2,3]))
   let h = difference(a, g)
   let i = intersection(a, g)
   let j = symmetricDifference(h, i)
@@ -887,75 +888,5 @@ let a = (a) ->
 
     assert_correct!("let a: dict(string, number) = { 'hello': 7 }");
     assert_correct!("let a: dict(string, number) = { }");
-  }
-}
-
-mod varadic_arguments {
-  use super::*;
-
-  #[test]
-  fn catch_all_arguments() {
-    assert_correct!("let a = (..x) => 7\na(1,2,3)");
-    assert_correct!("let a = (..x) => 7\na()");
-    assert_correct!("let a = (..x) => 7\na(1)");
-  }
-
-  #[test]
-  fn catch_all_arguments_assert_type() {
-    assert_correct!("let a = (..x: number) => 7\na(1,2,3)");
-    assert_correct!("let a = (..x: number) => 7\na()");
-    assert_correct!("let a = (..x: number) => 7\na(1)");
-    assert_fails!("let a = (..x: number) => 7\na('')");
-  }
-
-  #[test]
-  fn call_catch_remaining() {
-    assert_correct!(
-      "
-from list import { length }
-let a = (x, ..catch) => length(catch)
-let b = a(1, 2, 3)
-let c = a(2)
-let d = a(2,3,3,5,8)
-"
-    );
-
-    assert_fails!(
-      "
-from list import { length }
-let a = (x, ..catch) => length(catch)
-let b = a()
-"
-    );
-  }
-
-  #[test]
-  fn catch_remaining_is_list() {
-    assert_fails!(
-      "
-from list import { length }
-let a = (x: number, ..catch) => catch + 7
-let b = a(1, 2, 3)
-"
-    );
-    assert_correct!(
-      "
-from list import { length }
-let a = (x: number, ..catch: number) => 7
-let b = a(1, 2, 3)
-"
-    );
-    assert_correct!(
-      "
-let a = (x, ..catch) => catch
-let b: string[] = a(7, '2', 'hello')
-"
-    );
-    assert_correct!(
-      "
-let a = (..catch) => catch[0]
-let b: string | number = a(7, '2', 'hello')
-"
-    );
   }
 }

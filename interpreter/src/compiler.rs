@@ -550,7 +550,6 @@ impl<'s> Compiler<'s> {
           self.error(Error::TooManyParameters, span, "");
           255
         });
-        let catch_remaining = parameters.iter().any(|param| param.catch_remaining);
 
         self.closures.push(SmallVec::new());
         self.new_chunk();
@@ -569,7 +568,7 @@ impl<'s> Compiler<'s> {
           span,
           Value::from(Function {
             name: name.unwrap_or("").into(),
-            arity: Arity::new(arity, catch_remaining),
+            arity: Arity::new(arity),
             chunk: chunk.into(),
             upvalues,
           }),

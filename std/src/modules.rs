@@ -79,8 +79,8 @@ module!(list, {
 });
 
 module!(set, {
-  var fn new() -> BangHashSet::from_iter;
-  var fn set() -> BangHashSet::from_iter;
+  fn new() -> BangHashSet::default;
+  fn set() -> BangHashSet::default;
   fn size(SetRef) -> HashSet::len;
   fn isEmpty(SetRef) -> HashSet::is_empty;
   fn insert(Set, Any) -> HashSet::insert;

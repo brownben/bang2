@@ -81,7 +81,6 @@ enum Error {
   EmptyStatement,
   ExpectedImportKeyword,
   ExpectedType,
-  ExpectedCatchAllLast,
   ExpectedModuleItem,
   ExpectedColon,
 }
@@ -104,7 +103,6 @@ impl Error {
       Self::UnterminatedString => "Unterminated String",
       Self::ExpectedImportKeyword => "Expected 'import' keyword",
       Self::ExpectedType => "Expected Type",
-      Self::ExpectedCatchAllLast => "Expected Catch All Parameter To Be The Last",
       Self::ExpectedModuleItem => "Expected Module Item to Import",
       Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
     }
@@ -131,7 +129,6 @@ impl Error {
         format!("Missing closing quote {}", &token.get_value(source)[0..1])
       }
       Self::InvalidAssignmentTarget => "Can't assign to an expression, only a variable".to_string(),
-      Self::ExpectedCatchAllLast => "No parameters can follow a catch all parameter".to_string(),
       Self::EmptyStatement => unreachable!("EmptyStatement caught to return nothing"),
     }
   }
@@ -617,7 +614,6 @@ impl<'source> Parser<'source> {
                 name: identifier.get_value(self.source),
                 span: identifier.into(),
                 type_: None,
-                catch_remaining: false,
               };
               self.function_body(opening_bracket, vec![parameter])
             }
@@ -639,7 +635,7 @@ impl<'source> Parser<'source> {
         }
         _ => self.grouping(opening_bracket),
       },
-      TokenType::DotDot | TokenType::RightParen => self.function(opening_bracket),
+      TokenType::RightParen => self.function(opening_bracket),
       _ => self.grouping(opening_bracket),
     }
   }
@@ -652,7 +648,6 @@ impl<'source> Parser<'source> {
         break;
       }
 
-      let catch_remaining = self.matches(TokenType::DotDot);
       let parameter = self.consume(TokenType::Identifier, Error::ExpectedIdentifier)?;
       let type_ = if self.matches(TokenType::Colon) {
         Some(self.types()?)
@@ -664,15 +659,11 @@ impl<'source> Parser<'source> {
         name: parameter.get_value(self.source),
         span: Span::from(parameter),
         type_,
-        catch_remaining,
       });
 
       if !self.matches(TokenType::Comma) {
         self.ignore_newline();
         self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
-        break;
-      } else if catch_remaining {
-        self.consume(TokenType::RightParen, Error::ExpectedCatchAllLast)?;
         break;
       }
     }
@@ -1096,16 +1087,10 @@ impl<'source> Parser<'source> {
     let opening_bracket = self.current_advance();
 
     if self.matches(TokenType::RightParen) {
-      return self.type_function_body(opening_bracket, vec![], false);
-    } else if self.matches(TokenType::DotDot) {
-      let ty = self.types()?;
-      self.matches(TokenType::Comma);
-      self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
-      return self.type_function_body(opening_bracket, vec![ty], true);
+      return self.type_function_body(opening_bracket, vec![]);
     };
 
     let types = self.types()?;
-
     match self.current.ttype {
       TokenType::Comma => {
         self.next();
@@ -1114,18 +1099,17 @@ impl<'source> Parser<'source> {
       TokenType::RightParen => {
         let end_token = self.current_advance();
 
-        match self.current.ttype {
-          TokenType::RightArrow | TokenType::FatRightArrow => {
-            self.type_function_body(opening_bracket, vec![types], false)
-          }
-          _ => Ok(types!(Group(Box::new(types)), (opening_bracket, end_token))),
+        if let TokenType::RightArrow | TokenType::FatRightArrow = self.current.ttype {
+          self.type_function_body(opening_bracket, vec![types])
+        } else {
+          Ok(types!(Group(Box::new(types)), (opening_bracket, end_token)))
         }
       }
       TokenType::DotDot => {
         self.next();
         let ty = self.types()?;
         self.consume(TokenType::LeftParen, Error::ExpectedClosingBracket)?;
-        self.type_function_body(opening_bracket, vec![ty], true)
+        self.type_function_body(opening_bracket, vec![ty])
       }
       _ => Err(Error::ExpectedClosingBrace)?,
     }
@@ -1185,40 +1169,32 @@ impl<'source> Parser<'source> {
     first_parameter: TypeExpression<'source>,
   ) -> TypeResult<'source> {
     let mut parameters = vec![first_parameter];
-    let mut catch_remaining = false;
     loop {
       if self.matches(TokenType::RightParen) {
         break;
       }
 
-      if self.matches(TokenType::DotDot) {
-        catch_remaining = true;
-      }
       parameters.push(self.types()?);
 
       if !self.matches(TokenType::Comma) {
         self.consume(TokenType::RightParen, Error::ExpectedClosingBracket)?;
         break;
-      } else if catch_remaining {
-        self.consume(TokenType::RightParen, Error::ExpectedCatchAllLast)?;
-        break;
       }
     }
 
-    self.type_function_body(start_token, parameters, catch_remaining)
+    self.type_function_body(start_token, parameters)
   }
 
   fn type_function_body(
     &mut self,
     start_token: Token,
     parameters: Vec<TypeExpression<'source>>,
-    catch_all: bool,
   ) -> TypeResult<'source> {
     self.consume(TokenType::RightArrow, Error::ExpectedFunctionArrow)?;
     let return_type = self.types()?;
 
     Ok(types!(
-      Function(Box::new(return_type), parameters, catch_all),
+      Function(Box::new(return_type), parameters),
       (start_token, self.current)
     ))
   }
@@ -1395,9 +1371,6 @@ mod tests {
     } else {
       panic!("Expected return statement");
     }
-
-    assert!(super::parse("(..all) => all[0]").is_ok());
-    assert!(super::parse("(..) => all[0]").is_err());
   }
 
   #[test]
@@ -1653,10 +1626,6 @@ from maths import { sin }";
 
     assert!(super::parse("let a: <>() -> null").is_err());
     assert!(super::parse("let a: <null>() -> null").is_err());
-
-    assert!(super::parse("let a: <T>(..T) -> T").is_ok());
-    assert!(super::parse("let a: <T>(..T -> T").is_err());
-    assert!(super::parse("let a: <T>(..T) T").is_err());
   }
 
   #[test]

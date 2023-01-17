@@ -13,7 +13,6 @@ pub enum Truthiness {
 pub struct Function {
   pub parameters: Vec<Type>,
   pub return_type: Box<Type>,
-  pub catch_all: bool,
 }
 
 pub type Existential = u16;
@@ -173,7 +172,6 @@ impl Type {
       Self::Set(a) => Self::Set(a.apply_context(context).into()),
 
       Self::Function(a) => Self::Function(Function {
-        catch_all: a.catch_all,
         parameters: a
           .parameters
           .into_iter()
