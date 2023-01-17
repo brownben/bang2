@@ -138,7 +138,7 @@ list[0] *= 4 // list: [4, 55, 3, 4, 5]
 
 // If you create cycles, it will leak memory as everything is reference counted.
 let a = []
-a >> push(a) // Creates a cycle thus will leak memory
+a >> list::push(a) // Creates a cycle thus will leak memory
 
 // ==========================
 // Logical Operators
