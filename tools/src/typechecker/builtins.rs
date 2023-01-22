@@ -21,6 +21,7 @@ macro_rules! register_globals {
     $typechecker.scope.begin_scope();
   };
 }
+pub(crate) use register_globals;
 
 macro_rules! module {
   ($item:expr, $typechecker:expr, { $($name:ident: $text:literal,)* }) => {

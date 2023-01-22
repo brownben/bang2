@@ -1,10 +1,10 @@
-#[macro_use]
 mod builtins;
 mod expressions;
 mod narrowing;
 mod statements;
 mod types;
 
+use builtins::register_globals;
 use statements::StatementType;
 use types::{Existential, Function, Literal, Type};
 

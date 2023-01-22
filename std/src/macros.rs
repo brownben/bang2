@@ -245,3 +245,8 @@ macro_rules! bytecode {
     }
   }};
 }
+
+pub(crate) use bytecode;
+pub(crate) use count;
+pub(crate) use module;
+pub(crate) use unwrap_type;

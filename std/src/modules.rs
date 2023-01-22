@@ -1,4 +1,7 @@
-use super::bytecode;
+use crate::{
+  bytecode,
+  macros::{count, module, unwrap_type},
+};
 use bang_interpreter::{
   collections::{HashMap as BangHashMap, HashSet as BangHashSet},
   context::ImportValue,

@@ -6,10 +6,8 @@ use bang_interpreter::{
 };
 use std::cell::RefCell;
 
-#[macro_use]
-mod macros;
-
 mod bytecode;
+mod macros;
 pub mod modules;
 
 fn construct_module_identifier(module: &str, item: &str) -> String {

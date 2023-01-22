@@ -1,3 +1,4 @@
+use crate::macros::bytecode;
 use bang_interpreter::{
   chunk::{Chunk, OpCode},
   context::BytecodeFunctionCreator,
