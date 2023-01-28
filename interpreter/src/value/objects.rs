@@ -56,19 +56,17 @@ impl Object {
       // Function types (Function, Native, Closure) are compared by pointer in Value::eq
       (Self::Set(value), Self::Set(other)) => *value.borrow() == *other.borrow(),
       (Self::List(value), Self::List(other)) => {
-        value.as_ptr() == other.as_ptr() || {
-          let value = value.borrow();
-          let other = other.borrow();
+        let value = value.borrow();
+        let other = other.borrow();
 
-          if value.len() != other.len() {
-            return false;
-          }
-
-          value
-            .iter()
-            .zip(other.iter())
-            .all(|(a, b)| Value::equals(a, b, seen))
+        if value.len() != other.len() {
+          return false;
         }
+
+        value
+          .iter()
+          .zip(other.iter())
+          .all(|(a, b)| Value::equals(a, b, seen))
       }
       (Self::Dict(value), Self::Dict(other)) => {
         let value = value.borrow();
