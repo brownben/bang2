@@ -1,3 +1,6 @@
+>[!NOTE]
+>I am working on a [faster v3](https://github.com/brownben/bang3)  
+
 <img src="./logo.svg" height="175px">
 
 # Bang
